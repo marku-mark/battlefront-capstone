@@ -9,6 +9,7 @@ use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Connection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Events\QueryExecuted;
+use Illuminate\Foundation\DevCommands;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Date;
@@ -36,6 +37,7 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->configureDefaults();
         $this->monitorRecommendationQueryTime();
+        DevCommands::artisan('queue:listen --queue=notifications,default --tries=1 --timeout=0', 'queue');
 
         Gate::define(
             'access-administration',
