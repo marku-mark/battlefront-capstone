@@ -2,7 +2,9 @@
 
 namespace App\Actions\Product;
 
+use App\Actions\Catalog\CatalogName;
 use App\Models\Product;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -23,6 +25,9 @@ class UpdateProduct
      */
     public function execute(Product $product, array $attributes, array $tagIds, ?UploadedFile $image): Product
     {
+        if (isset($attributes['name'])) {
+            $attributes['name'] = CatalogName::normalize($attributes['name']);
+        }
         $storedImage = null;
 
         try {
@@ -47,6 +52,10 @@ class UpdateProduct
         } catch (Throwable $exception) {
             if ($storedImage !== null && $storedImage['created']) {
                 $this->deleteManagedProductImage->execute($storedImage['path'], $product->id);
+            }
+
+            if ($exception instanceof UniqueConstraintViolationException) {
+                CatalogName::handleUniqueFailure($exception, 'products', CatalogName::PRODUCT_MESSAGE);
             }
 
             throw $exception;

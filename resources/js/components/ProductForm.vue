@@ -95,7 +95,7 @@ function firstTagError(errors) {
             </div>
 
             <div class="grid gap-5 md:grid-cols-2">
-                <div class="grid gap-2 md:col-span-2">
+                <div v-if="product" class="grid gap-2 md:col-span-2">
                     <Label for="product_code">Product code</Label>
                     <Input
                         id="product_code"
@@ -113,6 +113,13 @@ function firstTagError(errors) {
                                 ? 'Imported codes are fixed so future imports update the same product.'
                                 : 'Use a unique code with 1 to 64 letters or digits.'
                         }}
+                    </p>
+                    <InputError :message="errors.product_code" />
+                </div>
+                <div v-else class="grid gap-2 md:col-span-2">
+                    <p class="text-muted-foreground text-sm">
+                        A unique product code will be assigned automatically
+                        when you create this product.
                     </p>
                     <InputError :message="errors.product_code" />
                 </div>

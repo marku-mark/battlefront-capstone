@@ -89,9 +89,15 @@ class ResolveProductContext
             return ['products' => []];
         }
 
+        $normalizedMessage = $this->normalizedText($message);
+        $namedProducts = $this->products->contextMatches($terms)
+            ->filter(fn (Product $product): bool => $this->messageNamesProduct($normalizedMessage, $product));
+        $products = $namedProducts->isNotEmpty()
+            ? $namedProducts
+            : $this->products->contextMatches($terms, availableOnly: true);
+
         return [
-            'products' => array_values($this->products
-                ->contextMatches($terms)
+            'products' => array_values($products
                 ->map(fn (Product $product): array => $this->mapProduct($product))
                 ->all()),
         ];
@@ -108,14 +114,22 @@ class ResolveProductContext
 
     public function namesProduct(string $message): bool
     {
-        $normalized = Str::of($message)->lower()->replaceMatches('/[^\p{L}\p{N}\s]+/u', ' ')->squish()->toString();
+        $normalizedMessage = $this->normalizedText($message);
 
         return $this->products->contextMatches($this->meaningfulTerms($message))
-            ->contains(function (Product $product) use ($normalized): bool {
-                $name = Str::of($product->name)->lower()->replaceMatches('/[^\p{L}\p{N}\s]+/u', ' ')->squish()->toString();
+            ->contains(fn (Product $product): bool => $this->messageNamesProduct($normalizedMessage, $product));
+    }
 
-                return str_contains(" {$normalized} ", " {$name} ");
-            });
+    private function messageNamesProduct(string $normalizedMessage, Product $product): bool
+    {
+        $name = $this->normalizedText(Str::of($product->name)->replaceMatches('/^\[DEMO\]\s*/iu', '')->toString());
+
+        return $name !== '' && str_contains(" {$normalizedMessage} ", " {$name} ");
+    }
+
+    private function normalizedText(string $text): string
+    {
+        return Str::of($text)->lower()->replaceMatches('/[^\p{L}\p{N}\s]+/u', ' ')->squish()->toString();
     }
 
     /**
@@ -180,7 +194,7 @@ class ResolveProductContext
                 'status' => match (true) {
                     $quantity === null => 'unavailable',
                     $quantity === 0 => 'out_of_stock',
-                    $quantity < $product->inventory->reorder_level => 'low_stock',
+                    $quantity <= $product->inventory->reorder_level => 'low_stock',
                     default => 'in_stock',
                 },
             ],

@@ -38,14 +38,14 @@ class ProductCatalogRepository
     }
 
     /**
-     * Return customer-eligible products for the catalog directory.
+     * Return customer-available products for the catalog directory.
      *
      * @param  array{q: string|null, category_id: int|null, brand: string|null, tag_id: int|null, category_ids?: list<int>, min_price?: string, max_price?: string, sort?: string}  $filters
      * @return LengthAwarePaginator<int, Product>
      */
     public function paginate(array $filters): LengthAwarePaginator
     {
-        $query = $this->catalogQuery($filters);
+        $query = $this->catalogQuery($filters)->customerAvailable();
         $sort = $filters['sort'] ?? 'featured';
 
         if ($sort === 'price_asc' || $sort === 'price_desc') {
@@ -69,6 +69,11 @@ class ProductCatalogRepository
     public function findEligibleOrFail(int $productId): Product
     {
         return $this->catalogQuery()->findOrFail($productId);
+    }
+
+    public function findAvailableOrFail(int $productId): Product
+    {
+        return $this->catalogQuery()->customerAvailable()->findOrFail($productId);
     }
 
     /**
@@ -105,7 +110,7 @@ class ProductCatalogRepository
 
             $query = $this->contextQuery()
                 ->without(['category', 'inventory', 'tags'])
-                ->when($availableOnly, fn (Builder $query): Builder => $query->cartEligible())
+                ->when($availableOnly, fn (Builder $query): Builder => $query->customerAvailable())
                 ->whereNotIn('products.id', $excludedProductIds)
                 ->where(fn (Builder $query): Builder => $tier($query))
                 ->orderBy('name')
@@ -134,7 +139,7 @@ class ProductCatalogRepository
     public function similarProducts(EloquentCollection $anchors, array $excludedProductIds = []): Builder
     {
         return $this->contextQuery()
-            ->cartEligible()
+            ->customerAvailable()
             ->whereNotIn('products.id', array_values(array_unique([...$excludedProductIds, ...$anchors->modelKeys()])))
             ->where(function (Builder $query) use ($anchors): void {
                 $query->whereRaw('1 = 0');
@@ -177,7 +182,7 @@ class ProductCatalogRepository
     public function featuredFallback(array $excludedProductIds = [], int $limit = 40): EloquentCollection
     {
         return $this->contextQuery()
-            ->cartEligible()
+            ->customerAvailable()
             ->whereNotIn('products.id', $excludedProductIds)
             ->where('is_featured', true)
             ->orderBy('name')
@@ -268,13 +273,13 @@ class ProductCatalogRepository
         return [
             'categories' => Category::query()
                 ->active()
-                ->whereIn('id', Product::query()->customerEligible()->select('category_id'))
+                ->whereIn('id', Product::query()->customerAvailable()->select('category_id'))
                 ->select(['id', 'name'])
                 ->orderBy('name')
                 ->orderBy('id')
                 ->get(),
             'brands' => Product::query()
-                ->customerEligible()
+                ->customerAvailable()
                 ->whereNotNull('brand')
                 ->select('brand')
                 ->distinct()
@@ -283,7 +288,7 @@ class ProductCatalogRepository
             'tags' => Tag::query()
                 ->whereHas('products', fn (Builder $query): Builder => $query->whereIn(
                     'products.id',
-                    Product::query()->customerEligible()->select('id'),
+                    Product::query()->customerAvailable()->select('id'),
                 ))
                 ->select(['id', 'name'])
                 ->orderBy('name')

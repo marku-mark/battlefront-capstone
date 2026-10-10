@@ -48,12 +48,12 @@ test('a product may exist without an inventory record', function () {
     expect($product->inventory)->toBeNull();
 });
 
-test('low stock includes only positive quantities below their reorder level', function () {
+test('low stock includes only positive quantities at or below their reorder level', function () {
     $lowStockInventory = Inventory::factory()->create([
         'quantity' => 4,
         'reorder_level' => 5,
     ]);
-    Inventory::factory()->create([
+    $boundaryInventory = Inventory::factory()->create([
         'quantity' => 5,
         'reorder_level' => 5,
     ]);
@@ -72,7 +72,7 @@ test('low stock includes only positive quantities below their reorder level', fu
 
     $lowStockInventoryIds = Inventory::query()->lowStock()->pluck('id')->all();
 
-    expect($lowStockInventoryIds)->toBe([$lowStockInventory->id]);
+    expect($lowStockInventoryIds)->toBe([$lowStockInventory->id, $boundaryInventory->id]);
     expect(Inventory::query()->outOfStock()->pluck('id')->all())
         ->toEqualCanonicalizing([$outOfStockWithZeroThreshold->id, $outOfStockInventory->id]);
 });
@@ -104,7 +104,7 @@ test('products expose low stock through their constrained inventory relationship
         ->keyBy('id');
 
     expect($products[$lowStockProduct->id]->is_low_stock)->toBeTrue()
-        ->and($products[$boundaryProduct->id]->is_low_stock)->toBeFalse()
+        ->and($products[$boundaryProduct->id]->is_low_stock)->toBeTrue()
         ->and($products[$uninitializedProduct->id]->is_low_stock)->toBeFalse()
         ->and($products[$outOfStockProduct->id]->is_low_stock)->toBeFalse();
 });

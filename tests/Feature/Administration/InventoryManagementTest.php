@@ -87,12 +87,13 @@ test('administrators can filter products with low stock remaining', function () 
     $response->assertInertia(fn (Assert $page) => $page
         ->component('Administration/Inventory')
         ->where('filters.stock', 'low_stock')
-        ->where('low_stock_count', 1)
+        ->where('low_stock_count', 2)
         ->where('out_of_stock_count', 1)
-        ->where('products.total', 1)
-        ->where('products.data.0.name', 'Low Stock Product')
+        ->where('products.total', 2)
+        ->where('products.data.0.name', 'Boundary Product')
         ->where('products.data.0.is_low_stock', true)
-        ->where('products.data.0.stock_status', 'low_stock'));
+        ->where('products.data.0.stock_status', 'low_stock')
+        ->where('products.data.1.name', 'Low Stock Product'));
 });
 
 test('administrators can filter inventory by stock status', function (string $stock, string $expectedName) {
@@ -102,7 +103,7 @@ test('administrators can filter inventory by stock status', function (string $st
     $outOfStockProduct = Product::factory()->create(['name' => 'Out Of Stock Product']);
     Product::factory()->create(['name' => 'Uninitialized Product']);
     Inventory::factory()->for($inStockProduct)->create([
-        'quantity' => 5,
+        'quantity' => 6,
         'reorder_level' => 5,
     ]);
     Inventory::factory()->for($lowStockProduct)->create([
@@ -230,7 +231,7 @@ test('inventory pagination preserves the active query', function () {
     Product::factory()
         ->count(26)
         ->for($category)
-        ->state(['name' => 'Matching inventory product'])
+        ->sequence(fn ($sequence): array => ['name' => sprintf('Matching inventory product %02d', $sequence->index + 1)])
         ->has(Inventory::factory()->state([
             'quantity' => 1,
             'reorder_level' => 2,

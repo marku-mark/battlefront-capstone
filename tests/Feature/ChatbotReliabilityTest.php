@@ -109,8 +109,8 @@ test('provider outage distinguishes unknown stock from zero stock', function (?i
 test('provider outage asks which product when several match', function () {
     Http::preventStrayRequests();
     ChatbotResponseAgent::fake(fn () => throw new AiException)->preventStrayPrompts();
-    Product::factory()->create(['name' => 'Aurelius Mouse']);
-    Product::factory()->create(['name' => 'Aurelius Keyboard']);
+    Product::factory()->available()->create(['name' => 'Aurelius Mouse']);
+    Product::factory()->available()->create(['name' => 'Aurelius Keyboard']);
 
     $response = $this->postJson(route('chatbot.store'), ['message' => 'What is the price of Aurelius?']);
 

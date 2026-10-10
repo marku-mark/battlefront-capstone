@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button';
 import { dashboard, home, login, register } from '@/routes';
 import { index as branchIndex } from '@/routes/branches';
 import { index as productIndex } from '@/routes/products';
-import { index as recommendationIndex } from '@/routes/recommendations';
 
 const props = defineProps({
     activeSection: { type: String, default: null },
@@ -21,12 +20,6 @@ const storefrontLinks = [
         mobileTitle: 'Shop',
         section: 'products',
         href: productIndex(),
-    },
-    {
-        title: 'Recommendations',
-        mobileTitle: 'For you',
-        section: 'recommendations',
-        href: recommendationIndex(),
     },
     {
         title: 'Branches',

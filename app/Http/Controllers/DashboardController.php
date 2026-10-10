@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\Recommendation\BuildRecommendationViewData;
 use App\Models\User;
 use App\Services\Dashboard\DashboardService;
 use Illuminate\Http\Request;
@@ -13,8 +14,11 @@ class DashboardController extends Controller
     /**
      * Display the dashboard for the authenticated account's role.
      */
-    public function __invoke(Request $request, DashboardService $dashboardService): Response
-    {
+    public function __invoke(
+        Request $request,
+        DashboardService $dashboardService,
+        BuildRecommendationViewData $buildRecommendationViewData,
+    ): Response {
         /** @var User $user */
         $user = $request->user();
 
@@ -26,6 +30,7 @@ class DashboardController extends Controller
 
         return Inertia::render('Dashboard/Customer', [
             'dashboard' => $dashboardService->customer($user),
+            ...$buildRecommendationViewData($user, hideWhenPersonalizationDisabled: true),
         ]);
     }
 }

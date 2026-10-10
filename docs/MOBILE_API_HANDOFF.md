@@ -276,9 +276,11 @@ List entries and `GET /products/{product}` share this product shape (detail wrap
 }
 ```
 
-Active products in active categories are eligible. Inactive products/category products are omitted from lists and return 404 on detail. Missing or nonnumeric product IDs return 404. Eligible products with no inventory or zero inventory **remain visible**.
+Catalog products must be active, belong to an active category, and have existing Sagay inventory with `quantity > 0`. Zero-stock, missing-inventory, inactive products, and products in inactive categories are omitted from lists and return 404 on detail. Missing or nonnumeric product IDs also return 404. Restocking an active product in an active category makes it visible on the next request without changing either stored activation flag.
 
-`inventory.status` is one of `in_stock`, `low_stock`, `out_of_stock`, `unavailable`. It reflects current Sagay inventory; exact stock quantity is omitted. Use `discount_price ?? price` as effective price. Brand, description, image_url and discount_price may be null. Image URLs come from Laravel's configured asset/storage URLs.
+Catalog and recommendation `inventory.status` is `low_stock` when `quantity > 0 && quantity <= reorder_level`, or `in_stock` when `quantity > reorder_level`. Equal stock is low stock; positive stock with a zero reorder level is in stock. Zero/missing inventory remains classified internally as `out_of_stock`/`unavailable` but is excluded from these customer responses. Exact stock quantity is omitted. Use `discount_price ?? price` as effective price. Brand, description, image_url and discount_price may be null. Image URLs come from Laravel's configured asset/storage URLs.
+
+Category options include only active categories containing an available product; brand/tag options also come only from available products. Existing active category IDs and existing tag IDs remain valid filters after their last product sells out and return empty results. A multiple-category selection continues matching the available products in its other selected categories. Inactive or nonexistent category IDs retain validation errors. Refresh options when revisiting the catalog; do not automatically clear a valid stale selection or reactivate records. Pagination totals count only currently available results; inventory changes between requests can shift offset-based pages, so refresh from page one to obtain a fresh listing.
 
 A list wraps these entries in the pagination structure described above. No matches yields an empty paginated collection.
 

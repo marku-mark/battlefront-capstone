@@ -2,11 +2,13 @@
 
 namespace App\Services;
 
+use App\Actions\Catalog\CatalogName;
 use App\Actions\Product\ProductImagePaths;
 use App\Models\Category;
 use App\Models\Inventory;
 use App\Models\Product;
 use App\Models\Tag;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
@@ -66,6 +68,8 @@ class RealCatalogImportService
             }
         }
 
+        $this->ensureUniqueProductNames($prepared);
+
         return $prepared;
     }
 
@@ -79,9 +83,13 @@ class RealCatalogImportService
         $entries = $this->images->importEntries($manifestPath);
         $mapping = $this->readMapping($mappingPath);
         $prepared = [];
+        $seenNames = [];
 
         foreach ($entries as $entry) {
             $code = $entry['product_code'];
+            if (($entry['quantity_source'] ?? null) === 'development_demo' && ! app()->environment(['local', 'testing'])) {
+                throw new RuntimeException('Demo catalog inventory is only allowed in local and testing environments.');
+            }
             if (! isset($mapping[$code])) {
                 throw new RuntimeException("Verified product details are missing for code $code.");
             }
@@ -100,6 +108,12 @@ class RealCatalogImportService
             if ($details['name'] !== $name || $details['category'] !== $category) {
                 throw new RuntimeException("Verified details do not match the exact source name and category for code $code.");
             }
+
+            $nameKey = CatalogName::key($name);
+            if (isset($seenNames[$nameKey])) {
+                throw new RuntimeException("Duplicate normalized product names for codes {$seenNames[$nameKey]} and {$code}. No products were imported.");
+            }
+            $seenNames[$nameKey] = $code;
 
             if ($sourceQuantity === null || $sourceQuantity === '') {
                 if ($details['quantity_override'] === '') {
@@ -158,52 +172,69 @@ class RealCatalogImportService
     {
         $prepared = $this->inspect($mappingPath, $manifestPath);
 
-        return DB::transaction(function () use ($prepared): array {
-            $created = 0;
-            $updated = 0;
-            foreach ($prepared as $row) {
-                $category = Category::query()->firstOrCreate(['name' => $row['category']]);
-                $product = Product::query()->where('product_code', $row['product_code'])->lockForUpdate()->first()
-                    ?? new Product(['product_code' => $row['product_code']]);
-                $isNew = ! $product->exists;
-                if (! $isNew && (! $product->is_catalog_imported || $product->product_code !== $row['product_code'])) {
-                    throw new RuntimeException("Product code {$row['product_code']} conflicts with an existing product.");
-                }
-                $product->fill([
-                    'name' => $row['name'],
-                    'category_id' => $category->id,
-                    'brand' => $row['brand'] ?? $product->brand,
-                    'price' => $row['price'],
-                ]);
-                if (! ProductImagePaths::isAdminOwned($product->image_path, $product->id)) {
-                    $product->image_path = $row['image_path'];
-                }
-                $product->is_catalog_imported = true;
-                $product->save();
+        try {
+            return DB::transaction(function () use ($prepared): array {
+                $this->ensureUniqueProductNames($prepared);
+                $created = 0;
+                $updated = 0;
+                foreach ($prepared as $row) {
+                    $category = Category::query()->where('name_key', CatalogName::key($row['category']))->first()
+                        ?? Category::query()->create(['name' => $row['category']]);
+                    $product = Product::query()->where('product_code', $row['product_code'])->lockForUpdate()->first()
+                        ?? new Product(['product_code' => $row['product_code']]);
+                    $isNew = ! $product->exists;
+                    if (! $isNew && (! $product->is_catalog_imported || $product->product_code !== $row['product_code'])) {
+                        throw new RuntimeException("Product code {$row['product_code']} conflicts with an existing product.");
+                    }
+                    $product->fill([
+                        'name' => $row['name'],
+                        'category_id' => $category->id,
+                        'brand' => $row['brand'] ?? $product->brand,
+                        'price' => $row['price'],
+                    ]);
+                    if (! ProductImagePaths::isAdminOwned($product->image_path, $product->id)) {
+                        $product->image_path = $row['image_path'];
+                    }
+                    $product->is_catalog_imported = true;
+                    $product->save();
 
-                $inventory = Inventory::query()->firstOrCreate(
-                    ['product_id' => $product->id],
-                    ['quantity' => $row['quantity'], 'reorder_level' => $row['reorder_level']],
-                );
-                if ($inventory->reorder_level !== $row['reorder_level']) {
-                    $inventory->update(['reorder_level' => $row['reorder_level']]);
+                    $inventory = Inventory::query()->firstOrCreate(
+                        ['product_id' => $product->id],
+                        ['quantity' => $row['quantity'], 'reorder_level' => $row['reorder_level']],
+                    );
+                    if ($inventory->reorder_level !== $row['reorder_level']) {
+                        $inventory->update(['reorder_level' => $row['reorder_level']]);
+                    }
+
+                    $tagIds = [];
+                    foreach ($row['tags'] as $tagName) {
+                        $tagIds[] = Tag::query()->firstOrCreate(['name' => $tagName])->id;
+                    }
+                    $product->tags()->sync($tagIds);
+
+                    if ($isNew) {
+                        $created++;
+                    } else {
+                        $updated++;
+                    }
                 }
 
-                $tagIds = [];
-                foreach ($row['tags'] as $tagName) {
-                    $tagIds[] = Tag::query()->firstOrCreate(['name' => $tagName])->id;
-                }
-                $product->tags()->sync($tagIds);
+                return ['created' => $created, 'updated' => $updated];
+            });
+        } catch (UniqueConstraintViolationException $exception) {
+            throw new RuntimeException('Catalog names or product codes conflict with existing records. No products were imported.', previous: $exception);
+        }
+    }
 
-                if ($isNew) {
-                    $created++;
-                } else {
-                    $updated++;
-                }
+    /** @param list<array<string, mixed>> $prepared */
+    private function ensureUniqueProductNames(array $prepared): void
+    {
+        foreach ($prepared as $row) {
+            if (Product::query()->where('name_key', CatalogName::key($row['name']))
+                ->where('product_code', '!=', $row['product_code'])->exists()) {
+                throw new RuntimeException("Product name for code {$row['product_code']} conflicts with an existing product. No products were imported.");
             }
-
-            return ['created' => $created, 'updated' => $updated];
-        });
+        }
     }
 
     /**

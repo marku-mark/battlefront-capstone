@@ -6,6 +6,7 @@ use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
 use App\Models\Inventory;
 use App\Models\Order;
+use App\Models\Product;
 use App\Models\Sale;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
@@ -39,8 +40,9 @@ class DashboardService
                 ],
             )
             ->first();
-        $lowStockQuery = Inventory::query()->lowStock();
-        $outOfStockQuery = Inventory::query()->outOfStock();
+        $operationalInventory = Inventory::query()->whereIn('product_id', Product::query()->customerEligible()->select('id'));
+        $lowStockQuery = (clone $operationalInventory)->lowStock();
+        $outOfStockQuery = (clone $operationalInventory)->outOfStock();
 
         return [
             'kpis' => [

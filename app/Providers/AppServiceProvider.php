@@ -84,10 +84,10 @@ class AppServiceProvider extends ServiceProvider
             $routeName = request()->route()?->getName();
 
             if (! in_array($routeName, [
-                'home',
+                'dashboard',
+                'products.index',
                 'products.show',
                 'cart.index',
-                'recommendations.index',
                 'recommendations.interactions.store',
                 'api.v1.recommendations.feed',
                 'api.v1.recommendations.personalized',

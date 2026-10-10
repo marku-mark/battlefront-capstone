@@ -1,5 +1,5 @@
 <script setup>
-import { Head, InfiniteScroll, Link, router } from '@inertiajs/vue3';
+import { Head, InfiniteScroll, Link, router, usePage } from '@inertiajs/vue3';
 import {
     ArrowRight,
     Boxes,
@@ -12,6 +12,7 @@ import { computed, ref, watch } from 'vue';
 import ProductImage from '@/components/catalog/ProductImage.vue';
 import ProductPrice from '@/components/catalog/ProductPrice.vue';
 import StockAvailability from '@/components/catalog/StockAvailability.vue';
+import RecommendationSection from '@/components/recommendations/RecommendationSection.vue';
 import StorefrontHeader from '@/components/StorefrontHeader.vue';
 import { useDebouncedSearch } from '@/composables/useDebouncedSearch';
 import { useProductPrefetch } from '@/composables/useProductPrefetch';
@@ -33,12 +34,45 @@ const props = defineProps({
     products: { type: Object, required: true },
     filters: { type: Object, required: true },
     filter_options: { type: Object, required: true },
+    recommendations: { type: Array, default: () => [] },
+    is_personalized: { type: Boolean, default: false },
+    has_featured_fallback: { type: Boolean, default: false },
 });
 
+const page = usePage();
+const isAuthenticated = computed(() => Boolean(page.props.auth?.user));
 const categoryId = ref(String(props.filters.category_id ?? 'all'));
 const brand = ref(props.filters.brand ?? 'all');
 const tagId = ref(String(props.filters.tag_id ?? 'all'));
+const categoryPlaceholder = computed(() =>
+    categoryId.value !== 'all' &&
+    !props.filter_options.categories.some(
+        (category) => String(category.id) === categoryId.value,
+    )
+        ? 'Selected category unavailable'
+        : 'All categories',
+);
+const brandPlaceholder = computed(() =>
+    brand.value !== 'all' && !props.filter_options.brands.includes(brand.value)
+        ? 'Selected brand unavailable'
+        : 'All brands',
+);
+const tagPlaceholder = computed(() =>
+    tagId.value !== 'all' &&
+    !props.filter_options.tags.some((tag) => String(tag.id) === tagId.value)
+        ? 'Selected tag unavailable'
+        : 'All tags',
+);
 const { prefetchProduct, cancelProductPrefetch } = useProductPrefetch();
+const catalogReloadProps = [
+    'products',
+    'filters',
+    'filter_options',
+    'recommendations',
+    'is_personalized',
+    'has_featured_fallback',
+    'guest_recommendation_scope',
+];
 
 const { search, isSearching, clearSearch, cancelPendingSearch } =
     useDebouncedSearch({
@@ -47,6 +81,7 @@ const { search, isSearching, clearSearch, cancelPendingSearch } =
         route: productIndex,
         query: selectedFilters,
         reset: ['products'],
+        only: catalogReloadProps,
         preserveScroll: false,
     });
 
@@ -59,6 +94,15 @@ const hasAppliedFilters = computed(() =>
 );
 const hasActiveQuery = computed(
     () => hasSearch.value || hasAppliedFilters.value,
+);
+const showRecommendations = computed(
+    () =>
+        props.recommendations.length > 0 &&
+        !hasActiveQuery.value &&
+        !hasSearchInput.value &&
+        [categoryId.value, brand.value, tagId.value].every(
+            (value) => value === 'all',
+        ),
 );
 
 function selectedValue(value) {
@@ -110,6 +154,7 @@ function updateFilters() {
             preserveState: true,
             replace: true,
             reset: ['products'],
+            only: catalogReloadProps,
         },
     );
 }
@@ -187,6 +232,31 @@ watch([categoryId, brand, tagId], updateFilters);
                     </p>
                 </div>
             </section>
+
+            <div v-if="showRecommendations" class="mt-8">
+                <RecommendationSection
+                    :recommendations="recommendations"
+                    placement="catalog"
+                    :title="
+                        is_personalized
+                            ? 'Recommended for you'
+                            : has_featured_fallback
+                              ? 'Popular and featured products'
+                              : 'Popular products'
+                    "
+                    :description="
+                        is_personalized
+                            ? isAuthenticated
+                                ? 'Suggestions based on your recent browsing, cart, and completed purchases.'
+                                : 'Suggestions based on your recent browsing in this browser.'
+                            : 'Popular and featured picks with current Sagay stock.'
+                    "
+                />
+            </div>
+
+            <div class="border-border mt-8 border-t pt-8">
+                <h2 class="text-2xl font-bold tracking-tight">All products</h2>
+            </div>
 
             <section
                 class="border-border bg-card mt-6 border p-5 sm:p-6"
@@ -269,7 +339,9 @@ watch([categoryId, brand, tagId], updateFilters);
                                     id="catalog-category"
                                     class="w-full"
                                 >
-                                    <SelectValue placeholder="All categories" />
+                                    <SelectValue
+                                        :placeholder="categoryPlaceholder"
+                                    />
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="all">
@@ -293,7 +365,9 @@ watch([categoryId, brand, tagId], updateFilters);
                                     id="catalog-brand"
                                     class="w-full"
                                 >
-                                    <SelectValue placeholder="All brands" />
+                                    <SelectValue
+                                        :placeholder="brandPlaceholder"
+                                    />
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="all">
@@ -314,7 +388,9 @@ watch([categoryId, brand, tagId], updateFilters);
                             <Label for="catalog-tag">Tag</Label>
                             <Select v-model="tagId">
                                 <SelectTrigger id="catalog-tag" class="w-full">
-                                    <SelectValue placeholder="All tags" />
+                                    <SelectValue
+                                        :placeholder="tagPlaceholder"
+                                    />
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="all"

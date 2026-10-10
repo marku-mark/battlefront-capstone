@@ -58,13 +58,16 @@ test('preparation preserves progress when the private workbooks have not changed
 
         $manifest = json_decode(file_get_contents($manifestPath), true, flags: JSON_THROW_ON_ERROR);
         $manifest['entries'][0]['status'] = 'complete';
+        $manifest['entries'][0]['source_quantity'] = $manifest['entries'][0]['quantity'];
+        $manifest['entries'][0]['quantity_source'] = 'development_demo';
+        $manifest['entries'][0]['quantity'] = '11';
         file_put_contents($manifestPath, json_encode($manifest, JSON_THROW_ON_ERROR));
 
         $second = new Process($arguments);
         $second->run();
 
         expect($second->isSuccessful())->toBeTrue()
-            ->and(json_decode(file_get_contents($manifestPath), true)['entries'][0]['status'])->toBe('complete');
+            ->and(json_decode(file_get_contents($manifestPath), true))->toBe($manifest);
     } finally {
         if (is_file($manifestPath)) {
             unlink($manifestPath);

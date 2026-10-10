@@ -92,7 +92,7 @@ test('customers see only their authoritative cart prices totals and stock confli
 });
 
 test('catalog pages share the customer cart capability', function (string $account, bool $expected) {
-    $product = Product::factory()->create();
+    $product = Product::factory()->available()->create();
 
     if ($account === 'customer') {
         $this->actingAs(User::factory()->customer()->create());

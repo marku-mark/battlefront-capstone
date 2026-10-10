@@ -12,16 +12,17 @@ test('guests can browse paginated customer eligible products in stable order', f
     $activeCategory = Category::factory()->create();
     $inactiveCategory = Category::factory()->inactive()->create();
     Product::factory()
+        ->available()
         ->count(13)
         ->for($activeCategory)
         ->sequence(fn ($sequence): array => [
             'name' => sprintf('Product %02d', 13 - $sequence->index),
         ])
         ->create();
-    Product::factory()->for($activeCategory)->inactive()->create([
+    Product::factory()->available()->for($activeCategory)->inactive()->create([
         'name' => 'Inactive product',
     ]);
-    Product::factory()->for($inactiveCategory)->create([
+    Product::factory()->available()->for($inactiveCategory)->create([
         'name' => 'Hidden category product',
     ]);
 
@@ -40,14 +41,14 @@ test('guests can browse paginated customer eligible products in stable order', f
         ->not->toContain('Hidden category product');
 });
 
-test('catalog products are ordered by featured status name and id regardless of availability', function () {
+test('available catalog products retain featured and name ordering', function () {
     $inStockZulu = Product::factory()->create([
         'name' => 'Zulu in-stock product',
         'is_featured' => true,
     ]);
     $inStockAlpha = Product::factory()->create(['name' => 'Alpha in-stock product']);
-    $inStockDuplicateFirst = Product::factory()->create(['name' => 'Same in-stock product']);
-    $inStockDuplicateSecond = Product::factory()->create(['name' => 'Same in-stock product']);
+    $inStockVariantFirst = Product::factory()->create(['name' => 'Same in-stock product 01']);
+    $inStockVariantSecond = Product::factory()->create(['name' => 'Same in-stock product 02']);
     $lowStockZulu = Product::factory()->create([
         'name' => 'Zulu low-stock product',
         'is_featured' => true,
@@ -67,11 +68,11 @@ test('catalog products are ordered by featured status name and id regardless of 
         'quantity' => 5,
         'reorder_level' => 5,
     ]);
-    Inventory::factory()->for($inStockDuplicateFirst)->create([
+    Inventory::factory()->for($inStockVariantFirst)->create([
         'quantity' => 2,
         'reorder_level' => 0,
     ]);
-    Inventory::factory()->for($inStockDuplicateSecond)->create([
+    Inventory::factory()->for($inStockVariantSecond)->create([
         'quantity' => 2,
         'reorder_level' => 0,
     ]);
@@ -94,28 +95,24 @@ test('catalog products are ordered by featured status name and id regardless of 
         ->toBe([
             $inStockZulu->id,
             $lowStockZulu->id,
-            $outOfStock->id,
             $inStockAlpha->id,
             $lowStockAlpha->id,
-            $uninitialized->id,
-            $inStockDuplicateFirst->id,
-            $inStockDuplicateSecond->id,
+            $inStockVariantFirst->id,
+            $inStockVariantSecond->id,
         ]);
     expect(collect($response->inertiaProps('products.data'))->pluck('inventory.status')->all())
         ->toBe([
             'in_stock',
             'low_stock',
-            'out_of_stock',
-            'in_stock',
             'low_stock',
-            'unavailable',
+            'low_stock',
             'in_stock',
             'in_stock',
         ]);
 });
 
 test('the catalog returns an explicit empty result when no products are eligible', function () {
-    Product::factory()->inactive()->create();
+    Product::factory()->available()->inactive()->create();
 
     $this->get(route('products.index'))
         ->assertInertia(fn (Assert $page) => $page
@@ -125,7 +122,7 @@ test('the catalog returns an explicit empty result when no products are eligible
 });
 
 test('the catalog includes products without verified brands but omits null brand filters', function () {
-    $product = Product::factory()->create(['brand' => null]);
+    $product = Product::factory()->available()->create(['brand' => null]);
 
     $this->get(route('products.index'))->assertInertia(fn (Assert $page) => $page
         ->component('Products/Index')
@@ -172,7 +169,7 @@ test('product details use authoritative catalog relationships and stock data', f
 });
 
 test('products without an image expose the catalog fallback state', function () {
-    $product = Product::factory()->create(['image_path' => null]);
+    $product = Product::factory()->available()->create(['image_path' => null]);
 
     $this->get(route('products.show', $product))
         ->assertInertia(fn (Assert $page) => $page
@@ -180,7 +177,7 @@ test('products without an image expose the catalog fallback state', function () 
             ->where('product.image_url', null));
 });
 
-test('product details distinguish out of stock and unavailable inventory', function (bool $hasInventory, string $expectedStatus) {
+test('unavailable product details return 404', function (bool $hasInventory) {
     $product = Product::factory()->create();
 
     if ($hasInventory) {
@@ -190,21 +187,17 @@ test('product details distinguish out of stock and unavailable inventory', funct
         ]);
     }
 
-    $this->get(route('products.show', $product))
-        ->assertInertia(fn (Assert $page) => $page
-            ->component('Products/Show')
-            ->where('product.inventory.quantity', $hasInventory ? 0 : null)
-            ->where('product.inventory.status', $expectedStatus));
+    $this->get(route('products.show', $product))->assertNotFound();
 })->with([
-    'out of stock' => [true, 'out_of_stock'],
-    'inventory unavailable' => [false, 'unavailable'],
+    'out of stock' => [true],
+    'inventory unavailable' => [false],
 ]);
 
 test('customer ineligible products are not exposed', function (Product $product) {
     $this->get(route('products.show', $product))->assertNotFound();
 })->with([
-    'inactive product' => fn (): Product => Product::factory()->inactive()->create(),
-    'product in inactive category' => fn (): Product => Product::factory()
+    'inactive product' => fn (): Product => Product::factory()->available()->inactive()->create(),
+    'product in inactive category' => fn (): Product => Product::factory()->available()
         ->for(Category::factory()->inactive())
         ->create(),
 ]);
@@ -217,17 +210,17 @@ test('unknown product identifiers return a not found response', function (string
 ]);
 
 test('customers can search eligible product names brands and descriptions', function () {
-    Product::factory()->create(['name' => 'Atlas Graphics Card']);
-    Product::factory()->create([
+    Product::factory()->available()->create(['name' => 'Atlas Graphics Card']);
+    Product::factory()->available()->create([
         'name' => 'Keyboard',
         'brand' => 'Atlas Hardware',
     ]);
-    Product::factory()->create([
+    Product::factory()->available()->create([
         'name' => 'Processor',
         'description' => 'Built for Atlas workstations.',
     ]);
-    Product::factory()->create(['name' => 'Unrelated Monitor']);
-    Product::factory()->inactive()->create(['name' => 'Inactive Atlas Product']);
+    Product::factory()->available()->create(['name' => 'Unrelated Monitor']);
+    Product::factory()->available()->inactive()->create(['name' => 'Inactive Atlas Product']);
 
     $response = $this->get(route('products.index', ['q' => 'Atlas']));
 
@@ -246,25 +239,25 @@ test('customers can combine category brand and tag filters', function () {
     $gaming = Tag::factory()->create(['name' => 'Gaming']);
     $office = Tag::factory()->create(['name' => 'Office']);
 
-    $matchingProduct = Product::factory()->for($processors)->create([
+    $matchingProduct = Product::factory()->available()->for($processors)->create([
         'name' => 'Matching Processor',
         'brand' => 'AMD',
     ]);
     $matchingProduct->tags()->attach($gaming);
 
-    $wrongCategory = Product::factory()->for($storage)->create([
+    $wrongCategory = Product::factory()->available()->for($storage)->create([
         'name' => 'Wrong Category',
         'brand' => 'AMD',
     ]);
     $wrongCategory->tags()->attach($gaming);
 
-    $wrongBrand = Product::factory()->for($processors)->create([
+    $wrongBrand = Product::factory()->available()->for($processors)->create([
         'name' => 'Wrong Brand',
         'brand' => 'Intel',
     ]);
     $wrongBrand->tags()->attach($gaming);
 
-    $wrongTag = Product::factory()->for($processors)->create([
+    $wrongTag = Product::factory()->available()->for($processors)->create([
         'name' => 'Wrong Tag',
         'brand' => 'AMD',
     ]);
@@ -300,13 +293,15 @@ test('stock availability is not accepted as a customer catalog filter', function
         ->assertInertia(fn (Assert $page) => $page
             ->missing('filters.stock')
             ->missing('filter_options.stock')
-            ->has('products.data', 2));
+            ->has('products.data', 1)
+            ->where('products.data.0.id', $inStock->id));
 });
 
 test('catalog pagination preserves active filters and deterministic ordering', function () {
     $category = Category::factory()->create();
     $tag = Tag::factory()->create();
     $products = Product::factory()
+        ->available()
         ->count(13)
         ->for($category)
         ->sequence(fn ($sequence): array => [
@@ -336,7 +331,7 @@ test('catalog pagination preserves active filters and deterministic ordering', f
 });
 
 test('catalog scroll requests return one page with next and previous page metadata', function () {
-    Product::factory()->count(13)->create();
+    Product::factory()->available()->count(13)->create();
 
     $firstPage = $this->get(route('products.index'));
     $initialPage = $firstPage->viewData('page');
@@ -369,8 +364,8 @@ test('catalog scroll requests return one page with next and previous page metada
 });
 
 test('a filtered catalog scroll response resets previously accumulated products', function () {
-    Product::factory()->create(['name' => 'Graphics Card']);
-    Product::factory()->create(['name' => 'Keyboard']);
+    Product::factory()->available()->create(['name' => 'Graphics Card']);
+    Product::factory()->available()->create(['name' => 'Keyboard']);
     $version = $this->get(route('products.index'))->viewData('page')['version'];
 
     $response = $this->withHeaders([
@@ -387,7 +382,7 @@ test('a filtered catalog scroll response resets previously accumulated products'
         ->assertJsonPath('scrollProps.products.reset', true);
 });
 
-test('stock changes between catalog pages do not duplicate or skip products', function () {
+test('fresh catalog pagination counts only current available inventory', function () {
     $products = Product::factory()
         ->count(13)
         ->sequence(fn ($sequence): array => [
@@ -403,12 +398,12 @@ test('stock changes between catalog pages do not duplicate or skip products', fu
     $products->first()->inventory()->update(['quantity' => 0]);
     $secondPage = $this->get(route('products.index', ['page' => 2]));
 
-    $loadedIds = [
-        ...collect($firstPage->inertiaProps('products.data'))->pluck('id')->all(),
-        ...collect($secondPage->inertiaProps('products.data'))->pluck('id')->all(),
-    ];
-
-    expect($loadedIds)->toBe($products->modelKeys());
+    expect($firstPage->inertiaProps('products.total'))->toBe(13);
+    expect($secondPage->inertiaProps('products.total'))->toBe(12);
+    expect($secondPage->inertiaProps('products.data'))->toBe([]);
+    $refreshed = $this->get(route('products.index'));
+    expect(collect($refreshed->inertiaProps('products.data'))->pluck('id')->all())
+        ->toBe($products->skip(1)->values()->modelKeys());
 });
 
 test('catalog query parameters are validated', function (string $field, mixed $value, string $message) {
@@ -439,7 +434,7 @@ test('inactive categories are rejected as catalog filters', function () {
 test('filter options do not expose values from customer ineligible products', function () {
     $visibleCategory = Category::factory()->create(['name' => 'Visible Category']);
     $visibleTag = Tag::factory()->create(['name' => 'Visible Tag']);
-    $visibleProduct = Product::factory()->for($visibleCategory)->create([
+    $visibleProduct = Product::factory()->available()->for($visibleCategory)->create([
         'brand' => 'Visible Brand',
     ]);
     $visibleProduct->tags()->attach($visibleTag);
@@ -448,7 +443,7 @@ test('filter options do not expose values from customer ineligible products', fu
         'name' => 'Hidden Category',
     ]);
     $hiddenTag = Tag::factory()->create(['name' => 'Hidden Tag']);
-    $hiddenProduct = Product::factory()->for($hiddenCategory)->create([
+    $hiddenProduct = Product::factory()->available()->for($hiddenCategory)->create([
         'brand' => 'Hidden Brand',
     ]);
     $hiddenProduct->tags()->attach($hiddenTag);
@@ -463,7 +458,7 @@ test('filter options do not expose values from customer ineligible products', fu
 });
 
 test('filtered catalog results are consistent for guests and authenticated customers', function () {
-    Product::factory()->create([
+    Product::factory()->available()->create([
         'name' => 'Customer Product',
         'brand' => 'Battlefront Demo',
     ]);
@@ -479,7 +474,7 @@ test('filtered catalog results are consistent for guests and authenticated custo
 });
 
 test('the catalog returns an explicit empty result when filters have no matches', function () {
-    Product::factory()->create(['brand' => 'AMD']);
+    Product::factory()->available()->create(['brand' => 'AMD']);
 
     $this->get(route('products.index', ['brand' => 'Intel']))
         ->assertInertia(fn (Assert $page) => $page
@@ -491,7 +486,7 @@ test('the catalog returns an explicit empty result when filters have no matches'
 test('web catalog ignores mobile inputs while preserving filters pagination and scroll resets', function (array $mobileFilters) {
     $category = Category::factory()->create();
     $tag = Tag::factory()->create();
-    $products = Product::factory()->count(13)->for($category)
+    $products = Product::factory()->available()->count(13)->for($category)
         ->sequence(fn ($sequence): array => [
             'name' => sprintf('Atlas Part %02d', $sequence->index),
             'brand' => 'Atlas',

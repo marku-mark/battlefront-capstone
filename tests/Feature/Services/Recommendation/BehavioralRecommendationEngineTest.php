@@ -1,8 +1,8 @@
 <?php
 
+use App\Actions\Recommendation\BuildRecommendationViewData;
 use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
-use App\Http\Controllers\RecommendationController;
 use App\Models\Cart;
 use App\Models\CartItem;
 use App\Models\Category;
@@ -22,11 +22,25 @@ use Illuminate\Support\Facades\Http;
 arch('behavioral recommendations remain independent of chatbot and AI services')
     ->expect([
         'App\Services\Recommendation',
-        RecommendationController::class,
+        BuildRecommendationViewData::class,
         ProductCatalogRepository::class,
         CatalogProductPresenter::class,
     ])
     ->not->toUse(['App\Actions\Chatbot', 'App\Services\Chatbot', 'App\Ai', 'Laravel\Ai', Http::class]);
+
+test('sold out historical views still provide similarity anchors while only available products are recommended', function () {
+    $customer = User::factory()->customer()->create();
+    $category = Category::factory()->create();
+    $anchor = createBehavioralRecommendationTestProduct(['category_id' => $category->id, 'brand' => 'Atlas', 'price' => '100.00']);
+    $candidate = createBehavioralRecommendationTestProduct(['category_id' => $category->id, 'brand' => 'Atlas', 'price' => '100.00']);
+    CustomerProductView::factory()->for($customer)->for($anchor)->create(['expires_at' => now()->addDay()]);
+    $anchor->inventory()->update(['quantity' => 0]);
+
+    $results = app(BehavioralRecommendationEngine::class)->recommendFor($customer);
+
+    expect($results->pluck('product.id')->all())->toBe([$candidate->id]);
+    expect($results->sole()->reasons)->toContain(['code' => 'similar_to_viewed_product', 'value' => 'Similar to a product you viewed']);
+});
 
 function createBehavioralRecommendationTestProduct(array $attributes = []): Product
 {

@@ -27,7 +27,7 @@ class StoreRecommendationInteractionRequest extends FormRequest
             'event_id' => ['required', 'uuid'],
             'product_id' => ['required', 'integer', Rule::exists('products', 'id')->where('is_active', true)],
             'event_type' => ['required', Rule::in(['impression', 'click', 'dismiss', 'report_wrong'])],
-            'placement' => ['required', Rule::in(['home', 'product', 'cart', 'recommendations'])],
+            'placement' => ['required', Rule::in(['home', 'product', 'cart', 'recommendations', 'dashboard', 'catalog'])],
             'position' => ['required', 'integer', 'min:1', 'max:12'],
             'reason_code' => ['nullable', Rule::in([
                 'matched_recent_searches', 'similar_to_viewed_product', 'spent_time_viewing_product',

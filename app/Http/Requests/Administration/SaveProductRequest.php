@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Administration;
 
+use App\Actions\Catalog\CatalogName;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\Tag;
@@ -11,6 +12,13 @@ use Illuminate\Validation\Rule;
 
 class SaveProductRequest extends FormRequest
 {
+    protected function prepareForValidation(): void
+    {
+        if (is_string($this->input('name'))) {
+            $this->merge(['name' => CatalogName::normalize($this->input('name'))]);
+        }
+    }
+
     /**
      * Determine if the user is authorized to make this request.
      */
@@ -32,12 +40,15 @@ class SaveProductRequest extends FormRequest
             : [];
 
         return [
-            'product_code' => [
+            'product_code' => $product instanceof Product ? [
                 'bail', 'required', 'string', 'regex:'.Product::CODE_PATTERN,
-                Rule::unique(Product::class, 'product_code')->ignore($product instanceof Product ? $product : null),
+                Rule::unique(Product::class, 'product_code')->ignore($product),
                 ...$importedCodeRule,
+            ] : ['exclude'],
+            'name' => [
+                'bail', 'required', 'string', 'max:255',
+                CatalogName::uniqueRule(new Product, $product instanceof Product ? $product : null, CatalogName::PRODUCT_MESSAGE),
             ],
-            'name' => ['bail', 'required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:5000'],
             'category_id' => [
                 'bail',

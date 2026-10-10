@@ -369,7 +369,7 @@ test('uses owned order payment context for a shorthand reference instead of gene
     Http::assertNothingSent();
 });
 
-test('passes matched demo products to Gemini as unconfirmed samples instead of missing products', function () {
+test('passes explicitly named demo products to Gemini as unconfirmed samples', function () {
     Http::preventStrayRequests();
     ChatbotResponseAgent::fake([
         'This is a demo listing; Battlefront stock is unconfirmed.',
@@ -382,7 +382,7 @@ test('passes matched demo products to Gemini as unconfirmed samples instead of m
     ]);
 
     $result = app(ChatbotOrchestrationService::class)->respond(
-        'Do you have Samsung product available currently?',
+        'Do you have Samsung Sprint NVMe SSD available currently?',
     );
 
     expect($result)->toBe([

@@ -8,15 +8,15 @@ use App\Models\Tag;
 test('guests receive twelve eligible products per page with stable ordering and filter links', function () {
     $category = Category::factory()->create();
     $tag = Tag::factory()->create();
-    $products = Product::factory()->count(13)->for($category)
+    $products = Product::factory()->available()->count(13)->for($category)
         ->sequence(fn ($sequence): array => [
             'name' => sprintf('Atlas %02d', $sequence->index + 1),
             'brand' => 'Atlas Hardware',
         ])->create();
     $products->each(fn (Product $product) => $product->tags()->attach($tag));
     $products->last()->update(['is_featured' => true]);
-    Product::factory()->for($category)->inactive()->create(['name' => 'Atlas Hidden']);
-    Product::factory()->for(Category::factory()->inactive())->create(['name' => 'Atlas Hidden Category']);
+    Product::factory()->available()->for($category)->inactive()->create(['name' => 'Atlas Hidden']);
+    Product::factory()->available()->for(Category::factory()->inactive())->create(['name' => 'Atlas Hidden Category']);
     $filters = ['q' => 'Atlas', 'category_id' => $category->id, 'brand' => 'Atlas Hardware', 'tag_id' => $tag->id];
 
     $firstPage = $this->get(route('api.v1.products.index', $filters));
@@ -40,11 +40,11 @@ test('guests receive twelve eligible products per page with stable ordering and 
 });
 
 test('catalog search matches names brands and descriptions with the same web results', function () {
-    Product::factory()->create(['name' => 'Atlas Graphics Card']);
-    Product::factory()->create(['name' => 'Keyboard', 'brand' => 'Atlas Hardware']);
-    Product::factory()->create(['name' => 'Processor', 'description' => 'Built for Atlas workstations.']);
-    Product::factory()->create(['name' => 'Unrelated Monitor']);
-    Product::factory()->inactive()->create(['name' => 'Inactive Atlas Product']);
+    Product::factory()->available()->create(['name' => 'Atlas Graphics Card']);
+    Product::factory()->available()->create(['name' => 'Keyboard', 'brand' => 'Atlas Hardware']);
+    Product::factory()->available()->create(['name' => 'Processor', 'description' => 'Built for Atlas workstations.']);
+    Product::factory()->available()->create(['name' => 'Unrelated Monitor']);
+    Product::factory()->available()->inactive()->create(['name' => 'Inactive Atlas Product']);
 
     $response = $this->get(route('api.v1.products.index', ['q' => 'Atlas']));
     $webResponse = $this->get(route('products.index', ['q' => 'Atlas']));
@@ -59,13 +59,13 @@ test('catalog search matches names brands and descriptions with the same web res
 test('catalog category brand and tag filters combine', function () {
     $category = Category::factory()->create();
     $tag = Tag::factory()->create();
-    $matching = Product::factory()->for($category)->create(['brand' => 'AMD']);
+    $matching = Product::factory()->available()->for($category)->create(['brand' => 'AMD']);
     $matching->tags()->attach($tag);
-    $wrongCategory = Product::factory()->create(['brand' => 'AMD']);
+    $wrongCategory = Product::factory()->available()->create(['brand' => 'AMD']);
     $wrongCategory->tags()->attach($tag);
-    $wrongBrand = Product::factory()->for($category)->create(['brand' => 'Intel']);
+    $wrongBrand = Product::factory()->available()->for($category)->create(['brand' => 'Intel']);
     $wrongBrand->tags()->attach($tag);
-    Product::factory()->for($category)->create(['brand' => 'AMD']);
+    Product::factory()->available()->for($category)->create(['brand' => 'AMD']);
 
     $this->get(route('api.v1.products.index', [
         'category_id' => $category->id, 'brand' => 'AMD', 'tag_id' => $tag->id,
@@ -75,12 +75,12 @@ test('catalog category brand and tag filters combine', function () {
 test('filter options include only eligible categories brands and tags', function () {
     $category = Category::factory()->create(['name' => 'Processors']);
     $tag = Tag::factory()->create(['name' => 'Gaming']);
-    $product = Product::factory()->for($category)->create(['brand' => 'AMD']);
+    $product = Product::factory()->available()->for($category)->create(['brand' => 'AMD']);
     $product->tags()->attach($tag);
-    Product::factory()->for($category)->create(['brand' => null]);
-    $hidden = Product::factory()->for(Category::factory()->inactive())->create(['brand' => 'Hidden Brand']);
+    Product::factory()->available()->for($category)->create(['brand' => null]);
+    $hidden = Product::factory()->available()->for(Category::factory()->inactive())->create(['brand' => 'Hidden Brand']);
     $hidden->tags()->attach(Tag::factory()->create());
-    Product::factory()->inactive()->create(['brand' => 'Inactive Brand']);
+    Product::factory()->available()->inactive()->create(['brand' => 'Inactive Brand']);
     Category::factory()->create();
     Tag::factory()->create();
 
@@ -117,12 +117,12 @@ test('product detail returns only the mobile catalog fields', function () {
 
 test('configured image hosts are preserved on product lists as well as details', function () {
     config(['filesystems.disks.public.url' => 'https://assets.example.test/catalog']);
-    $product = Product::factory()->create(['image_path' => 'products/example.webp']);
+    $product = Product::factory()->available()->create(['image_path' => 'products/example.webp']);
     $this->getJson(route('api.v1.products.index'))->assertOk()
         ->assertJsonPath('data.0.image_url', 'https://assets.example.test/catalog/products/example.webp');
 });
 
-test('list and detail expose stock status without exact quantities', function (?int $quantity, int $reorderLevel, string $status) {
+test('available list and detail expose stock status without exact quantities', function (int $quantity, int $reorderLevel, string $status) {
     $product = Product::factory()->create(['image_path' => null, 'brand' => null]);
     if ($quantity !== null) {
         Inventory::factory()->for($product)->create(['quantity' => $quantity, 'reorder_level' => $reorderLevel]);
@@ -138,10 +138,8 @@ test('list and detail expose stock status without exact quantities', function (?
         ->assertJsonPath('data.image_url', null)
         ->assertJsonPath('data.brand', null);
 })->with([
-    'missing inventory' => [null, 3, 'unavailable'],
-    'zero stock' => [0, 3, 'out_of_stock'],
     'below threshold' => [2, 3, 'low_stock'],
-    'at threshold' => [3, 3, 'in_stock'],
+    'at threshold' => [3, 3, 'low_stock'],
     'above threshold' => [4, 3, 'in_stock'],
     'zero threshold' => [1, 0, 'in_stock'],
 ]);
@@ -153,7 +151,7 @@ test('subsequent product requests reflect current Sagay inventory', function () 
     $this->get(route('api.v1.products.show', $product))->assertJsonPath('data.inventory.status', 'in_stock');
     $inventory->update(['quantity' => 0]);
 
-    $this->get(route('api.v1.products.show', $product))->assertJsonPath('data.inventory.status', 'out_of_stock');
+    $this->get(route('api.v1.products.show', $product))->assertNotFound();
 });
 
 test('inactive products and categories are excluded from lists and return 404 on detail', function (Product $product) {
@@ -161,8 +159,8 @@ test('inactive products and categories are excluded from lists and return 404 on
     $this->get(route('api.v1.products.show', $product))->assertNotFound()
         ->assertHeader('Content-Type', 'application/json')->assertJsonStructure(['message']);
 })->with([
-    'inactive product' => fn (): Product => Product::factory()->inactive()->create(),
-    'inactive category' => fn (): Product => Product::factory()->for(Category::factory()->inactive())->create(),
+    'inactive product' => fn (): Product => Product::factory()->available()->inactive()->create(),
+    'inactive category' => fn (): Product => Product::factory()->available()->for(Category::factory()->inactive())->create(),
 ]);
 
 test('unknown product identifiers return JSON 404', function (string $identifier) {
@@ -192,30 +190,30 @@ test('an inactive category filter returns JSON 422', function () {
 });
 
 test('unmatched filters return an empty paginated collection', function () {
-    Product::factory()->create(['brand' => 'AMD']);
+    Product::factory()->available()->create(['brand' => 'AMD']);
 
     $this->get(route('api.v1.products.index', ['brand' => 'Intel']))->assertOk()
         ->assertJsonCount(0, 'data')->assertJsonPath('meta.total', 0)
         ->assertJsonStructure(['data', 'links', 'meta']);
 });
 
-test('unsupported stock filtering does not hide eligible products', function () {
+test('unsupported stock filtering does not expose unavailable products', function () {
     $product = Product::factory()->create();
     Inventory::factory()->for($product)->create(['quantity' => 5, 'reorder_level' => 2]);
     Product::factory()->create();
 
     $this->get(route('api.v1.products.index', ['stock' => 'out_of_stock']))
-        ->assertOk()->assertJsonCount(2, 'data');
+        ->assertOk()->assertJsonCount(1, 'data');
 });
 
 test('mobile categories combine multiple categories with effective price and search filters', function () {
     $categories = Category::factory()->count(2)->create();
     foreach ($categories as $category) {
-        Product::factory()->for($category)->create(['name' => 'Selected GPU', 'brand' => 'Atlas', 'price' => '9000.00', 'discount_price' => '4999.99']);
-        Product::factory()->for($category)->create(['name' => 'Selected GPU', 'brand' => 'Atlas', 'price' => '5000.00', 'discount_price' => null]);
-        Product::factory()->for($category)->create(['name' => 'Selected GPU', 'brand' => 'Other', 'price' => '100.00']);
+        Product::factory()->available()->for($category)->create(['name' => "Selected GPU {$category->id} Discounted", 'brand' => 'Atlas', 'price' => '9000.00', 'discount_price' => '4999.99']);
+        Product::factory()->available()->for($category)->create(['name' => "Selected GPU {$category->id} Regular", 'brand' => 'Atlas', 'price' => '5000.00', 'discount_price' => null]);
+        Product::factory()->available()->for($category)->create(['name' => "Selected GPU {$category->id} Other", 'brand' => 'Other', 'price' => '100.00']);
     }
-    Product::factory()->create(['name' => 'Selected GPU', 'brand' => 'Atlas', 'price' => '100.00']);
+    Product::factory()->available()->create(['name' => 'Selected GPU Outside category', 'brand' => 'Atlas', 'price' => '100.00']);
 
     $this->getJson(route('api.v1.products.index', ['category_ids' => $categories->modelKeys(), 'brand' => 'Atlas', 'q' => 'GPU', 'max_price' => '4999.99']))
         ->assertOk()->assertJsonCount(2, 'data')->assertJsonPath('meta.total', 2);
@@ -224,10 +222,10 @@ test('mobile categories combine multiple categories with effective price and sea
 });
 
 test('price ordering uses discounts and stays stable across pages', function () {
-    $products = Product::factory()->count(13)->sequence(fn ($sequence): array => [
+    $products = Product::factory()->available()->count(13)->sequence(fn ($sequence): array => [
         'name' => sprintf('Part %02d', $sequence->index), 'price' => '20000.00', 'discount_price' => '15000.00',
     ])->create();
-    $cheapest = Product::factory()->create(['name' => 'Discounted', 'price' => '30000.00', 'discount_price' => '14999.99']);
+    $cheapest = Product::factory()->available()->create(['name' => 'Discounted', 'price' => '30000.00', 'discount_price' => '14999.99']);
     $this->getJson(route('api.v1.products.index', ['sort' => 'price_asc']))
         ->assertOk()->assertJsonPath('data.0.id', $cheapest->id)->assertJsonPath('meta.total', 14);
     $this->getJson(route('api.v1.products.index', ['sort' => 'price_asc', 'page' => 2]))
@@ -256,24 +254,24 @@ test('mobile category lists combine with search brand tag and inclusive effectiv
 
     foreach ($categories as $category) {
         foreach ([['price' => '9000.00', 'discount_price' => '4999.99'], ['price' => '5000.00', 'discount_price' => null]] as $prices) {
-            $product = Product::factory()->for($category)->create([
-                'name' => 'Selected GPU', 'brand' => 'Atlas', ...$prices,
+            $product = Product::factory()->available()->for($category)->create([
+                'name' => sprintf('Selected GPU %02d', count($matchingIds) + 1), 'brand' => 'Atlas', ...$prices,
             ]);
             $product->tags()->attach($tag);
             $matchingIds[] = $product->id;
         }
     }
 
-    $excluded = Product::factory()->for($categories->first())->createMany([
-        ['name' => 'Selected GPU', 'brand' => 'Atlas', 'price' => '4999.98'],
-        ['name' => 'Selected GPU', 'brand' => 'Atlas', 'price' => '5000.01'],
-        ['name' => 'Selected GPU', 'brand' => 'Other', 'price' => '5000.00'],
+    $excluded = Product::factory()->available()->for($categories->first())->createMany([
+        ['name' => 'Selected GPU Below bound', 'brand' => 'Atlas', 'price' => '4999.98'],
+        ['name' => 'Selected GPU Above bound', 'brand' => 'Atlas', 'price' => '5000.01'],
+        ['name' => 'Selected GPU Other brand', 'brand' => 'Other', 'price' => '5000.00'],
         ['name' => 'Monitor', 'brand' => 'Atlas', 'price' => '5000.00'],
-        ['name' => 'Selected GPU', 'brand' => 'Atlas', 'price' => '5000.00', 'is_active' => false],
+        ['name' => 'Selected GPU Inactive', 'brand' => 'Atlas', 'price' => '5000.00', 'is_active' => false],
     ]);
     $excluded->each(fn (Product $product) => $product->tags()->attach($tag));
-    Product::factory()->for($categories->first())->create(['name' => 'Selected GPU', 'brand' => 'Atlas', 'price' => '5000.00']);
-    $outsideCategory = Product::factory()->create(['name' => 'Selected GPU', 'brand' => 'Atlas', 'price' => '5000.00']);
+    Product::factory()->available()->for($categories->first())->create(['name' => 'Selected GPU Without tag', 'brand' => 'Atlas', 'price' => '5000.00']);
+    $outsideCategory = Product::factory()->available()->create(['name' => 'Selected GPU Outside category', 'brand' => 'Atlas', 'price' => '5000.00']);
     $outsideCategory->tags()->attach($tag);
 
     $response = $this->get(route('api.v1.products.index', [
@@ -285,20 +283,22 @@ test('mobile category lists combine with search brand tag and inclusive effectiv
     expect(collect($response->json('data'))->pluck('id')->all())->toBe($matchingIds);
 });
 
-test('mobile price sorts use effective prices with name and id ties across complete pages', function (string $sort) {
+test('mobile price sorts use effective prices and name ordering across complete pages', function (string $sort) {
     $category = Category::factory()->create();
     $tag = Tag::factory()->create();
-    $products = Product::factory()->count(13)->for($category)->create([
-        'name' => 'Same Part', 'brand' => 'Atlas', 'price' => '20000.00', 'discount_price' => '15000.00',
+    $products = Product::factory()->available()->count(13)->for($category)->sequence(
+        fn ($sequence): array => ['name' => sprintf('Same Part %02d', $sequence->index + 1)],
+    )->create([
+        'brand' => 'Atlas', 'price' => '20000.00', 'discount_price' => '15000.00',
     ]);
-    $cheapest = Product::factory()->for($category)->create([
+    $cheapest = Product::factory()->available()->for($category)->create([
         'name' => 'Zulu Discounted Part', 'brand' => 'Atlas', 'price' => '30000.00', 'discount_price' => '14999.99',
     ]);
-    $expensive = Product::factory()->for($category)->create([
+    $expensive = Product::factory()->available()->for($category)->create([
         'name' => 'Alpha Expensive Part', 'brand' => 'Atlas', 'price' => '15000.01', 'is_featured' => true,
     ]);
-    $alphaEqual = Product::factory()->for($category)->create(['name' => 'Alpha Equal Part', 'brand' => 'Atlas', 'price' => '15000.00']);
-    $zuluEqual = Product::factory()->for($category)->create(['name' => 'Zulu Equal Part', 'brand' => 'Atlas', 'price' => '15000.00']);
+    $alphaEqual = Product::factory()->available()->for($category)->create(['name' => 'Alpha Equal Part', 'brand' => 'Atlas', 'price' => '15000.00']);
+    $zuluEqual = Product::factory()->available()->for($category)->create(['name' => 'Zulu Equal Part', 'brand' => 'Atlas', 'price' => '15000.00']);
     $products->each(fn (Product $product) => $product->tags()->attach($tag));
     foreach ([$cheapest, $expensive, $alphaEqual, $zuluEqual] as $product) {
         $product->tags()->attach($tag);
@@ -330,9 +330,9 @@ test('mobile price sorts use effective prices with name and id ties across compl
 })->with(['ascending' => ['price_asc'], 'descending' => ['price_desc']]);
 
 test('mobile price bounds preserve zero discounts fallback prices and maximum precision', function (array $filters, string $expectedName) {
-    Product::factory()->create(['name' => 'Zero Discount', 'price' => '100.00', 'discount_price' => '0.00']);
-    Product::factory()->create(['name' => 'Regular Price', 'price' => '100.01', 'discount_price' => null]);
-    Product::factory()->create(['name' => 'Maximum Price', 'price' => '9999999999.99', 'discount_price' => null]);
+    Product::factory()->available()->create(['name' => 'Zero Discount', 'price' => '100.00', 'discount_price' => '0.00']);
+    Product::factory()->available()->create(['name' => 'Regular Price', 'price' => '100.01', 'discount_price' => null]);
+    Product::factory()->available()->create(['name' => 'Maximum Price', 'price' => '9999999999.99', 'discount_price' => null]);
 
     $this->get(route('api.v1.products.index', $filters))->assertOk()
         ->assertJsonCount(1, 'data')->assertJsonPath('data.0.name', $expectedName);
@@ -344,9 +344,9 @@ test('mobile price bounds preserve zero discounts fallback prices and maximum pr
 
 test('empty mobile options retain the existing category and featured ordering', function (mixed $categoryIds, mixed $sort) {
     $category = Category::factory()->create();
-    $featured = Product::factory()->for($category)->create(['name' => 'Zulu', 'price' => '100.00', 'is_featured' => true]);
-    $regular = Product::factory()->for($category)->create(['name' => 'Alpha', 'price' => '1.00']);
-    Product::factory()->create(['name' => 'Outside Category']);
+    $featured = Product::factory()->available()->for($category)->create(['name' => 'Zulu', 'price' => '100.00', 'is_featured' => true]);
+    $regular = Product::factory()->available()->for($category)->create(['name' => 'Alpha', 'price' => '1.00']);
+    Product::factory()->available()->create(['name' => 'Outside Category']);
 
     $response = $this->json('GET', route('api.v1.products.index'), [
         'category_id' => $category->id, 'category_ids' => $categoryIds,

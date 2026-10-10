@@ -5,6 +5,7 @@ use App\Models\Category;
 use App\Models\Inventory;
 use App\Models\Product;
 use App\Models\Tag;
+use App\Repositories\Catalog\ProductCatalogRepository;
 
 test('finds arbitrary catalog products through supported attributes', function (string $message) {
     $category = Category::factory()->create(['name' => 'Field Networking']);
@@ -51,7 +52,7 @@ test('finds arbitrary catalog products through supported attributes', function (
     'case and punctuation' => ['  ARE HELIOS-LABS products available?!  '],
 ]);
 
-test('resolves natural brand and category questions against a historical demo product', function (string $message) {
+test('preserves demo disclaimers for explicit named product questions', function (string $message) {
     $category = Category::factory()->create(['name' => 'Storage']);
     Product::factory()->for($category)->create([
         'name' => '[DEMO] Samsung Sprint NVMe SSD',
@@ -72,8 +73,8 @@ test('resolves natural brand and category questions against a historical demo pr
             'status' => 'unavailable',
         ]);
 })->with([
-    'brand' => ['Do you have Samsung product available currently?'],
-    'category' => ['Do you have product for storage?'],
+    'name' => ['Do you have Samsung Sprint NVMe SSD?'],
+    'demo name' => ['What is the price of [DEMO] Samsung Sprint NVMe SSD?'],
 ]);
 
 test('prioritizes exact and field phrase matches before weaker description matches', function () {
@@ -94,9 +95,9 @@ test('prioritizes exact and field phrase matches before weaker description match
         'brand' => 'Acme',
     ]);
 
-    $context = app(ResolveProductContext::class)->execute('Do you have Nova Station currently?');
+    $products = app(ProductCatalogRepository::class)->contextMatches(['Nova', 'Station']);
 
-    expect(array_column($context['products'], 'name'))->toBe([
+    expect($products->pluck('name')->all())->toBe([
         'Nova Station',
         'Aardvark Nova Station Cable',
         'Alpha Device',
@@ -106,17 +107,17 @@ test('prioritizes exact and field phrase matches before weaker description match
 test('matches every meaningful term across fields without returning partial distractors', function () {
     $networking = Category::factory()->create(['name' => 'Field Networking']);
     $peripherals = Category::factory()->create(['name' => 'Peripherals']);
-    Product::factory()->for($peripherals)->create([
+    Product::factory()->available()->for($peripherals)->create([
         'name' => 'Helios Mouse',
         'description' => null,
         'brand' => 'Helios Labs',
     ]);
-    Product::factory()->for($networking)->create([
+    Product::factory()->available()->for($networking)->create([
         'name' => 'Aurelius Link Station',
         'description' => null,
         'brand' => 'Helios Labs',
     ]);
-    Product::factory()->for($networking)->create([
+    Product::factory()->available()->for($networking)->create([
         'name' => 'Aurelius Router',
         'description' => null,
         'brand' => 'Other Brand',
@@ -127,7 +128,7 @@ test('matches every meaningful term across fields without returning partial dist
     expect(array_column($context['products'], 'name'))->toBe(['Aurelius Link Station']);
 });
 
-test('reports zero and missing Sagay inventory without hiding eligible products', function () {
+test('named product inquiries retain zero and missing stock while discovery hides them', function () {
     $tag = Tag::factory()->create(['name' => 'Remote Kit']);
     $missingInventory = Product::factory()->create(['name' => 'Alpine Remote Kit']);
     $outOfStock = Product::factory()->create(['name' => 'Zephyr Remote Kit']);
@@ -137,30 +138,59 @@ test('reports zero and missing Sagay inventory without hiding eligible products'
 
     $context = app(ResolveProductContext::class)->execute('Is a Remote Kit available?');
 
-    expect($context['products'])->toHaveCount(2)
-        ->and($context['products'][0]['name'])->toBe('Alpine Remote Kit')
-        ->and($context['products'][0]['inventory'])->toBe([
-            'quantity' => null,
-            'status' => 'unavailable',
-        ])
-        ->and($context['products'][1]['name'])->toBe('Zephyr Remote Kit')
-        ->and($context['products'][1]['inventory'])->toBe([
-            'quantity' => 0,
-            'status' => 'out_of_stock',
-        ]);
+    expect($context)->toBe(['products' => []]);
+    $missing = app(ResolveProductContext::class)->execute('Is the Alpine Remote Kit available?');
+    $soldOut = app(ResolveProductContext::class)->execute('Is the ZEPHYR-REMOTE KIT available?');
+    expect($missing['products'])->toHaveCount(1);
+    expect($missing['products'][0]['inventory'])->toBe([
+        'quantity' => null,
+        'status' => 'unavailable',
+    ]);
+    expect($soldOut['products'])->toHaveCount(1);
+    expect($soldOut['products'][0]['inventory'])->toBe([
+        'quantity' => 0,
+        'status' => 'out_of_stock',
+    ]);
 });
 
-test('reports positive inventory below the reorder level as low stock', function () {
+test('reports positive inventory at or below the reorder level as low stock', function (int $quantity) {
     $product = Product::factory()->create(['name' => 'Aurelius Low Stock Router']);
-    Inventory::factory()->for($product)->create(['quantity' => 1, 'reorder_level' => 2]);
+    Inventory::factory()->for($product)->create(['quantity' => $quantity, 'reorder_level' => 2]);
 
     $context = app(ResolveProductContext::class)->execute('Aurelius Low Stock Router');
 
     expect($context['products'][0]['inventory'])->toBe([
-        'quantity' => 1,
+        'quantity' => $quantity,
         'status' => 'low_stock',
     ]);
-});
+})->with(['below' => 1, 'equal' => 2]);
+
+test('chatbot discovery returns available matches across all catalog attributes', function (string $message) {
+    $category = Category::factory()->create(['name' => 'Networking']);
+    $tag = Tag::factory()->create(['name' => 'Remote Kit']);
+    $available = Product::factory()->available()->for($category)->create([
+        'name' => 'Available Remote Kit', 'brand' => 'Atlas', 'description' => 'Outdoor connectivity',
+    ]);
+    $soldOut = Product::factory()->for($category)->create([
+        'name' => 'Sold Out Remote Kit', 'brand' => 'Atlas', 'description' => 'Outdoor connectivity',
+    ]);
+    $missing = Product::factory()->for($category)->create([
+        'name' => 'Missing Remote Kit', 'brand' => 'Atlas', 'description' => 'Outdoor connectivity',
+    ]);
+    Inventory::factory()->for($soldOut)->create(['quantity' => 0]);
+    foreach ([$available, $soldOut, $missing] as $product) {
+        $product->tags()->attach($tag);
+    }
+
+    $context = app(ResolveProductContext::class)->execute($message);
+
+    expect(array_column($context['products'], 'name'))->toBe(['Available Remote Kit']);
+})->with([
+    'category' => 'Show Networking products.',
+    'brand' => 'Do you have Atlas products?',
+    'tag and partial name' => 'Show Remote Kit stock.',
+    'description' => 'I need outdoor connectivity.',
+]);
 
 test('excludes inactive products and products in inactive categories', function () {
     $activeCategory = Category::factory()->create();

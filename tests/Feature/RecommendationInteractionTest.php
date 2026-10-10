@@ -15,6 +15,20 @@ function createInteractionEligibleProduct(): Product
     return $product;
 }
 
+test('delayed recommendation feedback remains recordable after the displayed product sells out', function () {
+    $product = createInteractionEligibleProduct();
+    $product->inventory()->update(['quantity' => 0]);
+    $eventId = (string) Str::uuid();
+
+    $this->postJson(route('recommendations.interactions.store'), [
+        'event_id' => $eventId, 'product_id' => $product->id, 'event_type' => 'impression',
+        'placement' => 'catalog', 'position' => 1, 'reason_code' => 'popular_with_customers',
+    ])->assertNoContent();
+
+    $this->assertDatabaseHas('recommendation_interactions', ['event_id' => $eventId, 'product_id' => $product->id]);
+    $this->get(route('products.show', $product))->assertNotFound();
+});
+
 test('guests can record anonymous recommendation impressions and clicks', function (string $eventType) {
     $product = createInteractionEligibleProduct();
     $eventId = (string) Str::uuid();
@@ -66,6 +80,27 @@ test('mobile clients can record anonymous aggregate recommendation events throug
         'reason_code' => 'similar_to_viewed_product',
     ]);
 });
+
+test('shopping flow placements record every recommendation feedback event', function (string $placement, string $eventType) {
+    $product = createInteractionEligibleProduct();
+    $customer = User::factory()->customer()->create();
+    $eventId = (string) Str::uuid();
+
+    $this->actingAs($customer)->postJson(route('recommendations.interactions.store'), [
+        'event_id' => $eventId,
+        'product_id' => $product->id,
+        'event_type' => $eventType,
+        'placement' => $placement,
+        'position' => 1,
+        'reason_code' => 'matched_recent_searches',
+    ])->assertNoContent();
+
+    $this->assertDatabaseHas('recommendation_interactions', [
+        'event_id' => $eventId,
+        'placement' => $placement,
+        'event_type' => $eventType,
+    ]);
+})->with(['dashboard', 'catalog'])->with(['impression', 'click', 'dismiss', 'report_wrong']);
 
 test('retrying an interaction event does not create a duplicate or alter the original event', function () {
     $product = createInteractionEligibleProduct();

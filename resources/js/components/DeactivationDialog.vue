@@ -27,7 +27,7 @@ const open = ref(false);
 <template>
     <Dialog v-model:open="open">
         <DialogTrigger as-child>
-            <Button variant="ghost" size="sm">
+            <Button variant="destructive-outline" size="sm">
                 <Power />
                 Deactivate
             </Button>
@@ -50,10 +50,11 @@ const open = ref(false);
                     </DialogClose>
                     <Button
                         type="submit"
-                        variant="destructive"
+                        variant="destructive-solid"
                         :disabled="processing"
                     >
                         <Spinner v-if="processing" />
+                        <Power v-else />
                         Deactivate
                     </Button>
                 </DialogFooter>

@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers\Administration;
 
+use App\Actions\Catalog\CatalogName;
+use App\Actions\Category\DeleteCategory;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Administration\SaveCategoryRequest;
 use App\Models\Category;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -42,7 +45,11 @@ class CategoryController extends Controller
      */
     public function store(SaveCategoryRequest $request): RedirectResponse
     {
-        Category::query()->create($request->validated());
+        try {
+            Category::query()->create($request->validated());
+        } catch (UniqueConstraintViolationException $exception) {
+            CatalogName::handleUniqueFailure($exception, 'categories', CatalogName::CATEGORY_MESSAGE);
+        }
 
         Inertia::flash('toast', [
             'type' => 'success',
@@ -72,11 +79,27 @@ class CategoryController extends Controller
      */
     public function update(SaveCategoryRequest $request, Category $category): RedirectResponse
     {
-        $category->update($request->validated());
+        try {
+            $category->update($request->validated());
+        } catch (UniqueConstraintViolationException $exception) {
+            CatalogName::handleUniqueFailure($exception, 'categories', CatalogName::CATEGORY_MESSAGE);
+        }
 
         Inertia::flash('toast', [
             'type' => 'success',
             'message' => __('Category updated.'),
+        ]);
+
+        return to_route('administration.categories.index');
+    }
+
+    public function destroy(Category $category, DeleteCategory $deleteCategory): RedirectResponse
+    {
+        $deleteCategory->execute($category);
+
+        Inertia::flash('toast', [
+            'type' => 'success',
+            'message' => __('Category permanently deleted.'),
         ]);
 
         return to_route('administration.categories.index');

@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Storage;
 function imageProductPayload(?Product $product = null): array
 {
     return [
-        'product_code' => $product?->product_code ?? 'ADMIN001',
+        ...($product !== null ? ['product_code' => $product->product_code] : []),
         'name' => $product?->name ?? 'Admin-created product',
         'category_id' => $product?->category_id ?? Category::factory()->create()->id,
         'brand' => 'Verified brand',

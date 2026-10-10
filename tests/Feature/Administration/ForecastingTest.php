@@ -535,14 +535,16 @@ test('product search and saved review retain inactive selections across pages', 
     $product = Product::factory()->for(Category::factory()->state(['is_active' => false]))
         ->create(['name' => 'ZZ Selected', 'product_code' => 'DEVHIST40STABLE', 'is_active' => false]);
     forecastingCoverage($product);
-    $searchable = Product::factory()->count(16)->create(['name' => 'Searchable']);
+    $searchable = Product::factory()->count(16)->sequence(
+        fn ($sequence): array => ['name' => sprintf('Searchable %02d', $sequence->index + 1)],
+    )->create();
     foreach ($searchable as $ready) {
         forecastingCoverage($ready);
     }
-    $short = Product::factory()->create(['name' => 'Searchable']);
+    $short = Product::factory()->create(['name' => 'Searchable short history']);
     forecastingCoverage($short, ['start' => '2023-11-01']);
-    Product::factory()->create(['name' => 'Searchable']);
-    $sparse = Product::factory()->create(['name' => 'Searchable']);
+    Product::factory()->create(['name' => 'Searchable unavailable history']);
+    $sparse = Product::factory()->create(['name' => 'Searchable sparse history']);
     forecastingCoverage($sparse);
     forecastingSale($sparse, '2023-10-01', 1);
     Forecast::factory()->for($product)->create(['method' => 'linear_trend']);
@@ -580,7 +582,9 @@ test('eligible pagination crosses batches with bounded sales queries and determi
     foreach ($products as $product) {
         forecastingCoverage($product);
     }
-    $excluded = Product::factory()->count(16)->create(['name' => 'Ready 000']);
+    $excluded = Product::factory()->count(16)->sequence(
+        fn ($sequence): array => ['name' => sprintf('Ready 000 unavailable %02d', $sequence->index + 1)],
+    )->create();
     $administrator = User::factory()->administrator()->create();
     $this->actingAs($administrator);
     DB::enableQueryLog();

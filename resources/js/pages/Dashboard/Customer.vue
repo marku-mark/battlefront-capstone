@@ -12,6 +12,7 @@ import {
 } from '@lucide/vue';
 import { computed } from 'vue';
 import OrderController from '@/actions/App/Http/Controllers/OrderController';
+import RecommendationSection from '@/components/recommendations/RecommendationSection.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatCurrency } from '@/lib/currency';
@@ -23,6 +24,9 @@ import { index as productIndex } from '@/routes/products';
 
 const props = defineProps({
     dashboard: { type: Object, required: true },
+    recommendations: { type: Array, default: () => [] },
+    is_personalized: { type: Boolean, default: false },
+    has_featured_fallback: { type: Boolean, default: false },
 });
 
 const page = usePage();
@@ -165,6 +169,24 @@ defineOptions({
                     </div>
                 </dl>
             </section>
+
+            <RecommendationSection
+                v-if="recommendations.length"
+                :recommendations="recommendations"
+                placement="dashboard"
+                :title="
+                    is_personalized
+                        ? 'Recommended for you'
+                        : has_featured_fallback
+                          ? 'Popular and featured products'
+                          : 'Popular products'
+                "
+                :description="
+                    is_personalized
+                        ? 'Suggestions based on your recent browsing, cart, and completed purchases.'
+                        : 'Popular and available picks to help you continue shopping.'
+                "
+            />
 
             <section aria-labelledby="latest-order-heading">
                 <div class="mb-4 flex items-end justify-between gap-4">

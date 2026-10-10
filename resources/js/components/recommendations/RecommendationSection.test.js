@@ -75,7 +75,7 @@ function sectionHarness(t, { userId = null } = {}) {
                 reasons: [{ code: 'matched_recent_searches' }],
             },
         ],
-        placement: 'home',
+        placement: 'catalog',
     });
     const modules = new Proxy(
         {
@@ -177,6 +177,7 @@ test('impressions require visible dwell and one observer survives initial storag
     [...h.timers.values()].forEach((callback) => callback());
     assert.equal(h.requests.length, 1);
     assert.equal(h.requests[0].data.event_type, 'impression');
+    assert.equal(h.requests[0].data.placement, 'catalog');
     assert.equal(h.requests[0].data.reason_code, 'matched_recent_searches');
 });
 
@@ -217,3 +218,27 @@ test('unmount clears timers and prevents a pending observer setup from restartin
     assert.equal(h.timers.size, 0);
     assert.equal(h.listeners.size, 0);
 });
+
+for (const placement of ['catalog', 'dashboard']) {
+    test(`${placement} cards submit click hide and report events with the original reason and position`, (t) => {
+        const h = sectionHarness(t, { userId: 42 });
+        h.props.placement = placement;
+        const recommendation = h.props.recommendations[0];
+        h.section.recordInteraction(recommendation, 'click', 1);
+        h.section.dismissRecommendation(recommendation, 'dismiss');
+        h.section.dismissedProductIds.value = new Set();
+        h.section.dismissRecommendation(recommendation, 'report_wrong');
+
+        assert.deepEqual(
+            h.requests.map(({ data }) => data.event_type),
+            ['click', 'dismiss', 'report_wrong'],
+        );
+        for (const { url, data } of h.requests) {
+            assert.equal(url, '/recommendations/interactions');
+            assert.equal(data.placement, placement);
+            assert.equal(data.position, 1);
+            assert.equal(data.product_id, 1);
+            assert.equal(data.reason_code, 'matched_recent_searches');
+        }
+    });
+}

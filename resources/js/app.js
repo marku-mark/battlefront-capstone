@@ -11,8 +11,7 @@ void createInertiaApp({
         switch (true) {
             case name === 'Welcome' ||
                 name.startsWith('Branches/') ||
-                name.startsWith('Products/') ||
-                name.startsWith('Recommendations/'):
+                name.startsWith('Products/'):
                 return page.props.auth?.user ? AppLayout : null;
             case name.startsWith('auth/'):
                 return AuthLayout;

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Administration;
 
 use App\Actions\Product\CreateProduct;
+use App\Actions\Product\DeleteProduct;
 use App\Actions\Product\UpdateProduct;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Administration\ProductIndexRequest;
@@ -35,6 +36,7 @@ class ProductController extends Controller
             ->select([
                 'id',
                 'product_code',
+                'is_catalog_imported',
                 'name',
                 'category_id',
                 'brand',
@@ -84,6 +86,7 @@ class ProductController extends Controller
             ->through(fn (Product $product): array => [
                 'id' => $product->id,
                 'product_code' => $product->product_code,
+                'is_catalog_imported' => $product->is_catalog_imported,
                 'name' => $product->name,
                 'brand' => $product->brand,
                 'price' => $product->price,
@@ -162,12 +165,14 @@ class ProductController extends Controller
     public function show(Product $product): Response
     {
         $product->load(['category:id,name,is_active', 'tags:id,name', 'inventory:id,product_id,quantity,reorder_level']);
+        $product->loadExists('lowStockInventory as is_low_stock');
 
         return Inertia::render('Administration/Products/Show', [
             'product' => [
                 ...$product->only([
                     'id',
                     'product_code',
+                    'is_catalog_imported',
                     'name',
                     'description',
                     'brand',
@@ -182,7 +187,7 @@ class ProductController extends Controller
                 'stock_status' => match (true) {
                     $product->inventory === null => 'not_initialized',
                     $product->inventory->quantity === 0 => 'out_of_stock',
-                    $product->inventory->quantity < $product->inventory->reorder_level => 'low_stock',
+                    $product->is_low_stock => 'low_stock',
                     default => 'in_stock',
                 },
             ],
@@ -234,6 +239,18 @@ class ProductController extends Controller
         Inertia::flash('toast', [
             'type' => 'success',
             'message' => __('Product updated.'),
+        ]);
+
+        return to_route('administration.products.index');
+    }
+
+    public function destroy(Product $product, DeleteProduct $deleteProduct): RedirectResponse
+    {
+        $deleteProduct->execute($product);
+
+        Inertia::flash('toast', [
+            'type' => 'success',
+            'message' => __('Product permanently deleted.'),
         ]);
 
         return to_route('administration.products.index');

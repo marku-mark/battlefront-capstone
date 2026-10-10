@@ -11,7 +11,7 @@ test('web product views are retained by default and duplicate refreshes are supp
     $this->travelTo('2026-10-08 12:00:00');
 
     $customer = User::factory()->customer()->create();
-    $product = Product::factory()->create();
+    $product = Product::factory()->available()->create();
 
     $this->actingAs($customer)->get(route('products.show', $product))->assertOk();
     $this->actingAs($customer)->get(route('products.show', $product))->assertOk();
@@ -25,7 +25,7 @@ test('web product views are retained by default and duplicate refreshes are supp
 
 test('web prefetch is not a view but consuming cached product details records one owned view', function (string $header) {
     $customer = User::factory()->customer()->create();
-    $product = Product::factory()->create();
+    $product = Product::factory()->available()->create();
     $this->actingAs($customer)->withHeader($header, 'prefetch')->get(route('products.show', $product))->assertOk();
     $this->assertDatabaseCount('customer_product_views', 0);
     $this->flushHeaders();
@@ -37,7 +37,7 @@ test('web prefetch is not a view but consuming cached product details records on
 
 test('mobile prefetch never records views and deliberate detail requests do', function () {
     $customer = User::factory()->customer()->create();
-    $product = Product::factory()->create();
+    $product = Product::factory()->available()->create();
     $this->withToken($customer->createToken('Phone')->plainTextToken)
         ->withHeader('Purpose', 'prefetch')->getJson(route('api.v1.products.show', $product))->assertOk();
     $this->assertDatabaseCount('customer_product_views', 0);
@@ -47,7 +47,7 @@ test('mobile prefetch never records views and deliberate detail requests do', fu
 });
 
 test('guest prefetch and cached consumption retain only the current browser profile activity', function () {
-    $product = Product::factory()->create();
+    $product = Product::factory()->available()->create();
     $response = $this->withHeader('Purpose', 'prefetch')->get(route('products.show', $product))->assertOk();
     $this->assertDatabaseCount('customer_product_views', 0);
     $cookie = $response->getCookie('battlefront_recommendation_profile', decrypt: false);
@@ -58,7 +58,7 @@ test('guest prefetch and cached consumption retain only the current browser prof
 });
 
 test('view recording rejects administrators and unavailable catalog identities', function () {
-    $product = Product::factory()->create();
+    $product = Product::factory()->available()->create();
     $this->actingAs(User::factory()->administrator()->create())->postJson(route('products.view.store', $product))->assertForbidden();
     $this->actingAs(User::factory()->customer()->create())->postJson(route('products.view.store', 999999))->assertNotFound();
     $product->update(['is_active' => false]);
@@ -70,7 +70,7 @@ test('mobile product views use the authenticated bearer identity', function () {
     $customer = User::factory()->customer()->create([
         'product_view_recommendations_enabled' => true,
     ]);
-    $product = Product::factory()->create();
+    $product = Product::factory()->available()->create();
     $token = $customer->createToken('test-device')->plainTextToken;
 
     $this->withToken($token)->getJson(route('api.v1.products.show', $product))->assertOk();
@@ -86,7 +86,7 @@ test('guest product views are retained temporarily while opted-out customers and
     $administrator = User::factory()->administrator()->create([
         'product_view_recommendations_enabled' => true,
     ]);
-    $product = Product::factory()->create();
+    $product = Product::factory()->available()->create();
 
     $this->get(route('products.show', $product))->assertOk();
     $this->actingAs($customer)->get(route('products.show', $product))->assertOk();

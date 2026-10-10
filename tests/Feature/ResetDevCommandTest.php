@@ -6,6 +6,7 @@ use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\Sale;
 use App\Models\User;
+use App\Services\Dashboard\DashboardService;
 use App\Services\RealCatalogImportService;
 use Carbon\CarbonImmutable;
 use Database\Seeders\DatabaseSeeder;
@@ -13,6 +14,7 @@ use Database\Seeders\DevelopmentHistoricalSalesSeeder;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Inertia\Testing\AssertableInertia as Assert;
 
 beforeEach(function () {
     Storage::fake('local');
@@ -194,11 +196,29 @@ test('reset restores the complete real catalog with historical sales only when r
             expect($product->is_catalog_imported)->toBeTrue();
             expect($product->name)->toBe($row['name']);
             expect($product->inventory->quantity)->toBe($row['quantity']);
-            expect($product->inventory->reorder_level)->toBe(2);
+            expect($product->inventory->reorder_level)->toBe($row['reorder_level']);
             expect($product->category->name)->toBe($row['category']);
             expect($product->tags->pluck('name')->sort()->values()->all())->toBe(collect($row['tags'])->sort()->values()->all());
             expect($product->image_path)->toBe($row['image_path']);
+            expect($product->is_active)->toBeTrue();
+            expect($product->category->is_active)->toBeTrue();
         }
+        expect($products->filter(fn ($product) => $product->inventory->quantity > $product->inventory->reorder_level))->toHaveCount(650);
+        expect($products->filter(fn ($product) => $product->inventory->quantity > 0 && $product->inventory->quantity <= $product->inventory->reorder_level))->toHaveCount(3);
+        expect($products->filter(fn ($product) => $product->inventory->quantity === 0))->toHaveCount(1);
+        expect(Product::query()->customerAvailable()->count())->toBe(653);
+        $dashboard = app(DashboardService::class)->administration();
+        expect($dashboard['kpis']['low_stock_products'])->toBe(3);
+        expect($dashboard['kpis']['out_of_stock_products'])->toBe(1);
+        foreach (['80520996', '10044', '6940056198471'] as $code) {
+            expect($products[$code]->lowStockInventory()->exists())->toBeTrue();
+            $this->get(route('products.show', $products[$code]))->assertInertia(fn (Assert $page) => $page
+                ->where('product.inventory.status', 'low_stock'));
+            $this->get(route('api.v1.products.show', $products[$code]))->assertJsonPath('data.inventory.status', 'low_stock');
+        }
+        $soldOut = $products['301501828'];
+        $this->get(route('products.show', $soldOut))->assertNotFound();
+        $this->get(route('api.v1.products.show', $soldOut))->assertNotFound();
         $filesAfter = collect(Storage::disk('public')->allFiles('products'))
             ->mapWithKeys(fn ($path) => [$path => hash_file('sha256', Storage::disk('public')->path($path))])->all();
         expect($filesAfter)->toBe($filesBefore);
@@ -222,6 +242,30 @@ test('reset restores the complete real catalog with historical sales only when r
         $this->assertDatabaseHas('users', ['email' => 'test@example.com']);
         $this->assertDatabaseHas('branches', ['city' => 'Sagay City']);
         $this->assertDatabaseCount('chatbot_knowledge', 11);
+
+        $stockBefore = $products->map(fn ($product) => [$product->inventory->quantity, $product->inventory->reorder_level])->all();
+        $fixtureBefore = Product::query()->where('is_catalog_imported', false)->with('inventory')->orderBy('product_code')
+            ->get()->mapWithKeys(fn ($product) => [$product->product_code => [$product->inventory->quantity, $product->inventory->reorder_level]])->all();
+        $administrator = User::query()->where('email', 'admin@example.com')->sole();
+        $this->actingAs($administrator)->get(route('administration.inventory.index', ['stock' => 'low_stock']))
+            ->assertInertia(fn (Assert $page) => $page->where('products.total', $withHistory ? 8 : 3));
+        $this->get(route('administration.inventory.index', ['stock' => 'out_of_stock']))
+            ->assertInertia(fn (Assert $page) => $page->where('products.total', $withHistory ? 2 : 1));
+        $this->patch(route('administration.inventory.update', $soldOut->inventory), ['quantity' => 6, 'reorder_level' => 5])
+            ->assertRedirect()->assertSessionHasNoErrors();
+        expect($soldOut->inventory->refresh()->quantity)->toBe(6);
+        expect($soldOut->inventory->reorder_level)->toBe(5);
+        expect(Product::query()->customerAvailable()->whereKey($soldOut->id)->exists())->toBeTrue();
+        expect($soldOut->refresh()->is_active)->toBeTrue();
+        expect($soldOut->category->is_active)->toBeTrue();
+
+        $this->artisan('battlefront:reset-dev', ['--force' => true, '--with-sales-history' => $withHistory])->assertSuccessful();
+        $stockAfter = Product::query()->where('is_catalog_imported', true)->with('inventory')->get()->keyBy('product_code')
+            ->map(fn ($product) => [$product->inventory->quantity, $product->inventory->reorder_level])->all();
+        expect($stockAfter)->toBe($stockBefore);
+        $fixtureAfter = Product::query()->where('is_catalog_imported', false)->with('inventory')->orderBy('product_code')
+            ->get()->mapWithKeys(fn ($product) => [$product->product_code => [$product->inventory->quantity, $product->inventory->reorder_level]])->all();
+        expect($fixtureAfter)->toBe($fixtureBefore);
     } finally {
         DB::setDefaultConnection($originalConnection);
         DB::purge('reset_test');

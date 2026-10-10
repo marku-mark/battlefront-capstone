@@ -26,8 +26,11 @@ class ProductCatalogController extends Controller
     /**
      * Display the customer product catalog.
      */
-    public function index(ProductCatalogIndexRequest $request, RecordCustomerSearch $recordCustomerSearch): Response
-    {
+    public function index(
+        ProductCatalogIndexRequest $request,
+        RecordCustomerSearch $recordCustomerSearch,
+        BuildRecommendationViewData $buildRecommendationViewData,
+    ): Response {
         $filters = $request->filters();
 
         if (! $request->prefetch() && $request->integer('page', 1) === 1) {
@@ -41,10 +44,38 @@ class ProductCatalogController extends Controller
         $products = $this->productCatalogRepository->paginate($filters)
             ->through(fn (Product $product): array => $this->catalogProductPresenter->present($product));
 
+        $recommendationViewData = null;
+        $resolveRecommendations = function () use (&$recommendationViewData, $filters, $request, $buildRecommendationViewData): array {
+            if ($recommendationViewData !== null) {
+                return $recommendationViewData;
+            }
+
+            if (collect($filters)->contains(static fn (mixed $value): bool => $value !== null)) {
+                return $recommendationViewData = [
+                    'recommendations' => [],
+                    'is_personalized' => false,
+                    'has_featured_fallback' => false,
+                    'guest_recommendation_scope' => null,
+                ];
+            }
+
+            $user = $request->user();
+
+            return $recommendationViewData = $buildRecommendationViewData(
+                $user instanceof User ? $user : null,
+                guestProfile: $request->attributes->get('guest_recommendation_profile'),
+                hideWhenPersonalizationDisabled: true,
+            );
+        };
+
         return Inertia::render('Products/Index', [
             'products' => Inertia::scroll($products),
             'filters' => $filters,
             'filter_options' => fn (): array => $this->productCatalogRepository->filterOptions(),
+            'recommendations' => fn (): array => $resolveRecommendations()['recommendations'],
+            'is_personalized' => fn (): bool => $resolveRecommendations()['is_personalized'],
+            'has_featured_fallback' => fn (): bool => $resolveRecommendations()['has_featured_fallback'],
+            'guest_recommendation_scope' => fn (): ?string => $resolveRecommendations()['guest_recommendation_scope'],
         ]);
     }
 
@@ -57,7 +88,7 @@ class ProductCatalogController extends Controller
         RecordCustomerProductView $recordCustomerProductView,
         BuildRecommendationViewData $buildRecommendationViewData,
     ): Response {
-        $catalogProduct = $this->productCatalogRepository->findEligibleOrFail($product);
+        $catalogProduct = $this->productCatalogRepository->findAvailableOrFail($product);
         if (! $request->prefetch()) {
             $recordCustomerProductView(
                 $request->user(),

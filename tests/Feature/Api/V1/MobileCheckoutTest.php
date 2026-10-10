@@ -114,13 +114,18 @@ test('mobile checkout returns native required-field validation', function () {
 });
 
 test('mobile checkout applies shared fulfillment payment and upload validation', function (Closure $changes, string $field) {
+    $coveragePath = config('forecasting.development_manifest');
+    $coverageContents = '{"version":2,"products":{}}';
+    Storage::disk('local')->put($coveragePath, $coverageContents);
+
     $this->post('/api/v1/orders', mobileCheckoutData([$this->cartItem->id], $changes()))
         ->assertUnprocessable()->assertJsonValidationErrors($field)
         ->assertJsonStructure(['message', 'errors']);
     $this->assertDatabaseCount('orders', 0);
     $this->assertModelExists($this->cartItem);
     expect($this->stock->refresh()->quantity)->toBe(5)
-        ->and(Storage::disk('local')->allFiles())->toBe([]);
+        ->and(Storage::disk('local')->allFiles('payment-proofs'))->toBe([]);
+    expect(Storage::disk('local')->get($coveragePath))->toBe($coverageContents);
 })->with([
     'delivery address' => [fn () => ['fulfillment_method' => 'delivery', 'delivery_destination' => 'Sagay City', 'payment_method' => 'gcash', 'payment_proof' => UploadedFile::fake()->image('proof.png')], 'delivery_address'],
     'pickup address' => [fn () => ['delivery_address' => 'Unexpected address'], 'delivery_address'],
@@ -154,7 +159,7 @@ test('mobile checkout rejects unavailable stock without orders deductions or orp
     $this->assertDatabaseCount('orders', 0);
     $this->assertDatabaseCount('order_items', 0);
     $this->assertModelExists($this->cartItem);
-    expect(Storage::disk('local')->allFiles())->toBe([]);
+    expect(Storage::disk('local')->allFiles('payment-proofs'))->toBe([]);
     if ($state !== 'missing') {
         expect($this->stock->refresh()->quantity)->toBe(match ($state) {
             'empty' => 0, 'insufficient' => 1, default => 5,
@@ -197,5 +202,5 @@ test('mobile placement rolls back stock order and cart on a later line failure a
     $this->assertModelExists($secondItem);
     expect($this->stock->refresh()->quantity)->toBe(5)
         ->and($secondStock->refresh()->quantity)->toBe(5)
-        ->and(Storage::disk('local')->allFiles())->toBe([]);
+        ->and(Storage::disk('local')->allFiles('payment-proofs'))->toBe([]);
 });

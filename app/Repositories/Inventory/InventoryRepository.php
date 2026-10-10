@@ -49,7 +49,7 @@ class InventoryRepository
                     'inventory',
                     fn (Builder $inventoryQuery): Builder => $inventoryQuery
                         ->where('quantity', '>', 0)
-                        ->whereColumn('quantity', '>=', 'reorder_level'),
+                        ->whereColumn('quantity', '>', 'reorder_level'),
                 ),
             )
             ->when(

@@ -48,7 +48,7 @@ class Inventory extends Model
     }
 
     /**
-     * Scope a query to inventory below its reorder level.
+     * Scope a query to positive inventory at or below its reorder level.
      *
      * @param  Builder<Inventory>  $query
      */
@@ -56,7 +56,7 @@ class Inventory extends Model
     protected function lowStock(Builder $query): void
     {
         $query->where('quantity', '>', 0)
-            ->whereColumn('quantity', '<', 'reorder_level');
+            ->whereColumn('quantity', '<=', 'reorder_level');
     }
 
     /**

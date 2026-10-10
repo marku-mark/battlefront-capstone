@@ -345,14 +345,16 @@ function returnToCatalog() {
                     placement="product"
                     :title="
                         is_personalized
-                            ? 'More to explore'
+                            ? 'You may also like'
                             : has_featured_fallback
                               ? 'Popular and featured products'
                               : 'Popular products'
                     "
                     :description="
                         is_personalized
-                            ? 'Suggestions based on completed orders, your cart, and search or product activity you chose to share.'
+                            ? isAuthenticated
+                                ? 'Suggestions based on your recent browsing, cart, and completed purchases.'
+                                : 'Suggestions based on your recent browsing in this browser.'
                             : has_featured_fallback
                               ? 'Popular products and featured picks with current Sagay stock.'
                               : 'Products that appear often in completed Battlefront orders.'

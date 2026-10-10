@@ -42,7 +42,7 @@ class ProductController extends Controller
 
     public function show(Request $request, int $product, RecordCustomerProductView $recordCustomerProductView): ProductResource
     {
-        $catalogProduct = $this->productCatalogRepository->findEligibleOrFail($product);
+        $catalogProduct = $this->productCatalogRepository->findAvailableOrFail($product);
         if (! $request->prefetch()) {
             $recordCustomerProductView($request->user('sanctum'), $catalogProduct);
         }

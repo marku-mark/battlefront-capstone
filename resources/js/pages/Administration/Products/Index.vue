@@ -17,6 +17,7 @@ import ProductController from '@/actions/App/Http/Controllers/Administration/Pro
 import CatalogNavigation from '@/components/CatalogNavigation.vue';
 import CatalogPagination from '@/components/CatalogPagination.vue';
 import DeactivationDialog from '@/components/DeactivationDialog.vue';
+import PermanentDeletionDialog from '@/components/PermanentDeletionDialog.vue';
 import { useDebouncedSearch } from '@/composables/useDebouncedSearch';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -527,6 +528,12 @@ defineOptions({
                                 Reactivate
                             </Button>
                         </Form>
+                        <PermanentDeletionDialog
+                            :name="product.name"
+                            :form="ProductController.destroy.form(product.id)"
+                            :error-bag="`deleteProduct${product.id}`"
+                            :imported="product.is_catalog_imported"
+                        />
                     </div>
                 </article>
             </div>

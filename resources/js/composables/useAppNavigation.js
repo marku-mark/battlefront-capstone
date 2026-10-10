@@ -25,7 +25,6 @@ import { index as branchIndex } from '@/routes/branches';
 import { index as cartIndex } from '@/routes/cart';
 import { index as orderIndex } from '@/routes/orders';
 import { index as productIndex } from '@/routes/products';
-import { index as recommendationIndex } from '@/routes/recommendations';
 import { edit as editProfile } from '@/routes/profile';
 
 export function useAppNavigation() {
@@ -98,11 +97,6 @@ export function useAppNavigation() {
             items.push({
                 title: 'Products',
                 href: productIndex(),
-                icon: PackageSearch,
-            });
-            items.push({
-                title: 'Recommendations',
-                href: recommendationIndex(),
                 icon: PackageSearch,
             });
         }

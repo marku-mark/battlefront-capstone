@@ -64,8 +64,8 @@ test('product to store switches do not revive a product for an ambiguous pronoun
 test('multiple matching products require an explicit name on follow up', function () {
     Http::preventStrayRequests();
     ChatbotResponseAgent::fake(['Two mice.'])->preventStrayPrompts();
-    Product::factory()->create(['name' => 'Aurelius Mouse']);
-    Product::factory()->create(['name' => 'Helios Mouse']);
+    Product::factory()->available()->create(['name' => 'Aurelius Mouse']);
+    Product::factory()->available()->create(['name' => 'Helios Mouse']);
     $chat = app(ChatbotConversation::class);
 
     $first = $chat->respond('Mouse price?', null, null, 'session-a');

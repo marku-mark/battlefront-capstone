@@ -13,6 +13,7 @@ test('the product schema follows the approved ERD decisions', function () {
         'is_catalog_imported',
         'shipping_profile',
         'name',
+        'name_key',
         'description',
         'category_id',
         'brand',

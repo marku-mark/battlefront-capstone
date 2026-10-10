@@ -8,14 +8,17 @@ export function useDebouncedSearch({
     query = () => ({}),
     debounceMs = 400,
     reset = [],
+    only = [],
     preserveScroll = true,
 }) {
     const search = ref(initialSearch ?? '');
     const isSearching = ref(false);
     let debounceTimeout;
     let cancelToken;
+    let requestVersion = 0;
 
     function cancelPendingSearch() {
+        requestVersion++;
         clearTimeout(debounceTimeout);
         cancelToken?.cancel();
         cancelToken = undefined;
@@ -29,7 +32,7 @@ export function useDebouncedSearch({
             return;
         }
 
-        cancelToken?.cancel();
+        const version = ++requestVersion;
 
         router.visit(
             route({
@@ -43,15 +46,25 @@ export function useDebouncedSearch({
                 preserveState: true,
                 replace: true,
                 reset,
+                only,
                 onCancelToken: (token) => {
+                    if (version !== requestVersion) {
+                        token.cancel();
+                        return;
+                    }
+
                     cancelToken = token;
                 },
                 onStart: () => {
-                    isSearching.value = true;
+                    if (version === requestVersion) {
+                        isSearching.value = true;
+                    }
                 },
                 onFinish: () => {
-                    cancelToken = undefined;
-                    isSearching.value = false;
+                    if (version === requestVersion) {
+                        cancelToken = undefined;
+                        isSearching.value = false;
+                    }
                 },
             },
         );
@@ -63,6 +76,11 @@ export function useDebouncedSearch({
 
     watch(search, () => {
         cancelPendingSearch();
+        if (search.value.trim() === '') {
+            visitSearch();
+            return;
+        }
+
         debounceTimeout = setTimeout(visitSearch, debounceMs);
     });
 

@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use App\Enums\ShippingProfile;
 use App\Models\Category;
+use App\Models\Inventory;
 use App\Models\Product;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -40,6 +41,14 @@ class ProductFactory extends Factory
         return $this->state(fn (array $attributes): array => [
             'is_active' => false,
         ]);
+    }
+
+    public function available(): static
+    {
+        return $this->has(Inventory::factory()->state([
+            'quantity' => 10,
+            'reorder_level' => 5,
+        ]));
     }
 
     public function standard(): static

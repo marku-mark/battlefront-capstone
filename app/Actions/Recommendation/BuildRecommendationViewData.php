@@ -21,7 +21,6 @@ class BuildRecommendationViewData
      * @return array{
      *     is_personalized: bool,
      *     has_featured_fallback: bool,
-     *     can_enable_personalization: bool,
      *     guest_recommendation_scope: string|null,
      *     recommendations: array<int, array{
      *         product: array<string, mixed>,
@@ -35,12 +34,15 @@ class BuildRecommendationViewData
         ?int $excludeProductId = null,
         int $limit = 4,
         ?GuestRecommendationProfile $guestProfile = null,
+        bool $hideWhenPersonalizationDisabled = false,
     ): array {
-        if ($customer !== null && ! $customer->can('use-recommendations')) {
+        if ($customer !== null && (
+            ! $customer->can('use-recommendations')
+            || ($hideWhenPersonalizationDisabled && ! $customer->personalized_recommendations_enabled)
+        )) {
             return [
                 'is_personalized' => false,
                 'has_featured_fallback' => false,
-                'can_enable_personalization' => false,
                 'guest_recommendation_scope' => null,
                 'recommendations' => [],
             ];
@@ -68,8 +70,6 @@ class BuildRecommendationViewData
             'guest_recommendation_scope' => $guestProfile === null ? null : hash('sha256', 'dismissals:'.$guestProfile->token_hash),
             'is_personalized' => $isPersonalized,
             'has_featured_fallback' => $hasFeaturedFallback,
-            'can_enable_personalization' => $customer !== null
-                && ! $customer->personalized_recommendations_enabled,
             'recommendations' => $recommendations
                 ->map(fn (BehavioralRecommendedProduct $recommendation): array => [
                     'product' => $this->catalogProductPresenter->present($recommendation->product),

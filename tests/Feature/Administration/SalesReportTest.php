@@ -195,6 +195,28 @@ test('administrators see anonymous recommendation engagement by date placement r
         ->toMatchArray(['impressions' => 0, 'clicks' => 1]);
 });
 
+test('recommendation reports label new shopping placements and retain historical events', function () {
+    $administrator = User::factory()->administrator()->create();
+    foreach (['dashboard', 'catalog', 'home', 'recommendations'] as $placement) {
+        RecommendationInteraction::factory()->create([
+            'placement' => $placement,
+            'event_type' => 'click',
+            'created_at' => now(),
+        ]);
+    }
+
+    $response = $this->actingAs($administrator)->get(route('administration.reports.sales'));
+
+    $response->assertInertia(fn (Assert $page) => $page
+        ->where('recommendation_engagement.summary.clicks', 4)
+        ->has('recommendation_engagement.placements', 4));
+    $placements = collect($response->inertiaProps('recommendation_engagement.placements'))->keyBy('placement');
+    expect($placements->get('dashboard'))->toMatchArray(['label' => 'Customer dashboard', 'clicks' => 1])
+        ->and($placements->get('catalog'))->toMatchArray(['label' => 'Product catalog', 'clicks' => 1])
+        ->and($placements->get('home'))->toMatchArray(['label' => 'Home page', 'clicks' => 1])
+        ->and($placements->get('recommendations'))->toMatchArray(['label' => 'Recommendations page', 'clicks' => 1]);
+});
+
 test('recommendation engagement reporting never exposes raw customer browsing history', function () {
     CustomerSearch::factory()->create(['query' => 'private customer search phrase']);
     CustomerProductView::factory()->create(['dwell_seconds' => 1234]);

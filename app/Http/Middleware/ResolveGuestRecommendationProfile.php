@@ -29,7 +29,7 @@ class ResolveGuestRecommendationProfile
         $cookie = $request->cookie('battlefront_recommendation_profile');
         $token = is_string($cookie) ? $cookie : null;
         $routeName = $request->route()?->getName();
-        $profileRoutes = ['home', 'products.index', 'products.show', 'recommendations.index'];
+        $profileRoutes = ['home', 'products.index', 'products.show'];
         $profileLookupRoutes = [...$profileRoutes, 'products.dwell.store', 'products.view.store'];
         $authenticationRoutes = ['login.store', 'register.store'];
         $shouldResolveProfile = in_array($routeName, $profileLookupRoutes, true)

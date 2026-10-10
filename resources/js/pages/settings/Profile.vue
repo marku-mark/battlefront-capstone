@@ -136,12 +136,15 @@ const productViewRecommendationsEnabled = ref(
                     />
                     <span
                         >Use your activity and shopping history for personalized
-                        product recommendations. Turning this off pauses
-                        personalized suggestions and stops recording searches
-                        and views. Saved search and view history is kept until
-                        its 90-day expiry and can be used again if you turn
-                        personalization back on before then. Your cart and order
-                        records remain available for store services.</span
+                        product recommendations. Turning this off hides
+                        recommendation sections on your dashboard and product
+                        catalog, pauses personalized suggestions, and stops
+                        recording searches and views. Popular picks can still
+                        appear on product pages and in your cart. Saved search
+                        and view history is kept until its 90-day expiry and can
+                        be used again if you turn personalization back on before
+                        then. Your cart and order records remain available for
+                        store services.</span
                     >
                 </label>
                 <div class="border-border grid gap-3 border-l pl-4">

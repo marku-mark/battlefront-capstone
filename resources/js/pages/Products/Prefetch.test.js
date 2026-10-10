@@ -155,6 +155,7 @@ function loadCatalog(rememberVisit) {
                 InfiniteScroll: primitive,
                 Link,
                 router,
+                usePage: () => ({ props: { auth: { user: null } } }),
             },
             '@/routes/products': {
                 index: () => productRoute(''),
@@ -234,6 +235,9 @@ test('catalog cards wire hover cancellation while retaining their Inertia links 
                     tag_id: null,
                 },
                 filter_options: { categories: [], brands: [], tags: [] },
+                recommendations: [],
+                is_personalized: false,
+                has_featured_fallback: false,
             },
             { expose() {} },
         ),

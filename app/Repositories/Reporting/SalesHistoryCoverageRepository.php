@@ -15,6 +15,36 @@ use Throwable;
  */
 class SalesHistoryCoverageRepository
 {
+    /** Protect declarations even when their coverage is stale or not forecast-ready. */
+    public function hasProductReference(string $productCode): bool
+    {
+        $operational = config('forecasting.operational_coverage');
+        if (! is_array($operational)) {
+            throw new RuntimeException('Historical coverage configuration cannot be checked.');
+        }
+        if (array_key_exists($productCode, $operational)) {
+            return true;
+        }
+        if (! App::environment(['local', 'testing'])) {
+            return false;
+        }
+        $disk = Storage::disk('local');
+        try {
+            if (! $disk->exists($this->manifestPath())) {
+                return false;
+            }
+            $contents = $disk->get($this->manifestPath());
+            $manifest = json_decode($contents ?? '', true, flags: JSON_THROW_ON_ERROR);
+            if (! is_array($manifest) || ! is_array($manifest['products'] ?? null)) {
+                throw new RuntimeException('Historical coverage has an invalid structure.');
+            }
+
+            return array_key_exists($productCode, $manifest['products']);
+        } catch (Throwable $exception) {
+            throw new RuntimeException('Historical coverage cannot be checked.', previous: $exception);
+        }
+    }
+
     /**
      * Read preparation declarations only. EXT-42 evaluates readiness against its
      * required window; neither records nor the clock extend declared coverage.

@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Administration;
 
+use App\Actions\Catalog\CatalogName;
 use App\Models\Category;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -9,6 +10,13 @@ use Illuminate\Validation\Rule;
 
 class SaveCategoryRequest extends FormRequest
 {
+    protected function prepareForValidation(): void
+    {
+        if (is_string($this->input('name'))) {
+            $this->merge(['name' => CatalogName::normalize($this->input('name'))]);
+        }
+    }
+
     /**
      * Determine if the user is authorized to make this request.
      */
@@ -38,6 +46,7 @@ class SaveCategoryRequest extends FormRequest
                 'string',
                 'max:255',
                 $uniqueName,
+                CatalogName::uniqueRule(new Category, $category instanceof Category ? $category : null, CatalogName::CATEGORY_MESSAGE),
             ],
             'description' => ['nullable', 'string', 'max:2000'],
         ];

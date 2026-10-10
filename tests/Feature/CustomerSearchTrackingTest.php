@@ -143,7 +143,7 @@ test('global personalization pause stops both signals while retaining existing a
     $search = CustomerSearch::factory()->for($customer)->create();
     $view = CustomerProductView::factory()->for($customer)->create();
     $this->actingAs($customer)->get(route('products.index', ['q' => 'new private query']))->assertOk();
-    $this->get(route('products.show', Product::factory()->create()))->assertOk();
+    $this->get(route('products.show', Product::factory()->available()->create()))->assertOk();
     $this->assertDatabaseCount('customer_searches', 1);
     $this->assertDatabaseCount('customer_product_views', 1);
     $this->assertModelExists($search);

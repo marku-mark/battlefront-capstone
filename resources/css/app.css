@@ -40,6 +40,8 @@
 
     --color-destructive: var(--destructive);
     --color-destructive-foreground: var(--destructive-foreground);
+    --color-destructive-action: #b91c1c;
+    --color-destructive-action-foreground: #f8fafc;
 
     --color-border: var(--border);
     --color-input: var(--input);

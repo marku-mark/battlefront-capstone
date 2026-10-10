@@ -13,6 +13,8 @@ class RecommendationEngagementReport
 {
     private const PLACEMENTS = [
         'cart' => 'Cart',
+        'catalog' => 'Product catalog',
+        'dashboard' => 'Customer dashboard',
         'home' => 'Home page',
         'product' => 'Product page',
         'recommendations' => 'Recommendations page',

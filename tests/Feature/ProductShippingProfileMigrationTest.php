@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\Catalog\CatalogName;
 use App\Enums\ShippingProfile;
 use App\Models\Product;
 use Illuminate\Database\QueryException;
@@ -26,6 +27,8 @@ test('the database defaults new products to standard without a supplied profile'
     $attributes = $product->getAttributes();
     unset($attributes['id'], $attributes['shipping_profile']);
     $attributes['product_code'] = 'DBDEFAULT001';
+    $attributes['name'] = 'Database default profile product';
+    $attributes['name_key'] = CatalogName::key($attributes['name']);
 
     $id = DB::table('products')->insertGetId($attributes);
 
@@ -37,6 +40,8 @@ test('invalid shipping profiles are rejected for direct database inserts', funct
     $attributes = $product->getAttributes();
     unset($attributes['id']);
     $attributes['product_code'] = 'INVALIDPROFILE001';
+    $attributes['name'] = 'Invalid profile product';
+    $attributes['name_key'] = CatalogName::key($attributes['name']);
     $attributes['shipping_profile'] = $profile;
 
     expect(fn () => DB::table('products')->insert($attributes))->toThrow(QueryException::class);

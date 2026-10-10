@@ -10,16 +10,17 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
 
-test('product codes are required and use the safe catalog format', function (mixed $code, string $message) {
+test('updated product codes are required and use the safe catalog format', function (mixed $code, string $message) {
     $administrator = User::factory()->administrator()->create();
     $category = Category::factory()->create();
+    $product = Product::factory()->for($category)->create(['product_code' => 'UNCHANGED']);
 
-    $this->actingAs($administrator)->post(route('administration.products.store'), [
+    $this->actingAs($administrator)->put(route('administration.products.update', $product), [
         'product_code' => $code, 'name' => 'New product', 'category_id' => $category->id,
         'brand' => 'Brand', 'price' => '100', 'is_featured' => false,
     ])->assertSessionHasErrors(['product_code' => $message]);
 
-    $this->assertDatabaseCount('products', 0);
+    expect($product->refresh()->product_code)->toBe('UNCHANGED');
 })->with([
     'null' => [null, 'Enter a product code.'],
     'empty' => ['', 'Enter a product code.'],
@@ -28,16 +29,14 @@ test('product codes are required and use the safe catalog format', function (mix
     'too long' => [str_repeat('A', 65), 'Use 1 to 64 letters or digits for the product code.'],
 ]);
 
-test('creating and updating cannot reuse another products code ignoring case', function (string $code) {
+test('updating cannot reuse another products code ignoring case', function (string $code) {
     $administrator = User::factory()->administrator()->create();
     $existing = Product::factory()->create(['product_code' => 'ABC123']);
     $other = Product::factory()->create(['product_code' => 'OTHER']);
     $payload = ['product_code' => $code, 'name' => 'Product', 'category_id' => $existing->category_id,
         'brand' => 'Brand', 'price' => '100', 'is_featured' => false];
 
-    $this->actingAs($administrator)->post(route('administration.products.store'), $payload)
-        ->assertSessionHasErrors(['product_code' => 'This product code is already in use.']);
-    $this->put(route('administration.products.update', $other), $payload)
+    $this->actingAs($administrator)->put(route('administration.products.update', $other), $payload)
         ->assertSessionHasErrors(['product_code' => 'This product code is already in use.']);
 
     expect($other->refresh()->product_code)->toBe('OTHER');
@@ -134,7 +133,7 @@ test('product detail uses the inventory thresholds and handles missing inventory
     }
 })->with([
     'out of stock' => [0, 'out_of_stock'],
-    'at reorder level' => [2, 'in_stock'],
+    'at reorder level' => [2, 'low_stock'],
     'above reorder level' => [3, 'in_stock'],
     'not initialized' => [null, 'not_initialized'],
 ]);
@@ -266,8 +265,9 @@ test('catalog pagination preserves the active administration query', function ()
     $administrator = User::factory()->administrator()->create();
     $category = Category::factory()->create();
     $tag = Tag::factory()->create();
-    $products = Product::factory()->count(13)->for($category)->create([
-        'name' => 'Matching catalog product',
+    $products = Product::factory()->count(13)->for($category)->sequence(
+        fn ($sequence): array => ['name' => sprintf('Matching catalog product %02d', $sequence->index + 1)],
+    )->create([
         'brand' => 'Battlefront',
         'is_active' => true,
     ]);
@@ -343,7 +343,6 @@ test('administrators can create products with an uploaded image and validated ta
     $response = $this
         ->actingAs($administrator)
         ->post(route('administration.products.store'), [
-            'product_code' => 'RTX5070',
             'name' => 'GeForce RTX 5070',
             'description' => 'A graphics card for modern games.',
             'category_id' => $category->id,
@@ -388,7 +387,6 @@ test('administrators can create a product without an unverified brand', function
     $category = Category::factory()->create();
 
     $this->actingAs($administrator)->post(route('administration.products.store'), [
-        'product_code' => 'NOBRAND001',
         'name' => 'Product awaiting brand verification',
         'category_id' => $category->id,
         'brand' => '',
@@ -396,7 +394,7 @@ test('administrators can create a product without an unverified brand', function
         'is_featured' => false,
     ])->assertSessionHasNoErrors();
 
-    $product = Product::query()->where('product_code', 'NOBRAND001')->firstOrFail();
+    $product = Product::query()->sole();
     expect($product->brand)->toBeNull();
 });
 

@@ -5,12 +5,15 @@ use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
 use App\Models\Cart;
 use App\Models\CartItem;
+use App\Models\Category;
 use App\Models\Inventory;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\Sale;
 use App\Models\User;
+use Database\Seeders\DevelopmentHistoricalSalesSeeder;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
 
 test('guests are redirected to the login page', function () {
@@ -117,7 +120,7 @@ test('administrators receive authoritative operational dashboard data', function
         'brand' => 'Battlefront Test',
     ]);
     Inventory::factory()->for($lowStockProduct)->create([
-        'quantity' => 2,
+        'quantity' => 5,
         'reorder_level' => 5,
     ]);
     Inventory::factory()->for(Product::factory())->create([
@@ -149,7 +152,7 @@ test('administrators receive authoritative operational dashboard data', function
         ->where('dashboard.needs_attention.payment_orders.0.total', '1250.00')
         ->has('dashboard.needs_attention.low_stock_products', 1)
         ->where('dashboard.needs_attention.low_stock_products.0.id', $lowStockProduct->id)
-        ->where('dashboard.needs_attention.low_stock_products.0.quantity', 2)
+        ->where('dashboard.needs_attention.low_stock_products.0.quantity', 5)
         ->has('dashboard.needs_attention.out_of_stock_products', 1)
         ->where('dashboard.needs_attention.out_of_stock_products.0.id', $outOfStockProduct->id)
         ->where('dashboard.needs_attention.out_of_stock_products.0.quantity', 0)
@@ -201,4 +204,43 @@ test('administrators receive stable empty dashboard data', function () {
         ->has('dashboard.needs_attention.low_stock_products', 0)
         ->has('dashboard.needs_attention.out_of_stock_products', 0)
         ->has('dashboard.recent_orders', 0));
+});
+
+test('dashboard stock warnings ignore inactive records while the inventory ledger retains them', function (int $quantity, string $status) {
+    $administrator = User::factory()->administrator()->create();
+    $active = Product::factory()->create();
+    Inventory::factory()->for($active)->create(['quantity' => $quantity, 'reorder_level' => 5]);
+    foreach ([
+        Product::factory()->inactive()->create(),
+        Product::factory()->for(Category::factory()->inactive())->create(),
+        Product::factory()->inactive()->for(Category::factory()->inactive())->create(),
+    ] as $inactive) {
+        Inventory::factory()->for($inactive)->create(['quantity' => $quantity, 'reorder_level' => 5]);
+    }
+
+    $this->actingAs($administrator)->get(route('dashboard'))->assertInertia(fn (Assert $page) => $page
+        ->where("dashboard.kpis.{$status}_products", 1)
+        ->has("dashboard.needs_attention.{$status}_products", 1)
+        ->where("dashboard.needs_attention.{$status}_products.0.id", $active->id));
+    $this->get(route('administration.inventory.index', ['stock' => $status]))->assertInertia(fn (Assert $page) => $page
+        ->where('products.total', 4));
+})->with(['inclusive low stock' => [5, 'low_stock'], 'out of stock' => [0, 'out_of_stock']]);
+
+test('historical forecasting fixtures do not generate operational dashboard restock warnings', function () {
+    Storage::fake('local');
+    $this->travelTo('2026-10-15 12:00:00');
+    $administrator = User::factory()->administrator()->create();
+    $this->seed(DevelopmentHistoricalSalesSeeder::class);
+    $fixtureStock = Inventory::query()->orderBy('product_id')->get()->toArray();
+
+    $this->actingAs($administrator)->get(route('dashboard'))->assertInertia(fn (Assert $page) => $page
+        ->where('dashboard.kpis.low_stock_products', 0)
+        ->where('dashboard.kpis.out_of_stock_products', 0)
+        ->has('dashboard.needs_attention.low_stock_products', 0)
+        ->has('dashboard.needs_attention.out_of_stock_products', 0));
+    $this->get(route('administration.inventory.index'))->assertInertia(fn (Assert $page) => $page
+        ->where('products.total', 13)
+        ->where('low_stock_count', 5)
+        ->where('out_of_stock_count', 1));
+    expect(Inventory::query()->orderBy('product_id')->get()->toArray())->toBe($fixtureStock);
 });

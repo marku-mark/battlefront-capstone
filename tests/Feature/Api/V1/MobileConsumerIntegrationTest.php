@@ -24,6 +24,9 @@ use Illuminate\Support\Str;
 
 test('wallet consumer journey purchases selected catalog items and preserves its delivery snapshot and remaining cart', function (string $method) {
     Storage::fake('local');
+    $coveragePath = config('forecasting.development_manifest');
+    $coverageContents = '{"version":2,"products":{}}';
+    Storage::disk('local')->put($coveragePath, $coverageContents);
     $this->travelTo('2026-10-08 09:00:00');
     $this->seed(BranchSeeder::class);
     $customer = User::factory()->customer()->create(['default_delivery_address' => 'Saved address']);
@@ -88,7 +91,8 @@ test('wallet consumer journey purchases selected catalog items and preserves its
         ->assertUnprocessable()->assertJsonValidationErrors('cart');
     $this->assertDatabaseCount('orders', 1);
     $this->assertDatabaseCount('shipments', 1);
-    expect(Storage::disk('local')->allFiles())->toHaveCount(1);
+    expect(Storage::disk('local')->allFiles('payment-proofs'))->toBe([$order->payment_proof_path]);
+    expect(Storage::disk('local')->get($coveragePath))->toBe($coverageContents);
     expect($customer->refresh()->default_delivery_address)->toBe('Saved address');
     $products[0]->update(['price' => '999.00', 'discount_price' => null, 'shipping_profile' => ShippingProfile::Bulky]);
     config(['battlefront.delivery.destinations' => [], 'battlefront.delivery.carrier' => 'changed']);

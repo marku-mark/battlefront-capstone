@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Concerns\HasCatalogNameKey;
 use Database\Factories\CategoryFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Scope;
@@ -19,6 +20,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Fillable(['name', 'description', 'is_active'])]
 class Category extends Model
 {
+    use HasCatalogNameKey;
+
     /** @use HasFactory<CategoryFactory> */
     use HasFactory;
 

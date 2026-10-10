@@ -2,6 +2,7 @@
 import { Head, Link } from '@inertiajs/vue3';
 import { ArrowLeft, PackageSearch, Pencil } from '@lucide/vue';
 import ProductController from '@/actions/App/Http/Controllers/Administration/ProductController';
+import PermanentDeletionDialog from '@/components/PermanentDeletionDialog.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 
@@ -60,12 +61,20 @@ defineOptions({
                     </h1>
                 </div>
             </div>
-            <Button as-child>
-                <Link :href="ProductController.edit(product.id)">
-                    <Pencil />
-                    Edit product
-                </Link>
-            </Button>
+            <div class="flex flex-wrap items-center gap-2">
+                <Button as-child>
+                    <Link :href="ProductController.edit(product.id)">
+                        <Pencil />
+                        Edit product
+                    </Link>
+                </Button>
+                <PermanentDeletionDialog
+                    :name="product.name"
+                    :form="ProductController.destroy.form(product.id)"
+                    :error-bag="`deleteProduct${product.id}`"
+                    :imported="product.is_catalog_imported"
+                />
+            </div>
         </div>
 
         <div

@@ -8,6 +8,7 @@ test('the category schema follows the approved ERD decisions', function () {
     expect(Schema::getColumnListing('categories'))->toEqualCanonicalizing([
         'id',
         'name',
+        'name_key',
         'description',
         'is_active',
     ]);

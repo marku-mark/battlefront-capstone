@@ -2,8 +2,22 @@
 
 use App\Models\CustomerProductView;
 use App\Models\GuestRecommendationProfile;
+use App\Models\Inventory;
 use App\Models\Product;
 use App\Models\User;
+
+test('delayed dwell remains recordable after a viewed product sells out', function () {
+    $customer = User::factory()->customer()->create();
+    $product = Product::factory()->available()->create();
+    $this->actingAs($customer)->get(route('products.show', $product))->assertOk();
+    $view = $customer->productViews()->sole();
+    Inventory::query()->where('product_id', $product->id)->update(['quantity' => 0]);
+
+    $this->postJson(route('products.dwell.store', $product), ['seconds' => 60])->assertNoContent();
+
+    expect($view->refresh()->dwell_seconds)->toBe(60);
+    $this->get(route('products.show', $product))->assertNotFound();
+});
 
 test('dwell updates only the current owner latest view and never decreases its duration', function () {
     $this->freezeTime();

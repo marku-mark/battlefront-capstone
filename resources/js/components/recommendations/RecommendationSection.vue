@@ -1,6 +1,5 @@
 <script setup>
 import { Link, usePage } from '@inertiajs/vue3';
-import { ArrowRight } from '@lucide/vue';
 import {
     computed,
     nextTick,
@@ -14,14 +13,12 @@ import ProductPrice from '@/components/catalog/ProductPrice.vue';
 import StockAvailability from '@/components/catalog/StockAvailability.vue';
 import { Button } from '@/components/ui/button';
 import { store as storeRecommendationInteraction } from '@/routes/recommendations/interactions';
-import { index as recommendationIndex } from '@/routes/recommendations';
 import { show as productShow } from '@/routes/products';
 
 const props = defineProps({
     title: { type: String, required: true },
     description: { type: String, required: true },
     placement: { type: String, required: true },
-    showViewAll: { type: Boolean, default: true },
     recommendations: { type: Array, default: () => [] },
 });
 
@@ -294,13 +291,6 @@ onBeforeUnmount(() => {
                     {{ description }}
                 </p>
             </div>
-
-            <Button v-if="showViewAll" as-child variant="outline">
-                <Link :href="recommendationIndex()">
-                    View all recommendations
-                    <ArrowRight class="size-4" aria-hidden="true" />
-                </Link>
-            </Button>
         </div>
 
         <p
@@ -391,20 +381,6 @@ onBeforeUnmount(() => {
                             "
                         >
                             Hide
-                        </Button>
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            class="min-h-10 px-2 text-xs"
-                            @click="
-                                dismissRecommendation(
-                                    recommendation,
-                                    'report_wrong',
-                                )
-                            "
-                        >
-                            Report a problem
                         </Button>
                     </div>
                 </div>
