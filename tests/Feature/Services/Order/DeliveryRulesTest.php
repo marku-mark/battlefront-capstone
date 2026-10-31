@@ -32,7 +32,7 @@ test('all configured destinations resolve approved fees and transit ranges witho
         'origin_city' => 'Sagay City',
         'destination' => $destination,
         'is_demo' => true,
-        'assumption_label' => 'Battlefront demonstration estimates. New Negros Occidental rates use OSM administrative-boundary centroids as straight-line proxies; they are not official LBC rates or verified production shipping charges.',
+        'assumption_label' => 'Battlefront demonstration estimates. Regional base fees apply to all destinations. Negros Occidental transit bands use OSM administrative-boundary centroids as straight-line proxies; they are not official LBC rates or verified production shipping charges.',
         'pricing_configured' => true,
         'pricing_status' => 'configured_estimate',
         'delivery_arrangement_required' => false,
@@ -60,19 +60,45 @@ test('all configured destinations resolve approved fees and transit ranges witho
     ]);
     Http::assertNothingSent();
 })->with([
-    'Sagay City' => ['Sagay City', '80.00', 0, 1, 1, 2],
-    'Escalante City' => ['Escalante City', '100.00', 1, 1, 2, 2],
-    'Cadiz City' => ['Cadiz City', '120.00', 1, 1, 2, 2],
-    'Toboso' => ['Toboso', '140.00', 1, 1, 2, 2],
-    'Manapla' => ['Manapla', '160.00', 1, 1, 2, 2],
-    'Calatrava' => ['Calatrava', '180.00', 1, 1, 2, 2],
-    'Victorias City' => ['Victorias City', '180.00', 1, 1, 2, 2],
-    'E.B. Magalona' => ['E.B. Magalona', '200.00', 1, 2, 2, 3],
-    'San Carlos City' => ['San Carlos City', '220.00', 1, 2, 2, 3],
-    'Silay City' => ['Silay City', '220.00', 1, 2, 2, 3],
-    'Talisay City' => ['Talisay City', '240.00', 1, 2, 2, 3],
-    'Bacolod City' => ['Bacolod City', '250.00', 1, 2, 2, 3],
+    'Sagay City' => ['Sagay City', '150.00', 0, 1, 1, 2],
+    'Escalante City' => ['Escalante City', '150.00', 1, 1, 2, 2],
+    'Cadiz City' => ['Cadiz City', '150.00', 1, 1, 2, 2],
+    'Toboso' => ['Toboso', '150.00', 1, 1, 2, 2],
+    'Manapla' => ['Manapla', '150.00', 1, 1, 2, 2],
+    'Calatrava' => ['Calatrava', '150.00', 1, 1, 2, 2],
+    'Victorias City' => ['Victorias City', '150.00', 1, 1, 2, 2],
+    'E.B. Magalona' => ['E.B. Magalona', '150.00', 1, 2, 2, 3],
+    'San Carlos City' => ['San Carlos City', '150.00', 1, 2, 2, 3],
+    'Silay City' => ['Silay City', '150.00', 1, 2, 2, 3],
+    'Talisay City' => ['Talisay City', '150.00', 1, 2, 2, 3],
+    'Bacolod City' => ['Bacolod City', '150.00', 1, 2, 2, 3],
 ]);
+
+test('regional fee changes apply to local listings and fallback routes without changing fulfillment', function () {
+    config(['battlefront.delivery.regional_estimates.fees.visayas' => '170.00']);
+    $rules = app(DeliveryRules::class);
+    expect($rules->destinations()['Sagay City']['base_fee'])->toBe('170.00');
+    expect($rules->zone('1804523000'))->toMatchArray(['base_fee' => '170.00', 'configured' => true, 'transit_min_days' => 0]);
+    expect($rules->zone('1804520000'))->toMatchArray(['base_fee' => '170.00', 'configured' => true, 'transit_min_days' => 1]);
+    expect($rules->zone('0631000000'))->toMatchArray(['base_fee' => '170.00', 'configured' => false, 'regional_estimate' => true, 'transit_min_days' => null]);
+});
+
+test('missing or invalid regional pricing rejects local delivery while pickup remains available', function (mixed $fee) {
+    config(['battlefront.delivery.regional_estimates.fees.visayas' => $fee]);
+    $rules = app(DeliveryRules::class);
+    expect(fn () => $rules->zone('1804523000'))->toThrow(DomainException::class);
+    expect(fn () => $rules->zone('1804520000'))->toThrow(DomainException::class);
+    expect($rules->quote(FulfillmentMethod::Pickup, null, []))->toBeNull();
+})->with([null, '-1.00', '150', 'bad']);
+
+test('a two kilogram fragile Visayas package combines regional weight and handling fees', function () {
+    $product = Product::factory()->fragile()->make([
+        'category_id' => 1, 'package_weight_kg' => '2.000',
+        'package_length_cm' => '10.00', 'package_width_cm' => '10.00', 'package_height_cm' => '10.00',
+    ]);
+    expect(app(DeliveryRules::class)->quote(FulfillmentMethod::Delivery, 'Sagay City', [$product]))
+        ->toMatchArray(['route_base_fee' => '150.00', 'weight_surcharge' => '45.00', 'handling_surcharge' => '50.00', 'delivery_fee' => '245.00']);
+});
 
 test('destination listing contains exactly the supported destinations', function () {
     expect(array_keys(app(DeliveryRules::class)->destinations()))->toBe([
@@ -122,26 +148,26 @@ test('new Negros Occidental destinations use their reviewed centroid distance ba
         ->eta_min_days->toBe($transitMinimum + 1)
         ->eta_max_days->toBe($transitMaximum + 1);
 })->with([
-    'Binalbagan' => ['1804503000', '99.0', 'km_60_100', '280.00', 2, 3],
-    'Candoni' => ['1804506000', '145.5', 'km_125_155', '360.00', 3, 4],
-    'Cauayan' => ['1804507000', '134.1', 'km_125_155', '360.00', 3, 4],
-    'City of Bago' => ['1804502000', '74.9', 'km_60_100', '280.00', 2, 3],
-    'City of Himamaylan' => ['1804510000', '106.8', 'km_100_125', '320.00', 2, 3],
-    'City of Kabankalan' => ['1804515000', '120.5', 'km_100_125', '320.00', 2, 3],
-    'City of La Carlota' => ['1804516000', '75.1', 'km_60_100', '280.00', 2, 3],
-    'City of Sipalay' => ['1804527000', '168.8', 'km_155_180', '400.00', 3, 4],
-    'Hinigaran' => ['1804511000', '92.8', 'km_60_100', '280.00', 2, 3],
-    'Hinoba-an' => ['1804512000', '177.4', 'km_155_180', '400.00', 3, 4],
-    'Ilog' => ['1804513000', '120.0', 'km_100_125', '320.00', 2, 3],
-    'Isabela' => ['1804514000', '89.9', 'km_60_100', '280.00', 2, 3],
-    'La Castellana' => ['1804517000', '77.1', 'km_60_100', '280.00', 2, 3],
-    'Moises Padilla' => ['1804519000', '78.9', 'km_60_100', '280.00', 2, 3],
-    'Murcia' => ['1804520000', '52.1', 'km_45_60', '220.00', 1, 2],
-    'Pontevedra' => ['1804521000', '83.4', 'km_60_100', '280.00', 2, 3],
-    'Pulupandan' => ['1804522000', '78.9', 'km_60_100', '280.00', 2, 3],
-    'Salvador Benedicto' => ['1804532000', '41.4', 'km_30_45', '180.00', 1, 2],
-    'San Enrique' => ['1804525000', '81.4', 'km_60_100', '280.00', 2, 3],
-    'Valladolid' => ['1804530000', '80.7', 'km_60_100', '280.00', 2, 3],
+    'Binalbagan' => ['1804503000', '99.0', 'km_60_100', '150.00', 2, 3],
+    'Candoni' => ['1804506000', '145.5', 'km_125_155', '150.00', 3, 4],
+    'Cauayan' => ['1804507000', '134.1', 'km_125_155', '150.00', 3, 4],
+    'City of Bago' => ['1804502000', '74.9', 'km_60_100', '150.00', 2, 3],
+    'City of Himamaylan' => ['1804510000', '106.8', 'km_100_125', '150.00', 2, 3],
+    'City of Kabankalan' => ['1804515000', '120.5', 'km_100_125', '150.00', 2, 3],
+    'City of La Carlota' => ['1804516000', '75.1', 'km_60_100', '150.00', 2, 3],
+    'City of Sipalay' => ['1804527000', '168.8', 'km_155_180', '150.00', 3, 4],
+    'Hinigaran' => ['1804511000', '92.8', 'km_60_100', '150.00', 2, 3],
+    'Hinoba-an' => ['1804512000', '177.4', 'km_155_180', '150.00', 3, 4],
+    'Ilog' => ['1804513000', '120.0', 'km_100_125', '150.00', 2, 3],
+    'Isabela' => ['1804514000', '89.9', 'km_60_100', '150.00', 2, 3],
+    'La Castellana' => ['1804517000', '77.1', 'km_60_100', '150.00', 2, 3],
+    'Moises Padilla' => ['1804519000', '78.9', 'km_60_100', '150.00', 2, 3],
+    'Murcia' => ['1804520000', '52.1', 'km_45_60', '150.00', 1, 2],
+    'Pontevedra' => ['1804521000', '83.4', 'km_60_100', '150.00', 2, 3],
+    'Pulupandan' => ['1804522000', '78.9', 'km_60_100', '150.00', 2, 3],
+    'Salvador Benedicto' => ['1804532000', '41.4', 'km_30_45', '150.00', 1, 2],
+    'San Enrique' => ['1804525000', '81.4', 'km_60_100', '150.00', 2, 3],
+    'Valladolid' => ['1804530000', '80.7', 'km_60_100', '150.00', 2, 3],
 ]);
 
 test('a missing or inconsistent centroid band fails closed', function () {
@@ -191,9 +217,9 @@ test('handling values and priority match each approved profile', function (
         ->eta_min_days->toBe($etaMinimum)
         ->eta_max_days->toBe($etaMaximum);
 })->with([
-    'standard' => [ShippingProfile::Standard, 0, '0.00', 1, '250.00', 2, 3],
-    'fragile' => [ShippingProfile::Fragile, 1, '50.00', 2, '300.00', 3, 4],
-    'bulky' => [ShippingProfile::Bulky, 2, '100.00', 3, '350.00', 4, 5],
+    'standard' => [ShippingProfile::Standard, 0, '0.00', 1, '150.00', 2, 3],
+    'fragile' => [ShippingProfile::Fragile, 1, '50.00', 2, '200.00', 3, 4],
+    'bulky' => [ShippingProfile::Bulky, 2, '100.00', 3, '250.00', 4, 5],
 ]);
 
 test('mixed products select the highest profile once independent of ordering or repetition', function (array $profiles, string $highest, string $fee, int $etaMinimum, int $etaMaximum) {
@@ -211,9 +237,9 @@ test('mixed products select the highest profile once independent of ordering or 
         ->eta_min_days->toBe($etaMinimum)
         ->eta_max_days->toBe($etaMaximum);
 })->with([
-    'fragile outranks standard' => [[ShippingProfile::Standard, ShippingProfile::Fragile, ShippingProfile::Standard], 'fragile', '220.00', 2, 3],
-    'bulky last' => [[ShippingProfile::Standard, ShippingProfile::Fragile, ShippingProfile::Bulky], 'bulky', '270.00', 3, 4],
-    'bulky first and repeated' => [[ShippingProfile::Bulky, ShippingProfile::Fragile, ShippingProfile::Bulky, ShippingProfile::Standard], 'bulky', '315.00', 3, 4],
+    'fragile outranks standard' => [[ShippingProfile::Standard, ShippingProfile::Fragile, ShippingProfile::Standard], 'fragile', '290.00', 2, 3],
+    'bulky last' => [[ShippingProfile::Standard, ShippingProfile::Fragile, ShippingProfile::Bulky], 'bulky', '340.00', 3, 4],
+    'bulky first and repeated' => [[ShippingProfile::Bulky, ShippingProfile::Fragile, ShippingProfile::Bulky, ShippingProfile::Standard], 'bulky', '385.00', 3, 4],
 ]);
 
 test('persisted mixed carts keep one surcharge when line quantities change', function () {
@@ -236,8 +262,8 @@ test('persisted mixed carts keep one surcharge when line quantities change', fun
 
     $after = $rules->quote(FulfillmentMethod::Delivery, 'Cadiz City', $afterItems->pluck('product'), $afterItems->pluck('quantity', 'product_id')->all());
 
-    expect($before['delivery_fee'])->toBe('355.00')
-        ->and($after['delivery_fee'])->toBe('1075.00');
+    expect($before['delivery_fee'])->toBe('385.00')
+        ->and($after['delivery_fee'])->toBe('1105.00');
     expect($after)->shipping_profile->toBe('bulky')
         ->handling_surcharge->toBe('100.00')
         ->preparation_days->toBe(3)
@@ -289,7 +315,7 @@ test('delivery rejects products whose persisted profile was not loaded', functio
 
 test('configured decimal fees are added at two decimal places independently of global scale', function () {
     config([
-        'battlefront.delivery.destinations.Sagay City.base_fee' => '80.15',
+        'battlefront.delivery.regional_estimates.fees.visayas' => '80.15',
         'battlefront.delivery.profiles.fragile.surcharge' => '50.25',
     ]);
     $product = Product::factory()->fragile()->make(['category_id' => 1]);
@@ -317,7 +343,7 @@ test('weight fees use decimal step rounding and round the resulting charge to ce
 
     expect($quote['billable_weight_kg'])->toBe('2.500')
         ->and($quote['weight_surcharge'])->toBe('15.02')
-        ->and($quote['delivery_fee'])->toBe('95.02');
+        ->and($quote['delivery_fee'])->toBe('165.02');
 });
 
 test('volumetric weight controls the billable step when it exceeds actual weight', function () {

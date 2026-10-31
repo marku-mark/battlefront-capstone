@@ -29,7 +29,7 @@ test('FAQ migration retires untouched presets and converts order navigation with
     $this->assertDatabaseCount('chatbot_knowledge', 3);
     $this->seed(DevelopmentChatbotKnowledgeSeeder::class);
     expect($navigation->refresh()->is_active)->toBeFalse()->and($product->refresh()->is_active)->toBeFalse();
-    $this->assertDatabaseCount('chatbot_knowledge', 6);
+    $this->assertDatabaseCount('chatbot_knowledge', 11);
 });
 
 test('FAQ migration preserves edited and custom records', function (array $changes) {
@@ -90,7 +90,7 @@ test('retired preset cleanup deletes every unchanged inactive preset and preserv
     foreach ($retired as $record) {
         $this->assertModelMissing($record);
     }
-    $this->assertDatabaseCount('chatbot_knowledge', 5);
+    $this->assertDatabaseCount('chatbot_knowledge', 10);
     expect(ChatbotKnowledge::query()->orderBy('id')->get()
         ->map(fn (ChatbotKnowledge $record): array => $record->getAttributes())->all())->toBe($before);
 });

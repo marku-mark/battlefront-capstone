@@ -6,6 +6,7 @@ use App\Models\Product;
 use App\Models\User;
 use App\Models\WishlistActivity;
 use App\Models\WishlistItem;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Str;
 
 test('customers can save once remove and view only their own wishlist', function () {
@@ -218,11 +219,13 @@ test('wishlist report rejects a date range longer than 365 days with a field err
     ]))->assertRedirect()->assertSessionHasErrors('to');
 });
 
-test('wishlist report marks interest increasing only when both periods have a positive baseline', function () {
+test('wishlist report marks interest increasing only when both periods have a positive baseline', function (string $localTime) {
+    config(['battlefront.timezone' => 'Asia/Manila']);
+    $this->travelTo(CarbonImmutable::parse($localTime, 'Asia/Manila'));
     $owner = User::factory()->administrator()->create();
     $customer = User::factory()->customer()->create();
     $product = Product::factory()->available()->create();
-    $yesterday = now('UTC')->subDay()->startOfDay();
+    $yesterday = CarbonImmutable::now(config('battlefront.timezone'))->subDay()->startOfDay()->utc();
     WishlistItem::query()->create([
         'user_id' => $customer->id,
         'product_id' => $product->id,
@@ -253,6 +256,14 @@ test('wishlist report marks interest increasing only when both periods have a po
         'minimum_net_additions' => 2,
         'minimum_increase_percent' => 20,
     ]))->assertOk()->assertInertia(fn ($page) => $page
+        ->where('activity.additions', 3)
+        ->where('activity.previous.additions', 1)
+        ->where('coverage.complete_for_period', true)
         ->where('increasing_interest.0.id', $product->id)
         ->where('increasing_interest.0.demand.increase_percent', 200));
-});
+})->with([
+    'after Manila midnight' => '2026-10-30 00:15:00',
+    'before UTC midnight' => '2026-10-30 07:59:59',
+    'at UTC midnight' => '2026-10-30 08:00:00',
+    'before Manila midnight' => '2026-10-30 23:59:59',
+]);

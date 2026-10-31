@@ -22,7 +22,7 @@ test('monthly generation preserves legacy forecasts without changing their saved
     $products = HistoricalSalesCatalogFixtures::createProducts();
     $this->seed(DevelopmentHistoricalSalesSeeder::class);
     $product = $products['10003'];
-    $legacy = Forecast::factory()->for($product)->create(['method' => 'moving_average', 'predicted_demand' => '12.00']);
+    $legacy = Forecast::factory()->for($product)->create(['method' => 'moving_average', 'forecast_quarter' => '2026-Q4', 'predicted_demand' => '12.00']);
     $snapshot = $legacy->fresh()->toArray();
     $this->actingAs(User::factory()->administrator()->create())
         ->get(route('administration.forecasting.index', ['product_id' => $product->id]))
@@ -35,7 +35,7 @@ test('monthly generation preserves legacy forecasts without changing their saved
         ->assertInertiaFlash('forecast_result.forecast_quantity', '7.10');
     $this->assertDatabaseHas('forecasts', [
         'product_id' => $product->id, 'method' => 'additive_holt_winters',
-        'forecast_quarter' => '2026-Q4', 'predicted_demand' => '7.10',
+        'forecast_quarter' => '2026-10/2026-12', 'predicted_demand' => '7.10',
     ]);
     expect($legacy->fresh()->toArray())->toBe($snapshot);
     $this->assertDatabaseCount('forecasts', 2);

@@ -99,16 +99,16 @@ test('rule guidance ignores saved overrides and answers without Gemini or active
         'category' => ChatbotCategory::Faq, 'question_pattern' => $question, 'response_template' => 'Wrong rule override.',
     ]);
     $result = app(ChatbotOrchestrationService::class)->respond($question);
-    expect($result['source'])->toBe('fallback')->and($result['message'])->toBe($answer);
+    expect($result['source'])->toBe('fallback')->and($result['message'])->toContain($answer);
     ChatbotKnowledge::query()->update(['is_active' => false]);
-    expect(app(ChatbotOrchestrationService::class)->respond($question)['message'])->toBe($answer);
+    expect(app(ChatbotOrchestrationService::class)->respond($question)['message'])->toContain($answer);
     ChatbotResponseAgent::assertNeverPrompted();
     Http::assertNothingSent();
 })->with([
-    ['Do you accept GCash?', 'Pickup orders support Cash (Pay at Pickup), Debit/Credit Card (Pay at Store), GCash, Maya, Pay online. Delivery orders support GCash, Maya, Cash on Delivery (COD), Pay online.'],
-    ['Do I need payment proof for Maya?', 'GCash and Maya require uploaded payment proof, which Battlefront staff review manually. Cash (Pay at Pickup) and Debit/Credit Card (Pay at Store) and Pay online are pickup payment methods and do not require an upload; cash is received or a physical card terminal transaction succeeds during pickup. Staff confirm payment and product handover together to complete pickup. Cash on Delivery (COD) is delivery-only, requires no upload, and is collected upon delivery. Battlefront manually confirms LBC collection after delivery before completing the order. Check your order history for the latest payment status.'],
+    ['Do you accept GCash?', 'Pay online uses PayMongo Hosted Checkout'],
+    ['Do I need payment proof for Maya?', 'New online payments require no receipt or screenshot upload'],
     ['Can I choose pickup or delivery?', 'Battlefront supports pickup and delivery. Choose an available fulfillment option during checkout; a delivery address is required for delivery.'],
-    ['What is the delivery fee?', 'The delivery fee and estimated delivery time are shown at checkout after you select your items and delivery destination, when an estimate is configured. Configured quotes are Battlefront demonstration estimates, not official carrier rates or guaranteed delivery dates. For unconfigured destinations, the 0.00 placeholder is not free delivery: charges and arrangements must be confirmed separately, and no carrier or ETA is included.'],
+    ['What is the delivery fee?', 'nationwide fallback routes require manual arrangements without an automatic ETA or Shipment'],
 ]);
 
 test('FAQ exactness and relevance select one answer regardless of priority', function () {

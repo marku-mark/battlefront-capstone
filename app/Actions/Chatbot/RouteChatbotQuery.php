@@ -2,6 +2,7 @@
 
 namespace App\Actions\Chatbot;
 
+use App\Actions\Chatbot\Context\ResolveProductContext;
 use App\Enums\ChatbotQueryCategory;
 use App\Services\Chatbot\ChatbotLanguage;
 
@@ -11,16 +12,17 @@ class RouteChatbotQuery
         private CategorizeChatbotQuery $categorizer,
         private MatchChatbotKnowledge $knowledge,
         private ClassifyChatbotInquiry $boundary,
+        private ResolveProductContext $products,
         private ChatbotLanguage $language = new ChatbotLanguage,
     ) {}
 
     /** @return array{category: ChatbotQueryCategory, choices: array<string, string>} */
-    public function execute(string $message): array
+    public function execute(string $message, bool $resolveCatalogTerms = false): array
     {
         $classification = $this->boundary->execute($message);
         $category = $classification['category'];
 
-        if ($this->categorizer->isBlocked($message)) {
+        if ($this->categorizer->isBlocked($message) || $this->boundary->containsSensitiveInput($message)) {
             return ['category' => $category, 'choices' => []];
         }
 
@@ -29,7 +31,7 @@ class RouteChatbotQuery
         $clauses = $this->language->clauses($message);
 
         foreach ($clauses as $clause) {
-            $clauseCategory = $this->categoryWithKnowledge($clause);
+            $clauseCategory = $this->categoryWithKnowledge($clause, $resolveCatalogTerms);
 
             if ($clauseCategory !== ChatbotQueryCategory::Unsupported) {
                 $ruleTopic = $this->boundary->execute($clause)['rule_topic'];
@@ -44,13 +46,18 @@ class RouteChatbotQuery
             return ['category' => $category, 'choices' => $choices];
         }
 
-        return ['category' => $this->categoryWithKnowledge($message), 'choices' => []];
+        return ['category' => $this->categoryWithKnowledge($message, $resolveCatalogTerms), 'choices' => []];
     }
 
-    private function categoryWithKnowledge(string $message): ChatbotQueryCategory
+    private function categoryWithKnowledge(string $message, bool $resolveCatalogTerms): ChatbotQueryCategory
     {
         $classification = $this->boundary->execute($message);
         $category = $classification['category'];
+
+        if ($resolveCatalogTerms && $category === ChatbotQueryCategory::Unsupported
+            && ! $this->language->isAcknowledgement($message) && $this->products->matchesCatalogTerms($message)) {
+            return ChatbotQueryCategory::Product;
+        }
 
         if ($classification['eligible_for_faq'] && $this->knowledge->execute($message) !== []) {
             $category = ChatbotQueryCategory::Faq;

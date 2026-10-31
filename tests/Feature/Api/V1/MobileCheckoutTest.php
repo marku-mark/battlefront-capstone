@@ -86,7 +86,7 @@ test('mobile checkout places all approved payment and fulfillment combinations',
         $payload['delivery_destination'] = 'Sagay City';
     }
     $response = $this->post('/api/v1/orders', $payload)->assertSuccessful()
-        ->assertJsonPath('data.total', $fulfillment === 'delivery' ? '143.66' : '18.66')
+        ->assertJsonPath('data.total', $fulfillment === 'delivery' ? '213.66' : '18.66')
         ->assertJsonPath('data.status.value', 'pending')
         ->assertJsonPath('data.payment.status.value', 'pending')
         ->assertJsonPath('data.payment.method.value', $hostedMethod === null ? $payment : 'online')

@@ -4,6 +4,7 @@ namespace App\Services\Chatbot;
 
 use App\Actions\Chatbot\CategorizeChatbotQuery;
 use App\Actions\Chatbot\Context\ResolveProductContext;
+use App\Actions\Chatbot\RenderChatbotFallback;
 use App\Actions\Chatbot\RouteChatbotQuery;
 use App\Enums\ChatbotQueryCategory;
 use App\Models\Branch;
@@ -19,6 +20,7 @@ class ChatbotConversation
         private RouteChatbotQuery $router,
         private CategorizeChatbotQuery $categorizer,
         private ResolveProductContext $products,
+        private RenderChatbotFallback $fallbackRenderer,
         private ChatbotLanguage $language = new ChatbotLanguage,
     ) {}
 
@@ -56,7 +58,7 @@ class ChatbotConversation
         }
         unset($state['pending']);
 
-        $routing = $this->router->execute($message);
+        $routing = $this->router->execute($message, resolveCatalogTerms: true);
         if ($routing['choices'] !== []) {
             $state['pending'] = $routing['choices'];
 
@@ -65,6 +67,11 @@ class ChatbotConversation
 
         $productId = null;
         $category = $routing['category'];
+        if (isset($state['product_clarification']) && $category === ChatbotQueryCategory::Product
+            && $this->products->matchesCatalogTerms($message)
+            && $this->products->clarificationChoices($state['references']['product'] ?? [], $message) === []) {
+            unset($state['product_clarification']);
+        }
         if (($state['active'] ?? null) === 'product' && isset($state['product_clarification'])
             && in_array($category, [ChatbotQueryCategory::Product, ChatbotQueryCategory::Unsupported], true)
             && ! $this->categorizer->requiresLiveFacts($message)) {
@@ -83,7 +90,7 @@ class ChatbotConversation
                     return $this->fallback('Those products are no longer available in the current catalog. Please enter another product name or model.', $state, $subject);
                 }
 
-                return $this->fallback('Which product do you mean? '.implode(', ', array_column($choices, 'name')).'. Please reply with one product name or model.', $state, $subject);
+                return $this->fallback($this->fallbackRenderer->productClarification(array_column($choices, 'name')), $state, $subject);
             }
         }
 
@@ -150,7 +157,9 @@ class ChatbotConversation
             if ($category === ChatbotQueryCategory::Product) {
                 $state['references']['product'] = Product::query()->customerEligible()
                     ->whereIn('name', array_column($context['products'], 'name'))
-                    ->limit(6)->pluck('id')->all();
+                    ->limit(6)->get(['id', 'name'])
+                    ->sortBy(fn (Product $product): int => (int) array_search($product->name, array_column($context['products'], 'name'), true))
+                    ->pluck('id')->all();
                 unset($state['product_clarification']);
                 if (count($context['products']) > 1) {
                     $text = $this->language->canonical($message);

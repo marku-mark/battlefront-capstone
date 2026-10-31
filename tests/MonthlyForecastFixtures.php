@@ -29,7 +29,7 @@ class MonthlyForecastFixtures
             'status' => 'ready', 'message' => 'Ready to forecast from 36 trusted completed months.',
             'product_id' => 7, 'product_code' => 'DEVTEST', 'timezone' => 'UTC',
             'source_period' => ['start' => $start, 'end_exclusive' => $end],
-            'target_quarter' => ['year' => (int) $date->format('Y'), 'quarter' => intdiv((int) $date->format('n') - 1, 3) + 1, 'start' => $end, 'end_exclusive' => $date->modify('+3 months')->format('Y-m-d')],
+            'target_period' => ['start' => $end, 'end_exclusive' => $date->modify('+3 months')->format('Y-m-d')],
             'covered_months' => 36, 'positive_sales_months' => $positive,
             'coverage' => ['granularity' => 'month', 'start' => $start, 'end_exclusive' => $date->modify('+12 months')->format('Y-m-d'), 'unavailable_months' => [], 'timezone' => 'UTC', 'source_kind' => 'synthetic_development', 'sales_scope' => 'development_fixture_transactions'],
             'history' => ['product_id' => 7, 'timezone' => 'UTC', 'start' => $start, 'end_exclusive' => $end, 'months' => self::months($quantities, $start)],
@@ -45,7 +45,7 @@ class MonthlyForecastFixtures
             $preparation = self::preparation(array_slice($quantities, $offset, 36), $start);
             $preparation['coverage']['start'] = '2022-10-01';
             $preparation['coverage']['end_exclusive'] = '2026-10-01';
-            $folds[] = ['preparation' => $preparation, 'actual_months' => self::months(array_slice($quantities, $offset + 36, 3), $preparation['target_quarter']['start'])];
+            $folds[] = ['preparation' => $preparation, 'actual_months' => self::months(array_slice($quantities, $offset + 36, 3), $preparation['target_period']['start'])];
         }
 
         return $folds;

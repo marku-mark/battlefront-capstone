@@ -41,7 +41,7 @@ test('persists finalized Holt Winters output against its product and quarter', f
     expect($forecast->product_id)->toBe($product->id);
     expect($forecast->method)->toBe('additive_holt_winters');
     expect($forecast->predicted_demand)->toBe('30.00');
-    expect($forecast->forecast_quarter)->toBe('2026-Q4');
+    expect($forecast->forecast_quarter)->toBe('2026-10/2026-12');
     expect($forecast->generated_at->toDateTimeString())->toBe('2027-01-15 12:00:00');
     expect($forecast->product->is($product))->toBeTrue();
     expect($product->forecasts()->sole()->is($forecast))->toBeTrue();
@@ -99,7 +99,7 @@ test('reruns preserve other product and quarter results', function () {
 
     expect($replacement->id)->toBe($first->id);
     expect($replacement->predicted_demand)->toBe('36.00');
-    expect($replacement->forecast_quarter)->toBe('2026-Q4');
+    expect($replacement->forecast_quarter)->toBe('2026-10/2026-12');
     expect([$otherQuarter->refresh()->getAttributes(), $other->refresh()->getAttributes()])->toBe($snapshots);
     $this->assertDatabaseCount('forecasts', 3);
 });
@@ -119,7 +119,7 @@ test('persists covered zero demand from monthly preparation and calculation', fu
     $forecast = app(PersistForecast::class)->execute($result);
 
     expect($forecast->predicted_demand)->toBe('0.00');
-    expect($forecast->forecast_quarter)->toBe('2027-Q1');
+    expect($forecast->forecast_quarter)->toBe('2027-01/2027-03');
     $this->assertDatabaseHas('forecasts', ['product_id' => $product->id, 'method' => 'additive_holt_winters', 'predicted_demand' => '0.00']);
 });
 
@@ -181,7 +181,7 @@ test('rejects malformed output without changing a saved forecast', function (str
     'missing status' => ['status', null], 'missing history' => ['status', 'missing_history'],
     'unknown status' => ['status', 'ready'], 'unavailable' => ['status', 'history_unavailable'],
     'insufficient' => ['status', 'insufficient_history'], 'unsuitable' => ['status', 'history_unsuitable'],
-    'missing source' => ['source_period', null], 'missing target' => ['target_quarter', null],
+    'missing source' => ['source_period', null], 'missing target' => ['target_period', null],
     'invalid timezone' => ['timezone', 'Invalid/Zone'], 'empty timezone' => ['timezone', ''],
     'missing timezone' => ['timezone', null],
     '35 source months' => ['source_period.start', '2023-11-01'],
@@ -194,15 +194,15 @@ test('rejects malformed output without changing a saved forecast', function (str
     'source gap before target' => ['source_period.end_exclusive', '2026-09-01'],
     'source overlaps target' => ['source_period.end_exclusive', '2026-11-01'],
     'missing source end' => ['source_period.end_exclusive', null],
-    'target not quarter aligned' => ['target_quarter.start', '2026-11-01'],
-    'target date unaligned' => ['target_quarter.start', '2026-10-02'],
-    'target year mismatch' => ['target_quarter.year', 2027],
-    'target quarter mismatch' => ['target_quarter.quarter', 3],
-    'target year wrong type' => ['target_quarter.year', '2026'],
-    'missing target end' => ['target_quarter.end_exclusive', null],
-    'two month horizon' => ['target_quarter.end_exclusive', '2026-12-01'],
-    'four month horizon' => ['target_quarter.end_exclusive', '2027-02-01'],
-    'partial final month' => ['target_quarter.end_exclusive', '2026-12-31'],
+    'target not quarter aligned' => ['target_period.start', '2026-11-01'],
+    'target date unaligned' => ['target_period.start', '2026-10-02'],
+    'target end year mismatch' => ['target_period.end_exclusive', '2028-01-01'],
+    'target end reversed' => ['target_period.end_exclusive', '2026-07-01'],
+    'target end wrong type' => ['target_period.end_exclusive', 2027],
+    'missing target end' => ['target_period.end_exclusive', null],
+    'two month horizon' => ['target_period.end_exclusive', '2026-12-01'],
+    'four month horizon' => ['target_period.end_exclusive', '2027-02-01'],
+    'partial final month' => ['target_period.end_exclusive', '2026-12-31'],
     'missing months' => ['monthly_forecasts', null], 'empty months' => ['monthly_forecasts', []],
     'malformed month' => ['monthly_forecasts.0', null],
     'wrong month year' => ['monthly_forecasts.0.year', 2027],
@@ -346,7 +346,7 @@ test('database rejects duplicate keys, missing products, invalid methods, negati
     $this->assertModelExists($forecast);
     $this->assertDatabaseCount('forecasts', 1);
 })->with([
-    'unique key' => [[]],
+    'unique key' => [['forecast_quarter' => '2026-Q4']],
     'foreign key' => [['product_id' => 999999]],
     'unsupported method' => [['method' => 'unsupported']],
     'uppercase method' => [['method' => 'LINEAR_TREND']],

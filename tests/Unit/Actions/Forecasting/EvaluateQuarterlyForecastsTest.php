@@ -3,6 +3,12 @@
 use App\Actions\Forecasting\EvaluateQuarterlyForecasts;
 use Tests\MonthlyForecastFixtures;
 
+test('quarterly evaluation continues to reject non calendar quarter folds', function () {
+    $folds = MonthlyForecastFixtures::folds(range(1, 48));
+    $folds[0]['preparation'] = MonthlyForecastFixtures::preparation(range(1, 36), '2022-11-01');
+    expect(fn () => (new EvaluateQuarterlyForecasts)->execute($folds))->toThrow(InvalidArgumentException::class, 'calendar-quarter targets');
+});
+
 test('evaluates four rolling linear windows against independently worked quarterly baselines', function () {
     $folds = MonthlyForecastFixtures::folds(range(1, 48));
     $original = $folds;

@@ -12,6 +12,166 @@ const executable = process.env.BATTLEFRONT_UI_BROWSER;
 const widths = [320, 375, 390, 428, 768, 1024, 1440];
 
 test(
+    'focused chatbot replies and FAQ search remain readable',
+    {
+        skip: !baseUrl || !executable,
+        timeout: 60000,
+    },
+    async (t) => {
+        const browser = await openBrowser(t);
+        const paginated = { data: [], total: 0, current_page: 1, last_page: 1 };
+        async function waitFor(expression) {
+            for (let attempt = 0; attempt < 100; attempt++) {
+                if (await browser.evaluate(expression)) return;
+                await delay(25);
+            }
+            assert.fail(
+                'Expected chatbot UI state: ' +
+                    expression +
+                    '; ' +
+                    JSON.stringify(
+                        await browser.evaluate(
+                            `({text: document.querySelector('#battlefront-chat-panel')?.textContent, input: document.getElementById('floating-chatbot-message')?.value})`,
+                        ),
+                    ) +
+                    '; requests: ' +
+                    JSON.stringify(browser.jsonRequests) +
+                    '; errors: ' +
+                    browser.exceptions.join('; '),
+            );
+        }
+        for (const theme of ['light', 'dark']) {
+            await browser.show(
+                'Administration/ChatbotKnowledge/Index',
+                {
+                    knowledge: paginated,
+                    filters: { q: 'support' },
+                },
+                'admin',
+                theme,
+            );
+            for (const width of [320, 768, 1440]) {
+                await browser.resize(width);
+                const layout = await browser.evaluate(`(() => {
+                const input = document.getElementById('knowledge-search');
+                const field = input.closest('.grid');
+                const section = input.closest('section');
+                const rect = section.getBoundingClientRect();
+                const boxes = [field.querySelector('label'), input, field.querySelector('p')].map(el => el.getBoundingClientRect());
+                return { left: boxes.map(box => box.left - rect.left), right: Math.max(...boxes.map(box => box.right)) <= rect.right - 23, bottom: rect.bottom - boxes.at(-1).bottom };
+            })()`);
+                assert.ok(
+                    layout.left.every((value) => value >= 24 && value <= 26),
+                );
+                assert.equal(layout.right, true);
+                assert.ok(layout.bottom >= 24);
+                await assertFits(browser, 'FAQ search ' + width);
+            }
+            await browser.show('Branches/Index', { branches: [] }, true, theme);
+            await browser.resize(375, 650);
+            await browser.evaluate(
+                `document.querySelector('[aria-controls="battlefront-chat-panel"]').click()`,
+            );
+            const answer = Array.from(
+                { length: 24 },
+                (_, i) =>
+                    `Paragraph ${i + 1}: Current approved information with complete details.`,
+            ).join('\n\n');
+            browser.registerJson('POST', '/chatbot', {
+                message: answer,
+                source: 'fallback',
+                context_token: 'fixture-token',
+            });
+            const submit = `(async () => { const input = document.getElementById('floating-chatbot-message'); input.value = 'monitor'; input.dispatchEvent(new Event('input', { bubbles: true })); await new Promise(resolve => setTimeout(resolve, 0)); document.querySelector('#battlefront-chat-panel form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); })()`;
+            await browser.evaluate(submit);
+            await waitFor(
+                `document.querySelectorAll('[data-message-id]').length === 2`,
+            );
+            await delay(50);
+            const reply = await browser.evaluate(`(() => {
+            const item = document.querySelector('[data-message-id="2"]');
+            const panel = item.closest('[aria-busy]');
+            return { paragraphs: item.querySelectorAll('article > div > p').length, text: item.textContent, offset: item.getBoundingClientRect().top - panel.getBoundingClientRect().top, overflow: panel.scrollHeight > panel.clientHeight };
+        })()`);
+            assert.equal(reply.paragraphs, 24);
+            assert.ok(reply.text.includes('Paragraph 24:'));
+            assert.ok(reply.offset >= 0 && reply.offset < 25);
+            assert.equal(reply.overflow, true);
+            browser.registerJson(
+                'POST',
+                '/chatbot',
+                {
+                    message: answer,
+                    source: 'fallback',
+                    context_token: 'second-token',
+                },
+                200,
+                300,
+            );
+            await browser.evaluate(submit);
+            await waitFor(
+                `document.querySelector('[aria-busy="true"]') !== null`,
+            );
+            await browser.evaluate(
+                `document.querySelector('#battlefront-chat-panel [aria-busy]').scrollTop = 0`,
+            );
+            await delay(50);
+            await waitFor(
+                `document.querySelectorAll('[data-message-id]').length === 4`,
+            );
+            assert.equal(
+                await browser.evaluate(
+                    `document.querySelector('#battlefront-chat-panel [aria-busy]').scrollTop`,
+                ),
+                0,
+            );
+            await browser.evaluate(
+                `document.querySelector('[aria-label="Close chat"]').click()`,
+            );
+            await browser.evaluate(
+                `document.querySelector('[aria-controls="battlefront-chat-panel"]').click()`,
+            );
+            assert.equal(
+                await browser.evaluate(
+                    `document.querySelector('#battlefront-chat-panel [aria-busy]').scrollTop`,
+                ),
+                0,
+            );
+            await browser.evaluate(
+                `[...document.querySelectorAll('#battlefront-chat-panel button')].find(b => b.textContent.trim() === 'New chat').click()`,
+            );
+            assert.equal(
+                await browser.evaluate(
+                    `document.querySelectorAll('[data-message-id]').length`,
+                ),
+                0,
+            );
+            browser.registerJson(
+                'POST',
+                '/chatbot',
+                { message: 'Too many questions.' },
+                429,
+            );
+            await browser.evaluate(submit);
+            await waitFor(
+                `!!document.querySelector('#battlefront-chat-panel [role="alert"]')`,
+            );
+            assert.equal(
+                JSON.parse(browser.jsonRequests.at(-1).postData).context_token,
+                null,
+            );
+            assert.equal(
+                await browser.evaluate(
+                    `document.querySelectorAll('[data-message-id]').length`,
+                ),
+                0,
+            );
+        }
+        assert.deepEqual(browser.exceptions, []);
+    },
+);
+
+test(
     'team email OTP gates creation and preserves the account form',
     { skip: !baseUrl || !executable, timeout: 60000 },
     async (t) => {
@@ -1069,9 +1229,10 @@ async function openBrowser(t, { built = true } = {}) {
             )
         ) {
             jsonRequests.push(request);
-            const { payload, status } = jsonFixtures.get(
+            const { payload, status, delayMs } = jsonFixtures.get(
                 request.method + ' ' + new URL(request.url).pathname,
             );
+            if (delayMs) await delay(delayMs);
             await command('Fetch.fulfillRequest', {
                 requestId,
                 responseCode: status,
@@ -1133,8 +1294,8 @@ async function openBrowser(t, { built = true } = {}) {
         filterRequests,
         formRequests,
         jsonRequests,
-        registerJson(method, url, payload, status = 200) {
-            jsonFixtures.set(method + ' ' + url, { payload, status });
+        registerJson(method, url, payload, status = 200, delayMs = 0) {
+            jsonFixtures.set(method + ' ' + url, { payload, status, delayMs });
         },
         registerForm(url, props) {
             formFixtures.set(url, { ...fixture, props });

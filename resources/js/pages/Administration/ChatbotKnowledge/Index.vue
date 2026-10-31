@@ -94,10 +94,12 @@ defineOptions({
     <main
         class="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-8 p-6 lg:p-10"
     >
-        <section class="border-border bg-card relative overflow-hidden border">
+        <section
+            class="border-border bg-card relative overflow-hidden border p-6"
+        >
             <div class="bg-primary absolute inset-y-0 left-0 w-1"></div>
             <div
-                class="flex flex-col gap-5 p-6 sm:flex-row sm:items-start sm:justify-between"
+                class="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between"
             >
                 <div class="flex items-start gap-4">
                     <span

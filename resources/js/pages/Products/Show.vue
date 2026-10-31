@@ -219,7 +219,13 @@ function returnToCatalog() {
                     >
                         {{ product.name }}
                     </h1>
-                    <WishlistButton class="mt-4 self-start" :product-id="product.id" :product-name="product.name" :is-wishlisted="product.is_wishlisted" :can-wishlist="canUseCustomerCart" />
+                    <WishlistButton
+                        class="mt-4 self-start"
+                        :product-id="product.id"
+                        :product-name="product.name"
+                        :is-wishlisted="product.is_wishlisted"
+                        :can-wishlist="canUseCustomerCart"
+                    />
 
                     <ProductPrice
                         :price="product.price"

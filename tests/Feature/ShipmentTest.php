@@ -31,7 +31,7 @@ test('the default shipment factory creates one quoted delivery order', function 
     $shipment = Shipment::factory()->create();
 
     $this->assertModelExists($shipment->order);
-    expect($shipment->order)->product_subtotal->toBe('100.00')->total_amount->toBe('180.00');
+    expect($shipment->order)->product_subtotal->toBe('100.00')->total_amount->toBe('250.00');
     $this->assertDatabaseCount('shipments', 1);
 });
 

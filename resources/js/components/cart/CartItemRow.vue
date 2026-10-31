@@ -288,12 +288,16 @@ const availabilityCopy = computed(() => {
                                     Remove {{ item.product.name }}?
                                 </DialogTitle>
                                 <DialogDescription>
-                        <template v-if="item.pc_build_group">
-                            This removes the complete {{ item.pc_build_group.name }} configuration from your cart.
-                        </template>
-                        <template v-else>
-                            This removes the product from your cart. You can add it again later if it remains available.
-                        </template>
+                                    <template v-if="item.pc_build_group">
+                                        This removes the complete
+                                        {{ item.pc_build_group.name }}
+                                        configuration from your cart.
+                                    </template>
+                                    <template v-else>
+                                        This removes the product from your cart.
+                                        You can add it again later if it remains
+                                        available.
+                                    </template>
                                 </DialogDescription>
                             </DialogHeader>
                             <DialogFooter class="mt-6 gap-2">

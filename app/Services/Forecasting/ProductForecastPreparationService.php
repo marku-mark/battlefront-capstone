@@ -13,7 +13,7 @@ use InvalidArgumentException;
  *
  * @phpstan-type Month array{year: int, month: int, start: string, end_exclusive: string, quantity_sold: int}
  * @phpstan-type MonthlyHistory array{product_id: int, timezone: string, start: string, end_exclusive: string, months: list<Month>}
- * @phpstan-type MonthlyPreparation array{status: 'ready'|'insufficient_history'|'history_unavailable'|'history_unsuitable', message: string, product_id: int, product_code: string, timezone: string, source_period: array{start: string, end_exclusive: string}, target_quarter: array{year: int, quarter: int, start: string, end_exclusive: string}, covered_months: int|null, coverage: Coverage|null, history: MonthlyHistory|null, positive_sales_months: list<int>|null}
+ * @phpstan-type MonthlyPreparation array{status: 'ready'|'insufficient_history'|'history_unavailable'|'history_unsuitable', message: string, product_id: int, product_code: string, timezone: string, source_period: array{start: string, end_exclusive: string}, target_period: array{start: string, end_exclusive: string}, covered_months: int|null, coverage: Coverage|null, history: MonthlyHistory|null, positive_sales_months: list<int>|null}
  */
 class ProductForecastPreparationService
 {
@@ -93,7 +93,7 @@ class ProductForecastPreparationService
     private function prepareCoverage(Product $product, ?array $coverage, ?CarbonImmutable $asOf): array
     {
         $timezone = config('app.timezone');
-        $targetStart = ($asOf ?? CarbonImmutable::now($timezone))->setTimezone($timezone)->startOfQuarter();
+        $targetStart = ($asOf ?? CarbonImmutable::now($timezone))->setTimezone($timezone)->startOfMonth();
         $sourceStart = $targetStart->subMonths(self::REQUIRED_MONTHS);
         $result = [
             'status' => 'history_unavailable',
@@ -102,8 +102,7 @@ class ProductForecastPreparationService
             'product_code' => $product->product_code,
             'timezone' => $timezone,
             'source_period' => ['start' => $sourceStart->toDateString(), 'end_exclusive' => $targetStart->toDateString()],
-            'target_quarter' => [
-                'year' => $targetStart->year, 'quarter' => $targetStart->quarter,
+            'target_period' => [
                 'start' => $targetStart->toDateString(), 'end_exclusive' => $targetStart->addMonths(3)->toDateString(),
             ],
             'covered_months' => null,

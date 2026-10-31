@@ -161,8 +161,8 @@ class ForecastingService
             'monthly_forecasts' => $monthlyForecasts,
             'forecast_quantity' => $quantity,
             'generated_at' => $forecast->generated_at->toIso8601String(),
-            'message' => "Estimated quarterly demand: {$quantity} units for {$base['target_label']}, based on 36 completed months of recorded sales.",
-            'rounding_note' => 'Monthly estimates are rounded; the quarterly total is calculated before rounding.',
+            'message' => "Estimated 3-month demand: {$quantity} units for {$base['target_label']}, based on 36 completed months of recorded sales.",
+            'rounding_note' => 'Monthly estimates are rounded; the 3-month total is calculated before rounding.',
             'guidance' => 'Use this estimate alongside business judgment when planning stock. Actual demand may differ.',
         ];
     }
@@ -186,8 +186,8 @@ class ForecastingService
             'covered_months' => $prepared['covered_months'],
             'source_period' => $prepared['source_period'],
             'source_label' => $this->monthlyPeriodLabel($prepared['source_period']['start'], $prepared['source_period']['end_exclusive']),
-            'target_quarter' => $prepared['target_quarter'],
-            'target_label' => 'Q'.$prepared['target_quarter']['quarter'].' '.$prepared['target_quarter']['year'],
+            'target_period' => $prepared['target_period'],
+            'target_label' => $this->monthlyPeriodLabel($prepared['target_period']['start'], $prepared['target_period']['end_exclusive']),
             'timezone' => $prepared['timezone'],
             'is_synthetic' => ($prepared['coverage']['source_kind'] ?? null) === 'synthetic_development',
             'source_kind' => $prepared['coverage']['source_kind'] ?? null,
@@ -229,7 +229,10 @@ class ForecastingService
     /** @return array<string, mixed> */
     private function savedData(Forecast $forecast): array
     {
-        $target = CarbonImmutable::create((int) substr($forecast->forecast_quarter, 0, 4), ((int) substr($forecast->forecast_quarter, -1) - 1) * 3 + 1, 1, 0, 0, 0, config('app.timezone'));
+        $rolling = str_contains($forecast->forecast_quarter, '/');
+        $target = $rolling
+            ? CarbonImmutable::parse(substr($forecast->forecast_quarter, 0, 7).'-01', config('app.timezone'))
+            : CarbonImmutable::create((int) substr($forecast->forecast_quarter, 0, 4), ((int) substr($forecast->forecast_quarter, -1) - 1) * 3 + 1, 1, 0, 0, 0, config('app.timezone'));
 
         return [
             'id' => $forecast->id,
@@ -246,7 +249,7 @@ class ForecastingService
             },
             'is_legacy' => $forecast->method !== 'additive_holt_winters',
             'forecast_quantity' => $forecast->predicted_demand,
-            'target_label' => $this->quarterLabel($target),
+            'target_label' => $rolling ? $this->monthlyPeriodLabel($target->toDateString(), $target->addMonths(3)->toDateString()) : $this->quarterLabel($target),
             'source_label' => match ($forecast->method) {
                 'additive_holt_winters' => $this->monthlyPeriodLabel($target->subMonths(36)->toDateString(), $target->toDateString()).' (inferred from 36-month method)',
                 'moving_average' => $this->periodLabel($target->subQuarters(4)->toDateString(), $target->toDateString()).' (inferred from four-quarter method)',

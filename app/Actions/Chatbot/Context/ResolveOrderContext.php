@@ -69,7 +69,9 @@ class ResolveOrderContext
                 ->map(function (Order $order) use ($includePayment, $message, $referenceId): array {
                     $context = [
                         'reference' => $order->reference,
-                        'created_at' => $order->created_at->toIso8601String(),
+                        'created_at' => $order->created_at->copy()
+                            ->timezone(config('battlefront.timezone'))
+                            ->format('F j, Y \a\t g:i A (\U\T\CP)'),
                         'status' => [
                             'value' => $order->status->value,
                             'label' => $order->customerStatusLabel(),

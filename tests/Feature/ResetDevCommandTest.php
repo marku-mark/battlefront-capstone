@@ -320,7 +320,7 @@ test('reset restores the complete real catalog with historical sales only when r
         $this->assertDatabaseHas('users', ['email' => 'admin@example.com']);
         $this->assertDatabaseHas('users', ['email' => 'test@example.com']);
         $this->assertDatabaseHas('branches', ['city' => 'Sagay City']);
-        $this->assertDatabaseCount('chatbot_knowledge', 4);
+        $this->assertDatabaseCount('chatbot_knowledge', 9);
         expect(ChatbotKnowledge::query()->where('category', '!=', ChatbotCategory::Faq->value)->exists())->toBeFalse();
         expect(ChatbotKnowledge::query()->where('is_active', false)->exists())->toBeFalse();
 

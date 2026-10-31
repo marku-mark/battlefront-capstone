@@ -16,22 +16,75 @@ const props = defineProps({
 });
 const page = usePage();
 const wishlist = useWishlistInteractions();
-const isSaved = computed(() => wishlist.isSaved(props.productId, props.isWishlisted));
+const isSaved = computed(() =>
+    wishlist.isSaved(props.productId, props.isWishlisted),
+);
 const isBusy = computed(() => wishlist.isBusy(props.productId));
 </script>
 
 <template>
-    <Form v-if="canWishlist" v-bind="isSaved ? WishlistController.destroy.form(productId) : WishlistController.store.form()" :options="wishlist.formOptions(productId, { isSaved: !isSaved })" :show-progress="false">
-        <input v-if="!isSaved" type="hidden" name="product_id" :value="productId" />
-        <Button type="submit" variant="outline" :size="compact ? 'icon' : 'default'" :disabled="isBusy" :aria-label="isSaved ? `Remove ${productName} from wishlist` : `Add ${productName} to wishlist`" :aria-pressed="isSaved" :aria-busy="isBusy" class="bg-background/90">
-            <LoaderCircle v-if="isBusy" class="size-4 animate-spin" aria-hidden="true" />
-            <Heart v-else :class="['size-4', isSaved && 'fill-current text-destructive']" aria-hidden="true" />
+    <Form
+        v-if="canWishlist"
+        v-bind="
+            isSaved
+                ? WishlistController.destroy.form(productId)
+                : WishlistController.store.form()
+        "
+        :options="wishlist.formOptions(productId, { isSaved: !isSaved })"
+        :show-progress="false"
+    >
+        <input
+            v-if="!isSaved"
+            type="hidden"
+            name="product_id"
+            :value="productId"
+        />
+        <Button
+            type="submit"
+            variant="outline"
+            :size="compact ? 'icon' : 'default'"
+            :disabled="isBusy"
+            :aria-label="
+                isSaved
+                    ? `Remove ${productName} from wishlist`
+                    : `Add ${productName} to wishlist`
+            "
+            :aria-pressed="isSaved"
+            :aria-busy="isBusy"
+            class="bg-background/90"
+        >
+            <LoaderCircle
+                v-if="isBusy"
+                class="size-4 animate-spin"
+                aria-hidden="true"
+            />
+            <Heart
+                v-else
+                :class="['size-4', isSaved && 'text-destructive fill-current']"
+                aria-hidden="true"
+            />
             <span v-if="!compact">{{ isSaved ? 'Saved' : 'Save' }}</span>
             <span v-if="isBusy" class="sr-only">Updating wishlist</span>
         </Button>
-        <p v-if="wishlist.error(productId)" role="alert" class="text-destructive mt-1 text-xs">{{ wishlist.error(productId) }}</p>
+        <p
+            v-if="wishlist.error(productId)"
+            role="alert"
+            class="text-destructive mt-1 text-xs"
+        >
+            {{ wishlist.error(productId) }}
+        </p>
     </Form>
-    <Button v-else-if="!page.props.auth?.user" as-child variant="outline" :size="compact ? 'icon' : 'default'" :aria-label="compact ? 'Log in to save to wishlist' : undefined">
-        <Link :href="login()"><Heart class="size-4" aria-hidden="true" /><span v-if="!compact">Log in to save</span></Link>
+    <Button
+        v-else-if="!page.props.auth?.user"
+        as-child
+        variant="outline"
+        :size="compact ? 'icon' : 'default'"
+        :aria-label="compact ? 'Log in to save to wishlist' : undefined"
+    >
+        <Link :href="login()"
+            ><Heart class="size-4" aria-hidden="true" /><span v-if="!compact"
+                >Log in to save</span
+            ></Link
+        >
     </Button>
 </template>

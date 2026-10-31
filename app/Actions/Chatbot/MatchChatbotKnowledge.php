@@ -24,6 +24,7 @@ class MatchChatbotKnowledge
         $normalized = $this->normalize($message);
         $terms = $this->terms($message);
         $verificationIntent = $this->hasVerificationIntent($terms);
+        $builderTopic = (new ChatbotLanguage)->pcBuilderHelpTopic($message);
 
         if ($normalized === '' || $terms === []) {
             return [];
@@ -33,6 +34,7 @@ class MatchChatbotKnowledge
             ->where('category', ChatbotCategory::Faq->value)
             ->select(['id', 'question_pattern', 'response_template'])
             ->get()
+            ->filter(fn (ChatbotKnowledge $knowledge): bool => $builderTopic === null || (new ChatbotLanguage)->pcBuilderHelpTopic($knowledge->question_pattern) === $builderTopic)
             ->filter(fn (ChatbotKnowledge $knowledge): bool => $this->boundary->execute($knowledge->question_pattern)['eligible_for_faq'] && trim($knowledge->response_template) !== '')
             ->filter(fn (ChatbotKnowledge $knowledge): bool => $this->hasVerificationIntent($this->terms($knowledge->question_pattern)) === $verificationIntent)
             ->map(function (ChatbotKnowledge $knowledge) use ($normalized, $terms): array {
@@ -44,7 +46,7 @@ class MatchChatbotKnowledge
                     'exact' => $normalized === $this->normalize($knowledge->question_pattern),
                 ];
             })
-            ->filter(fn (array $match): bool => $match['exact'] || (! $exactOnly && $match['relevance'] >= min(2, count($terms))))
+            ->filter(fn (array $match): bool => $match['exact'] || (! $exactOnly && ($builderTopic !== null || $match['relevance'] >= min(2, count($terms)))))
             ->sort(fn (array $left, array $right): int => ($right['exact'] <=> $left['exact'])
                 ?: ($right['relevance'] <=> $left['relevance'])
                 ?: ($left['id'] <=> $right['id']))

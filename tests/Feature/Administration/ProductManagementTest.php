@@ -12,6 +12,27 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
 
+test('archived product listing preserves search archived categories and private field omissions', function () {
+    $owner = User::factory()->administrator()->create();
+    $category = Category::factory()->create();
+    $product = Product::factory()->for($category)->create(['description' => 'Archive search marker', 'deleted_by_id' => $owner->id]);
+    $product->delete();
+    $category->delete();
+    Product::factory()->create(['description' => 'Archive search marker']);
+
+    $this->actingAs($owner)->get(route('administration.products.index', ['deleted' => 1, 'q' => 'Archive search marker', 'status' => 'inactive']))
+        ->assertInertia(fn (Assert $page) => $page
+            ->has('products.data', 1)
+            ->where('products.data.0.id', $product->id)
+            ->where('products.data.0.is_active', false)
+            ->where('products.data.0.deleted_by', $owner->name)
+            ->where('products.data.0.category.is_deleted', true)
+            ->where('products.data.0.tags', [])
+            ->missing('products.data.0.acquisition_cost')
+            ->where('filters.status', null)
+            ->where('filter_options', ['categories' => [], 'tags' => [], 'brands' => []]));
+});
+
 test('new bundle products use the same acquisition cost rate as migrated products', function () {
     $owner = User::factory()->administrator()->create();
     $category = Category::factory()->create(['name' => 'Bundles & Packages']);

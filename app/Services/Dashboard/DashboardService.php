@@ -100,7 +100,7 @@ class DashboardService
                 'id', 'user_id', 'fulfillment_method', 'total_amount', 'status',
                 'payment_status', 'payment_method', 'created_at',
             ])
-            ->with('shipment:id,order_id,status')
+            ->with('shipment:id,order_id,status,carrier_cod_collected_at')
             ->withCount('items')
             ->withSum('items as total_quantity', 'quantity')
             ->orderByDesc('created_at')
@@ -128,7 +128,7 @@ class DashboardService
                 'id', 'user_id', 'total_amount', 'status', 'payment_status',
                 'payment_method', 'created_at',
             ])
-            ->with('user:id,name')
+            ->with(['user:id,name', 'shipment:id,order_id,carrier_cod_collected_at'])
             ->orderBy('created_at')
             ->orderBy('id')
             ->limit(5)
@@ -199,7 +199,7 @@ class DashboardService
                 'id', 'user_id', 'fulfillment_method', 'total_amount', 'status',
                 'payment_status', 'payment_method', 'created_at',
             ])
-            ->with('user:id,name')
+            ->with(['user:id,name', 'shipment:id,order_id,carrier_cod_collected_at'])
             ->withCount('items')
             ->withSum('items as total_quantity', 'quantity')
             ->orderByDesc('created_at')

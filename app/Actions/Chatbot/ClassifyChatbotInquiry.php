@@ -92,13 +92,14 @@ class ClassifyChatbotInquiry
         } elseif (preg_match('/\bbf\s*\d+\b/u', $text) === 1) {
             $category = ChatbotQueryCategory::Order;
             $owner = 'order';
-        } elseif ($this->isNavigationGuidance($text) && preg_match('/\b(?:price|prices|cost|stock|stocks|available|availability|specs|specifications)\b/u', $text) !== 1) {
+        } elseif ($this->language->isPcBuilderHelp($message) || ($this->isNavigationGuidance($text) && preg_match('/\b(?:price|prices|cost|stock|stocks|available|availability|specs|specifications)\b/u', $text) !== 1)) {
             $category = ChatbotQueryCategory::Faq;
             $owner = 'managed_faq';
             $eligible = true;
         } elseif ($category === ChatbotQueryCategory::Order) {
             $owner = 'order';
-        } elseif ($this->categorizer->requiresLiveFacts($message) && ! in_array($this->ruleTopic($text), ['delivery_quote', 'returns', 'refunds', 'cancellation'], true)) {
+        } elseif ($this->categorizer->requiresLiveFacts($message) && (! in_array($this->ruleTopic($text), ['payment_methods', 'payment_proof', 'delivery_quote', 'returns', 'refunds', 'cancellation'], true)
+            || (in_array($this->ruleTopic($text), ['payment_methods', 'payment_proof'], true) && preg_match('/\b(?:price|prices|stock|stocks|specs|specifications)\b/u', $text) === 1))) {
             $category = $this->categorizer->requiresStoreFacts($message) ? ChatbotQueryCategory::Store : ChatbotQueryCategory::Product;
             $owner = $category->value;
         } elseif (! in_array($category, [ChatbotQueryCategory::Product, ChatbotQueryCategory::Store], true) && ($topic = $this->ruleTopic($text)) !== null) {
@@ -145,7 +146,7 @@ class ClassifyChatbotInquiry
         if (preg_match('/\b(?:delivery fee|delivery fees|shipping fee|shipping cost|delivery cost|delivery time|delivery estimate|estimated delivery|delivery eta)\b/u', $text) === 1) {
             return 'delivery_quote';
         }
-        if (preg_match('/\b(?:payment|paymnt|pay|cash|card|gcash|maya)\b/u', $text) === 1) {
+        if (preg_match('/\b(?:payment|paymnt|pay|cash|card|gcash|maya|paymongo|qr ph|qrph|bank transfer|online banking)\b/u', $text) === 1) {
             return preg_match('/\b(?:proof|proofs|verify|verified|verifying|verification)\b/u', $text) === 1 ? 'payment_proof' : 'payment_methods';
         }
         if (preg_match('/\b(?:pick up|pickup|fulfillment|do you deliver|delivery options?|delivry|choose.*delivery|delivery or pickup)\b/u', $text) === 1) {

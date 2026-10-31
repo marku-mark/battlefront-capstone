@@ -3,23 +3,23 @@
 Reviewed 2026-10-23. This is preparation only. Earlier approval of the gateway direction does not start implementation in this task. Existing approved method, fee, and 24-hour merchant-cutoff policies remain in `09-decisions-and-open-questions.md`; the requirements below make their execution reviewable. New persistence names are conceptual, not migrations or provider statuses.
 
 ## Gaps addressed
+
 Follow-up system inspection and selected operating settings are in `11-system-aligned-setup.md`. Use this audit for recovery/state contracts, document 11 for local settings and permissions, document 09 for scope decisions, and document 08 for sequencing. None overrides approved scope. Deployment/account/provider evidence remains distinct from local repository findings.
 
-
-| ID | Gap found | Preparation resolution | Implementation evidence required |
-|---|---|---|---|
-| G01 | A local transaction cannot atomically commit a PayMongo request | Persist creation intent before network I/O; recover ambiguous outcomes using the same operation identity | Crash/timeout tests before and after provider acceptance and local persistence |
-| G02 | Session, Payment Intent, and payment attempt were conflated | Separate local payment flow, provider attempts/payments, operations, and event inbox; see `04-database-design.md` | One session with multiple sequential intents/payments; bank flow without a session |
-| G03 | Webhook sequence applied effects before durable ingress | Authenticate, commit inbox, acknowledge, then process; see `05-payment-flow.md` | Queue failure and worker crash recover without event loss or duplicate effects |
-| G04 | Scheduled expiry was covered more clearly than other cancellations | Customer, administrator, scheduled, and retry/method-switch paths use the same gateway closure boundary | All paths reject stock release while outcome is uncertain |
-| G05 | `gcash`/`maya` alone cannot distinguish historical manual and new gateway orders | Persist origin per order/flow; never infer from missing receipt or today's feature flag | Old and new orders sharing a method retain different proof/review permissions |
-| G06 | Event-ID dedupe alone cannot prevent two different success events applying one payment twice | Dedupe provider payment identity and local transition in addition to event ID | Different events for one payment produce one effect |
-| G07 | Online banking plan omitted create-method/attach, bank limits, and cancellation evidence | Document all stages and gate each bank on its own tested contract | Redacted operation/status/closure evidence for every enabled bank |
-| G08 | Normal payment success was not distinguished from fulfillment and accounting | Set verified payment only; retain existing Processing, pickup, shipment, and sale rules | No stock deduction, sale, delivery, or pickup completion on webhook alone |
-| G09 | No explicit operational recovery ownership or drain plan | Developer owns test operations; administrator owns payment exception review; disable new starts while draining existing flows | Recovery and rollback rehearsal; assign production owner before launch |
-| G10 | Role documentation and agent permissions differed | Architecture agent is planning/review only; common contract and responsibility matrix below | Required skill lists agree between role docs and configurations |
-| G11 | Provider source contradicted itself on idempotent updates | Record the contradiction; confirm support for each mutation; no blanket retry guarantee | Endpoint contract and bounded retry tests |
-| G12 | Some business and operational defaults were presented as fully settled | Preserve the supplied AGENTS baseline; separate implementation proposals and external evidence gates | Decision owner, evidence, and acceptance recorded before enabling affected behavior |
+| ID  | Gap found                                                                                    | Preparation resolution                                                                                                        | Implementation evidence required                                                    |
+| --- | -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| G01 | A local transaction cannot atomically commit a PayMongo request                              | Persist creation intent before network I/O; recover ambiguous outcomes using the same operation identity                      | Crash/timeout tests before and after provider acceptance and local persistence      |
+| G02 | Session, Payment Intent, and payment attempt were conflated                                  | Separate local payment flow, provider attempts/payments, operations, and event inbox; see `04-database-design.md`             | One session with multiple sequential intents/payments; bank flow without a session  |
+| G03 | Webhook sequence applied effects before durable ingress                                      | Authenticate, commit inbox, acknowledge, then process; see `05-payment-flow.md`                                               | Queue failure and worker crash recover without event loss or duplicate effects      |
+| G04 | Scheduled expiry was covered more clearly than other cancellations                           | Customer, administrator, scheduled, and retry/method-switch paths use the same gateway closure boundary                       | All paths reject stock release while outcome is uncertain                           |
+| G05 | `gcash`/`maya` alone cannot distinguish historical manual and new gateway orders             | Persist origin per order/flow; never infer from missing receipt or today's feature flag                                       | Old and new orders sharing a method retain different proof/review permissions       |
+| G06 | Event-ID dedupe alone cannot prevent two different success events applying one payment twice | Dedupe provider payment identity and local transition in addition to event ID                                                 | Different events for one payment produce one effect                                 |
+| G07 | Online banking plan omitted create-method/attach, bank limits, and cancellation evidence     | Document all stages and gate each bank on its own tested contract                                                             | Redacted operation/status/closure evidence for every enabled bank                   |
+| G08 | Normal payment success was not distinguished from fulfillment and accounting                 | Set verified payment only; retain existing Processing, pickup, shipment, and sale rules                                       | No stock deduction, sale, delivery, or pickup completion on webhook alone           |
+| G09 | No explicit operational recovery ownership or drain plan                                     | Developer owns test operations; administrator owns payment exception review; disable new starts while draining existing flows | Recovery and rollback rehearsal; assign production owner before launch              |
+| G10 | Role documentation and agent permissions differed                                            | Architecture agent is planning/review only; common contract and responsibility matrix below                                   | Required skill lists agree between role docs and configurations                     |
+| G11 | Provider source contradicted itself on idempotent updates                                    | Record the contradiction; confirm support for each mutation; no blanket retry guarantee                                       | Endpoint contract and bounded retry tests                                           |
+| G12 | Some business and operational defaults were presented as fully settled                       | Preserve the supplied AGENTS baseline; separate implementation proposals and external evidence gates                          | Decision owner, evidence, and acceptance recorded before enabling affected behavior |
 
 ## Existing code that needs deliberate integration later
 
@@ -44,16 +44,16 @@ Follow-up system inspection and selected operating settings are in `11-system-al
 
 Labels below describe local coordination; they are not claimed PayMongo status strings or final enum names.
 
-| Evidence | Local action | Order/stock action |
-|---|---|---|
-| Creation recorded, no confirmed response | Recover the same operation; mark uncertainty if dispatch may have happened | Keep pending and stock held |
-| Provider flow open, no paid payment | Allow only documented retry on the same flow within order validity | Keep pending; no second stock deduction |
-| Individual attempt failed/expired; parent still payable | Retain attempt history and current parent state | No manual rejection or automatic cancellation |
-| Authenticated paid payment matches flow, order, currency, and exact amount | Record successful provider payment once; stale failures cannot demote it | Set payment verified through a gateway-specific authorized transition; no automatic fulfillment |
-| Paid but wrong amount, currency, mode, association, or cancelled order | Preserve evidence, quarantine, retrieve trusted state, escalate | No automatic fulfillment or stock mutation |
-| Closing requested, provider ongoing/unknown | Keep reconciliation pending; prevent replacement flow | No cancellation or stock restoration |
-| Confirmed terminal unpaid closure and no other unresolved flow | Record closure and apply eligible cancellation once | Restore saved quantities once through existing cancellation behavior |
-| Second distinct successful provider payment for one order | Record the financial anomaly, alert administrator, prohibit additional fulfillment | Do not silently discard money received or issue an automatic refund |
+| Evidence                                                                   | Local action                                                                       | Order/stock action                                                                              |
+| -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Creation recorded, no confirmed response                                   | Recover the same operation; mark uncertainty if dispatch may have happened         | Keep pending and stock held                                                                     |
+| Provider flow open, no paid payment                                        | Allow only documented retry on the same flow within order validity                 | Keep pending; no second stock deduction                                                         |
+| Individual attempt failed/expired; parent still payable                    | Retain attempt history and current parent state                                    | No manual rejection or automatic cancellation                                                   |
+| Authenticated paid payment matches flow, order, currency, and exact amount | Record successful provider payment once; stale failures cannot demote it           | Set payment verified through a gateway-specific authorized transition; no automatic fulfillment |
+| Paid but wrong amount, currency, mode, association, or cancelled order     | Preserve evidence, quarantine, retrieve trusted state, escalate                    | No automatic fulfillment or stock mutation                                                      |
+| Closing requested, provider ongoing/unknown                                | Keep reconciliation pending; prevent replacement flow                              | No cancellation or stock restoration                                                            |
+| Confirmed terminal unpaid closure and no other unresolved flow             | Record closure and apply eligible cancellation once                                | Restore saved quantities once through existing cancellation behavior                            |
+| Second distinct successful provider payment for one order                  | Record the financial anomaly, alert administrator, prohibit additional fulfillment | Do not silently discard money received or issue an automatic refund                             |
 
 ## Per-method enablement contract
 
@@ -78,26 +78,26 @@ Bank closure is an unresolved provider capability gate, not an invented cancella
 
 ## Skills and agent responsibility matrix
 
-| Agent | Required skills | Responsibility |
-|---|---|---|
-| Architecture | payment-architecture, paymongo-api, payment-database | Flow/state/persistence proposals, race and compatibility contracts; planning/review only |
-| Integration | paymongo-api, payment-architecture, payment-database, payment-security, payment-testing | Only the later explicitly assigned implementation slice |
-| Security | payment-security, paymongo-api, payment-architecture | Independent authenticity, authorization, replay, cancellation, privacy review |
-| QA | payment-testing, payment-security, payment-architecture, testing-best-practices | Acceptance evidence and recovery/concurrency/legacy coverage |
+| Agent        | Required skills                                                                         | Responsibility                                                                           |
+| ------------ | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Architecture | payment-architecture, paymongo-api, payment-database                                    | Flow/state/persistence proposals, race and compatibility contracts; planning/review only |
+| Integration  | paymongo-api, payment-architecture, payment-database, payment-security, payment-testing | Only the later explicitly assigned implementation slice                                  |
+| Security     | payment-security, paymongo-api, payment-architecture                                    | Independent authenticity, authorization, replay, cancellation, privacy review            |
+| QA           | payment-testing, payment-security, payment-architecture, testing-best-practices         | Acceptance evidence and recovery/concurrency/legacy coverage                             |
 
 Required skills do not authorize delegation, implementation, test transactions, dashboard changes, or live work. Active task restrictions and parent permissions still apply.
 
 ## Evidence still required
 
-| Gate | Owner | Needed before |
-|---|---|---|
-| Test account methods/banks and credentials provisioned privately | Account owner/developer | Provider test calls and method enablement |
-| Endpoint-specific authentication, idempotency, bank closure and limits | Integration role, security review | Affected provider operation implementation/enablement |
-| Deployment worker/scheduler health and effective settings; local MySQL 8.0.46/InnoDB/REPEATABLE-READ already verified | Developer | Environment acceptance; final migration review uses the inspected baseline |
-| Verify selected budgets/access/history-preservation decisions from `11-system-aligned-setup.md` in implementation | Developer with permitted business operator | Operational acceptance; baseline choices are now specified |
-| Authorized HTTPS test endpoint, webhook mode/events, tunnel exposure controls | Developer/account owner | External webhook E2E testing |
-| Approved issue/slice and acceptance criteria | Developer | Implementation task start; this request stays preparation only |
-| Agent discovery in normal CLI environment | Developer | Relying on automatic custom-agent loading |
+| Gate                                                                                                                  | Owner                                      | Needed before                                                              |
+| --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ | -------------------------------------------------------------------------- |
+| Test account methods/banks and credentials provisioned privately                                                      | Account owner/developer                    | Provider test calls and method enablement                                  |
+| Endpoint-specific authentication, idempotency, bank closure and limits                                                | Integration role, security review          | Affected provider operation implementation/enablement                      |
+| Deployment worker/scheduler health and effective settings; local MySQL 8.0.46/InnoDB/REPEATABLE-READ already verified | Developer                                  | Environment acceptance; final migration review uses the inspected baseline |
+| Verify selected budgets/access/history-preservation decisions from `11-system-aligned-setup.md` in implementation     | Developer with permitted business operator | Operational acceptance; baseline choices are now specified                 |
+| Authorized HTTPS test endpoint, webhook mode/events, tunnel exposure controls                                         | Developer/account owner                    | External webhook E2E testing                                               |
+| Approved issue/slice and acceptance criteria                                                                          | Developer                                  | Implementation task start; this request stays preparation only             |
+| Agent discovery in normal CLI environment                                                                             | Developer                                  | Relying on automatic custom-agent loading                                  |
 
 This audit resolves missing preparation contracts; it does not claim the above operational evidence exists or that an integration has been tested.
 

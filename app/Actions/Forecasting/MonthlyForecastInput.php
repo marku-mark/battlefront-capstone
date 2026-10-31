@@ -67,18 +67,17 @@ class MonthlyForecastInput
             || ! is_int($preparation['product_id'] ?? null) || $preparation['product_id'] < 1
             || ! is_string($preparation['product_code'] ?? null) || $preparation['product_code'] === ''
             || ! is_string($preparation['timezone'] ?? null)
-            || ! is_array($preparation['source_period'] ?? null) || ! is_array($preparation['target_quarter'] ?? null)) {
+            || ! is_array($preparation['source_period'] ?? null) || ! is_array($preparation['target_period'] ?? null)) {
             throw new InvalidArgumentException('Expected an EXT-42 monthly preparation envelope.');
         }
         $source = $preparation['source_period'];
-        $target = $preparation['target_quarter'];
+        $target = $preparation['target_period'];
         $start = $this->boundary($source['start'] ?? null, $preparation['timezone']);
         $end = $this->boundary($source['end_exclusive'] ?? null, $preparation['timezone']);
         if ($start->addMonths(36)->toDateString() !== $end->toDateString()
-            || $end->month % 3 !== 1 || ($target['start'] ?? null) !== $end->toDateString()
-            || ($target['end_exclusive'] ?? null) !== $end->addMonths(3)->toDateString()
-            || ($target['year'] ?? null) !== $end->year || ($target['quarter'] ?? null) !== $end->quarter) {
-            throw new InvalidArgumentException('Prepared source must span 36 months immediately before its three-month target quarter.');
+            || ($target['start'] ?? null) !== $end->toDateString()
+            || ($target['end_exclusive'] ?? null) !== $end->addMonths(3)->toDateString()) {
+            throw new InvalidArgumentException('Prepared source must span 36 months immediately before its three-month target period.');
         }
     }
 

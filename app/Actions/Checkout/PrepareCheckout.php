@@ -9,6 +9,7 @@ use App\Models\Branch;
 use App\Models\Product;
 use App\Models\User;
 use App\Services\DeliveryQuotePresenter;
+use App\Services\Order\CheckoutPaymentOptions;
 use App\Services\Order\DeliveryRules;
 use App\Services\Order\PsgcDeliveryLocations;
 use Carbon\CarbonImmutable;
@@ -40,7 +41,8 @@ class PrepareCheckout
         $anchor = CarbonImmutable::now(config('app.timezone'))->startOfDay();
         $deliveryQuotes = [];
 
-        foreach (array_keys($this->deliveryRules->destinations()) as $destination) {
+        foreach ($this->deliveryLocations->destinations() as $location) {
+            $destination = $location['destination'];
             try {
                 $quote = $this->deliveryRules->quote(FulfillmentMethod::Delivery, $destination, $products, $this->quantities($cart['items']));
                 $deliveryQuotes[] = $this->deliveryQuotePresenter->checkout($quote, $cart['total'], $anchor);
@@ -52,9 +54,8 @@ class PrepareCheckout
             ->select(['name', 'address', 'city', 'contact_number', 'operating_hours'])
             ->operational()
             ->sole();
-        $paymongoHostedMethods = config('services.paymongo.enabled')
-            ? array_values(array_intersect(['qrph', 'card', 'gcash', 'paymaya'], config('services.paymongo.hosted_methods', [])))
-            : [];
+        $paymentOptions = app(CheckoutPaymentOptions::class);
+        $paymongoHostedMethods = $paymentOptions->hostedMethods();
 
         return [
             'cart' => $cart,
@@ -102,8 +103,7 @@ class PrepareCheckout
                         ),
                     )),
                 ],
-                array_values(array_filter(PaymentMethod::cases(), fn (PaymentMethod $method): bool => ($method !== PaymentMethod::Online || $paymongoHostedMethods !== [])
-                    && (! config('services.paymongo.enabled') || ! in_array($method, [PaymentMethod::GCash, PaymentMethod::Maya], strict: true)))),
+                $paymentOptions->methods(),
             ),
             'paymongoBanks' => [],
             'paymongoHostedMethods' => $paymongoHostedMethods,

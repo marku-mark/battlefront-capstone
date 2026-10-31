@@ -143,7 +143,7 @@ test('historical orders and sales use coherent completed mixed fulfillment snaps
     }
     expect(OrderItem::sum('quantity'))->toBe(1944);
     expect(bcadd((string) Sale::sum('amount'), '0', 2))->toBe('829300.00');
-    expect(bcadd((string) Order::sum('total_amount'), '0', 2))->toBe('854695.00');
+    expect(bcadd((string) Order::sum('total_amount'), '0', 2))->toBe('856645.00');
 });
 
 test('calendar variations retain known quantities and transaction totals', function () {
@@ -159,10 +159,10 @@ test('calendar variations retain known quantities and transaction totals', funct
         ];
     }
     expect($observations)->toBe([
-        '2022-10' => [[1, 2, 3, 3, 3, 3, 3, 5, 3, 2, 2, 1, 1, 4, 5], ['4700.00', '3745.00', '3775.00', '6540.00']],
-        '2022-11' => [[1, 2, 4, 1, 3, 2, 6, 4, 6, 3, 3, 3, 1, 7, 4], ['4310.00', '1970.00', '3590.00', '3530.00', '6105.00']],
-        '2023-02' => [[1, 2, 1, 1, 3, 4, 5, 3, 3, 3, 1, 1, 1, 5, 4], ['2155.00', '7195.00', '3805.00', '830.00', '700.00']],
-        '2026-09' => [[2, 2, 2, 2, 4, 2, 2, 3, 3, 4, 1, 2, 1, 5, 2], ['2710.00', '4250.00', '6210.00', '4490.00', '760.00', '530.00']],
+        '2022-10' => [[1, 2, 3, 3, 3, 3, 3, 5, 3, 2, 2, 1, 1, 4, 5], ['4700.00', '3795.00', '3845.00', '6570.00']],
+        '2022-11' => [[1, 2, 4, 1, 3, 2, 6, 4, 6, 3, 3, 3, 1, 7, 4], ['4310.00', '1970.00', '3590.00', '3530.00', '6135.00']],
+        '2023-02' => [[1, 2, 1, 1, 3, 4, 5, 3, 3, 3, 1, 1, 1, 5, 4], ['2225.00', '7225.00', '3835.00', '830.00', '700.00']],
+        '2026-09' => [[2, 2, 2, 2, 4, 2, 2, 3, 3, 4, 1, 2, 1, 5, 2], ['2710.00', '4150.00', '6210.00', '4540.00', '760.00', '530.00']],
     ]);
 });
 
@@ -218,7 +218,7 @@ test('delivery snapshots retain highest product handling and remain immutable af
     expect($order->handling_surcharge)->toBe('50.00');
     expect($order->shipment->preparation_days)->toBe(2);
     $products['10003']->update(['shipping_profile' => ShippingProfile::Standard]);
-    config(['battlefront.delivery.destinations.Cadiz City.base_fee' => '999.00', 'battlefront.delivery.profiles.fragile.surcharge' => '500.00']);
+    config(['battlefront.delivery.regional_estimates.fees.visayas' => '999.00', 'battlefront.delivery.profiles.fragile.surcharge' => '500.00']);
     $before = historicalSalesDatabaseSnapshot();
 
     $this->seed(DevelopmentHistoricalSalesSeeder::class);

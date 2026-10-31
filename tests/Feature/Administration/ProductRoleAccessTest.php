@@ -44,6 +44,7 @@ test('manager can manage products while owner retains price and deletion control
         ->where('auth.can.browseProductCatalog', true)
         ->where('auth.can.manageProducts', true)
         ->where('auth.can.priceProducts', false)
+        ->missing('products.data.0.acquisition_cost')
         ->where('auth.can.deleteCatalog', false));
     $this->actingAs($manager)->get(route('administration.products.edit', $product))->assertOk();
     $this->actingAs($manager)->get(route('administration.products.create'))->assertForbidden();
@@ -62,6 +63,7 @@ test('manager can manage products while owner retains price and deletion control
         ->assertOk()->assertInertia(fn (Assert $page) => $page
         ->where('auth.can.browseProductCatalog', true)
         ->where('auth.can.priceProducts', true)
+        ->where('products.data.0.acquisition_cost', $product->acquisition_cost)
         ->where('auth.can.deleteCatalog', true));
     $this->actingAs($owner)->get(route('administration.products.create'))->assertOk();
     $this->actingAs($manager)->get(route('products.index'))->assertOk();

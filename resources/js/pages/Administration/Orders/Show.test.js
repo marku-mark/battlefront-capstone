@@ -218,7 +218,10 @@ test('saved shipment records are read-only until explicitly edited', async (t) =
         can_process: true,
         assigned_handler_id: 1,
         shipment: {
-            status: { value: 'awaiting_preparation', label: 'Awaiting preparation' },
+            status: {
+                value: 'awaiting_preparation',
+                label: 'Awaiting preparation',
+            },
             tracking_reference: null,
             operations: {
                 package_count: 1,
@@ -234,7 +237,10 @@ test('saved shipment records are read-only until explicitly edited', async (t) =
 
     await view.html();
     assert.ok(findButton(view.tree(), 'Edit package details'));
-    assert.equal(Boolean(findButton(view.tree(), 'Save package details')), false);
+    assert.equal(
+        Boolean(findButton(view.tree(), 'Save package details')),
+        false,
+    );
     assert.equal(findElement(view.tree(), 'fieldset').props.disabled, true);
 
     findButton(view.tree(), 'Edit package details').props.onClick();
@@ -247,7 +253,10 @@ test('saved shipment records are read-only until explicitly edited', async (t) =
 
     await view.html();
     assert.ok(findButton(view.tree(), 'Edit package details'));
-    assert.equal(Boolean(findButton(view.tree(), 'Save package details')), false);
+    assert.equal(
+        Boolean(findButton(view.tree(), 'Save package details')),
+        false,
+    );
 });
 
 test('delivery arrangement confirmation keeps optional details blank and requires actual arrangement', async (t) => {

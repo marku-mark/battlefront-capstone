@@ -77,7 +77,7 @@ test('quoted order constraints reject invalid money or incomplete snapshots', fu
 
 test('snapshot constraints accept exact decimal sums rather than integer-only fees', function () {
     config([
-        'battlefront.delivery.destinations.Sagay City.base_fee' => '0.10',
+        'battlefront.delivery.regional_estimates.fees.visayas' => '0.10',
         'battlefront.delivery.profiles.standard.surcharge' => '0.20',
     ]);
 

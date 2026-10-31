@@ -70,8 +70,8 @@ return [
         'carrier' => 'lbc',
         'origin_city' => 'Sagay City',
         'is_demo' => true,
-        'assumption_label' => 'Battlefront demonstration estimates. New Negros Occidental rates use OSM administrative-boundary centroids as straight-line proxies; they are not official LBC rates or verified production shipping charges.',
-        'rules_version' => 'nationwide-demo-v6',
+        'assumption_label' => 'Battlefront demonstration estimates. Regional base fees apply to all destinations. Negros Occidental transit bands use OSM administrative-boundary centroids as straight-line proxies; they are not official LBC rates or verified production shipping charges.',
+        'rules_version' => 'nationwide-demo-v7',
         'regional_estimates' => [
             'fees' => ['visayas' => '150.00', 'luzon' => '200.00', 'mindanao' => '250.00'],
             'regions' => [
@@ -101,12 +101,12 @@ return [
             'limitations' => 'Centroids are geographic proxies, not Battlefront storefront locations, town centers, road distances, or official LBC pricing inputs.',
         ],
         'negros_occidental_distance_bands' => [
-            'km_30_45' => ['minimum_exclusive_km' => 30, 'maximum_inclusive_km' => 45, 'base_fee' => '180.00', 'transit_min_days' => 1, 'transit_max_days' => 2],
-            'km_45_60' => ['minimum_exclusive_km' => 45, 'maximum_inclusive_km' => 60, 'base_fee' => '220.00', 'transit_min_days' => 1, 'transit_max_days' => 2],
-            'km_60_100' => ['minimum_exclusive_km' => 60, 'maximum_inclusive_km' => 100, 'base_fee' => '280.00', 'transit_min_days' => 2, 'transit_max_days' => 3],
-            'km_100_125' => ['minimum_exclusive_km' => 100, 'maximum_inclusive_km' => 125, 'base_fee' => '320.00', 'transit_min_days' => 2, 'transit_max_days' => 3],
-            'km_125_155' => ['minimum_exclusive_km' => 125, 'maximum_inclusive_km' => 155, 'base_fee' => '360.00', 'transit_min_days' => 3, 'transit_max_days' => 4],
-            'km_155_180' => ['minimum_exclusive_km' => 155, 'maximum_inclusive_km' => 180, 'base_fee' => '400.00', 'transit_min_days' => 3, 'transit_max_days' => 4],
+            'km_30_45' => ['minimum_exclusive_km' => 30, 'maximum_inclusive_km' => 45, 'transit_min_days' => 1, 'transit_max_days' => 2],
+            'km_45_60' => ['minimum_exclusive_km' => 45, 'maximum_inclusive_km' => 60, 'transit_min_days' => 1, 'transit_max_days' => 2],
+            'km_60_100' => ['minimum_exclusive_km' => 60, 'maximum_inclusive_km' => 100, 'transit_min_days' => 2, 'transit_max_days' => 3],
+            'km_100_125' => ['minimum_exclusive_km' => 100, 'maximum_inclusive_km' => 125, 'transit_min_days' => 2, 'transit_max_days' => 3],
+            'km_125_155' => ['minimum_exclusive_km' => 125, 'maximum_inclusive_km' => 155, 'transit_min_days' => 3, 'transit_max_days' => 4],
+            'km_155_180' => ['minimum_exclusive_km' => 155, 'maximum_inclusive_km' => 180, 'transit_min_days' => 3, 'transit_max_days' => 4],
         ],
         'negros_occidental_distance_proxies' => [
             '1804503000' => ['osm_relation_id' => 11525661, 'latitude' => 10.1937474, 'longitude' => 122.8587743, 'distance_km' => 99.0, 'distance_band' => 'km_60_100'],
@@ -147,7 +147,7 @@ return [
             ],
         ],
         // Specific rules supersede broader rules, including quotation-only exclusions.
-        // Enabled rules require base_fee, transit_min_days, transit_max_days and payment_methods.
+        // Enabled rules require transit_min_days, transit_max_days and payment_methods; regional_estimates.fees supplies prices.
         'zones' => [
             'cities' => [
                 '1804523000' => ['legacy_destination' => 'Sagay City', 'payment_methods' => ['gcash', 'maya', 'cod']],
@@ -187,18 +187,18 @@ return [
             'regions' => [],
         ],
         'destinations' => [
-            'Sagay City' => ['base_fee' => '80.00', 'transit_min_days' => 0, 'transit_max_days' => 1],
-            'Escalante City' => ['base_fee' => '100.00', 'transit_min_days' => 1, 'transit_max_days' => 1],
-            'Cadiz City' => ['base_fee' => '120.00', 'transit_min_days' => 1, 'transit_max_days' => 1],
-            'Toboso' => ['base_fee' => '140.00', 'transit_min_days' => 1, 'transit_max_days' => 1],
-            'Manapla' => ['base_fee' => '160.00', 'transit_min_days' => 1, 'transit_max_days' => 1],
-            'Calatrava' => ['base_fee' => '180.00', 'transit_min_days' => 1, 'transit_max_days' => 1],
-            'Victorias City' => ['base_fee' => '180.00', 'transit_min_days' => 1, 'transit_max_days' => 1],
-            'E.B. Magalona' => ['base_fee' => '200.00', 'transit_min_days' => 1, 'transit_max_days' => 2],
-            'San Carlos City' => ['base_fee' => '220.00', 'transit_min_days' => 1, 'transit_max_days' => 2],
-            'Silay City' => ['base_fee' => '220.00', 'transit_min_days' => 1, 'transit_max_days' => 2],
-            'Talisay City' => ['base_fee' => '240.00', 'transit_min_days' => 1, 'transit_max_days' => 2],
-            'Bacolod City' => ['base_fee' => '250.00', 'transit_min_days' => 1, 'transit_max_days' => 2],
+            'Sagay City' => ['transit_min_days' => 0, 'transit_max_days' => 1],
+            'Escalante City' => ['transit_min_days' => 1, 'transit_max_days' => 1],
+            'Cadiz City' => ['transit_min_days' => 1, 'transit_max_days' => 1],
+            'Toboso' => ['transit_min_days' => 1, 'transit_max_days' => 1],
+            'Manapla' => ['transit_min_days' => 1, 'transit_max_days' => 1],
+            'Calatrava' => ['transit_min_days' => 1, 'transit_max_days' => 1],
+            'Victorias City' => ['transit_min_days' => 1, 'transit_max_days' => 1],
+            'E.B. Magalona' => ['transit_min_days' => 1, 'transit_max_days' => 2],
+            'San Carlos City' => ['transit_min_days' => 1, 'transit_max_days' => 2],
+            'Silay City' => ['transit_min_days' => 1, 'transit_max_days' => 2],
+            'Talisay City' => ['transit_min_days' => 1, 'transit_max_days' => 2],
+            'Bacolod City' => ['transit_min_days' => 1, 'transit_max_days' => 2],
         ],
         'profiles' => [
             'standard' => ['surcharge' => '0.00', 'preparation_days' => 1],

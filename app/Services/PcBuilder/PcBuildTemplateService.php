@@ -127,4 +127,45 @@ class PcBuildTemplateService
                 ])->values()->all(),
             ])->all());
     }
+
+    /** @return array<int, array<string, mixed>> */
+    public function administrationProducts(): array
+    {
+        $products = Product::query()->where('is_active', true)
+            ->whereHas('componentProfile', fn ($query) => $query->where('review_status', 'approved'))
+            ->with('componentProfile.revisions')->orderBy('name')->get(['id', 'name', 'product_code', 'brand']);
+
+        return $products->map(fn (Product $product): array => [
+            'id' => $product->id,
+            'name' => $product->name,
+            'product_code' => $product->product_code,
+            'component_type' => $product->componentProfile->component_type,
+            'fan_mounting_positions' => $product->componentProfile->revisions
+                ->firstWhere('revision', $product->componentProfile->current_revision)
+                ?->specifications['fan_mounting_positions'] ?? [],
+        ])->all();
+    }
+
+    /** @return array<string, mixed> */
+    public function presentForAdministration(PcBuildTemplate $template): array
+    {
+        return [
+            'id' => $template->id,
+            'uuid' => $template->uuid,
+            'name' => $template->name,
+            'description' => $template->description,
+            'budget' => $template->budget,
+            'is_active' => $template->is_active,
+            'edit_version' => $template->edit_version,
+            'components' => $template->items->map(fn ($item): array => [
+                'key' => $item->slot_key,
+                'product_id' => $item->product_id,
+                'component_type' => $item->component_type,
+                'quantity' => $item->quantity,
+                'configuration' => $item->configuration ?? [],
+                'product_name' => $item->product?->name,
+                'product_code' => $item->product?->product_code,
+            ])->all(),
+        ];
+    }
 }

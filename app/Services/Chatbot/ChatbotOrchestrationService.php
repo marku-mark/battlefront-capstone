@@ -61,7 +61,7 @@ class ChatbotOrchestrationService
     public function respond(string $message, ?User $customer = null, ?Closure $remember = null, ?int $productId = null, ?string $language = null): array
     {
         $normalizedMessage = Str::of($message)->trim()->squish()->toString();
-        $routing = $this->routeChatbotQuery->execute($normalizedMessage);
+        $routing = $this->routeChatbotQuery->execute($normalizedMessage, resolveCatalogTerms: true);
         $category = $routing['category'];
         $classification = $this->boundary->execute($normalizedMessage);
         $language = in_array($language, ChatbotLanguage::LANGUAGES, true) ? $language : $this->language->select($message);

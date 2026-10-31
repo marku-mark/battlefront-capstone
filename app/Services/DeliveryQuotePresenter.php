@@ -12,7 +12,7 @@ use InvalidArgumentException;
 /** @phpstan-import-type DeliveryQuote from DeliveryRules */
 class DeliveryQuotePresenter
 {
-    public const ESTIMATE_NOTICE = 'Battlefront demonstration estimates, not official LBC rates or verified production shipping charges. New Negros Occidental rates use straight-line OSM boundary-centroid proxies, not storefront or road distances. Delivery dates are provisional; prepaid orders require payment verification. This does not book or approve an LBC shipment.';
+    public const ESTIMATE_NOTICE = 'Battlefront demonstration estimates, not official LBC rates or verified production shipping charges. Delivery dates are provisional; prepaid orders require payment verification. This does not book or approve an LBC shipment.';
 
     public function __construct(private readonly DeliveryRules $deliveryRules) {}
 

@@ -64,9 +64,9 @@ test('localized rule inquiries stay authoritative English without provider calls
 })->with([
     'Tagalog payment' => ['Paano magbayad?', 'payment_methods', 'Pickup orders support'],
     'Cebuano payment' => ['Unsaon pagbayad?', 'payment_methods', 'Delivery orders support'],
-    'Hiligaynon delivery charge' => ['Pila ang delivery fee? Sabat sa Hiligaynon.', 'delivery_quote', '0.00 placeholder is not free delivery'],
+    'Hiligaynon delivery charge' => ['Pila ang delivery fee? Sabat sa Hiligaynon.', 'delivery_quote', 'Only historical orders retain saved zero-fee placeholders'],
     'physical return' => ['Pwede ibalik ang item?', 'returns', 'physical item receipt'],
-    'cancellation' => ['Paano i-cancel ang order?', 'cancellation', 'cancellation review request'],
+    'cancellation' => ['Paano i-cancel ang order?', 'cancellation', 'confirmed closed'],
     'refund' => ['Paano ang refund processing?', 'refunds', 'confirmed refund payments'],
 ]);
 

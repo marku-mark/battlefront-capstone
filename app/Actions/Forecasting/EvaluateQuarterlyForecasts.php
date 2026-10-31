@@ -41,21 +41,25 @@ class EvaluateQuarterlyForecasts
         $errors = ['additive_holt_winters' => '0.000000000000', 'seasonal_naive' => '0.000000000000', 'moving_average' => '0.000000000000'];
         $evaluated = 0;
         $first = $folds[0]['preparation'];
-        $expectedStart = $first['target_quarter']['start'];
+        $expectedStart = $first['target_period']['start'];
         foreach ($folds as $fold) {
             $prepared = $fold['preparation'];
             $this->input->validate($prepared);
+            $targetStart = $this->input->boundary($prepared['target_period']['start'], $prepared['timezone']);
+            if ($targetStart->month % 3 !== 1) {
+                throw new InvalidArgumentException('Quarterly evaluation requires calendar-quarter targets.');
+            }
             if ($prepared['product_id'] !== $first['product_id'] || $prepared['product_code'] !== $first['product_code']
-                || $prepared['timezone'] !== $first['timezone'] || $prepared['target_quarter']['start'] !== $expectedStart) {
+                || $prepared['timezone'] !== $first['timezone'] || $prepared['target_period']['start'] !== $expectedStart) {
                 throw new InvalidArgumentException('Evaluation folds must belong to one product and consecutive target quarters in one timezone.');
             }
-            $expectedStart = $prepared['target_quarter']['end_exclusive'];
+            $expectedStart = $prepared['target_period']['end_exclusive'];
             $source = $prepared['coverage']['source_kind'] ?? null;
             if ($source !== null && ! in_array($source, $sources, true)) {
                 $sources[] = $source;
             }
             $row = [
-                'target_quarter' => $prepared['target_quarter'], 'status' => 'excluded', 'reason' => null,
+                'target_quarter' => ['year' => $targetStart->year, 'quarter' => $targetStart->quarter, ...$prepared['target_period']], 'status' => 'excluded', 'reason' => null,
                 'source_kind' => $source, 'sales_scope' => $prepared['coverage']['sales_scope'] ?? null,
                 'actual_quantity' => null, 'predictions' => null, 'parameters' => null, 'fitting_sse' => null,
             ];
@@ -71,10 +75,10 @@ class EvaluateQuarterlyForecasts
 
                 continue;
             }
-            $this->input->validateMonths($fold['actual_months'], $prepared['target_quarter']['start'], $expectedStart, $prepared['timezone'], 3);
+            $this->input->validateMonths($fold['actual_months'], $prepared['target_period']['start'], $expectedStart, $prepared['timezone'], 3);
             $coverage = $prepared['coverage'];
-            if ($coverage['start'] > $prepared['target_quarter']['start'] || $coverage['end_exclusive'] < $expectedStart
-                || array_filter($coverage['unavailable_months'], fn (string $date): bool => $date >= $prepared['target_quarter']['start'] && $date < $expectedStart) !== []) {
+            if ($coverage['start'] > $prepared['target_period']['start'] || $coverage['end_exclusive'] < $expectedStart
+                || array_filter($coverage['unavailable_months'], fn (string $date): bool => $date >= $prepared['target_period']['start'] && $date < $expectedStart) !== []) {
                 $row['reason'] = 'target_history_unavailable';
                 $origins[] = $row;
 
@@ -139,7 +143,7 @@ class EvaluateQuarterlyForecasts
         }
 
         return [
-            'dimension' => 'product', 'timezone' => $prepared['timezone'], 'start' => $quarters[0]['start'], 'end_exclusive' => $prepared['target_quarter']['start'],
+            'dimension' => 'product', 'timezone' => $prepared['timezone'], 'start' => $quarters[0]['start'], 'end_exclusive' => $prepared['target_period']['start'],
             'series' => [['entity_id' => $prepared['product_id'], 'quarters' => $quarters]],
         ];
     }

@@ -68,11 +68,16 @@ function selectItem(id, selected) {
     const item = props.cart.items.find((cartItem) => cartItem.id === id);
     if (item?.pc_build_group) {
         const groupIds = props.cart.items
-            .filter((cartItem) => cartItem.pc_build_group?.uuid === item.pc_build_group.uuid)
+            .filter(
+                (cartItem) =>
+                    cartItem.pc_build_group?.uuid === item.pc_build_group.uuid,
+            )
             .map((cartItem) => cartItem.id);
         selectedIds.value = selected
             ? [...new Set([...selectedIds.value, ...groupIds])]
-            : selectedIds.value.filter((selectedId) => !groupIds.includes(selectedId));
+            : selectedIds.value.filter(
+                  (selectedId) => !groupIds.includes(selectedId),
+              );
         return;
     }
     selectedIds.value = selected

@@ -70,7 +70,7 @@ class RenderChatbotFallback
     private function product(string $message, array $products): ?string
     {
         if (count($products) > 1) {
-            return 'Which product do you mean? '.implode(', ', array_column($products, 'name')).'.';
+            return $this->productClarification(array_column($products, 'name'));
         }
         if ($products === []) {
             return null;
@@ -103,6 +103,12 @@ class RenderChatbotFallback
         }
 
         return implode(' ', $parts);
+    }
+
+    /** @param list<string> $names */
+    public function productClarification(array $names): string
+    {
+        return 'Which product do you mean? Examples: '.implode('; ', array_slice($names, 0, 3)).'. Please reply with one product name or model, or specify a brand.';
     }
 
     /** @param list<array<string, mixed>> $orders */

@@ -178,13 +178,21 @@ const shipmentReferenceForm = useForm({
 const shipmentOperations = props.order.shipment?.operations ?? {};
 const shipmentOperationsSaved = ref(Boolean(shipmentOperations.package_count));
 const shipmentPackageEditing = ref(!shipmentOperationsSaved.value);
-const shipmentCostRecorded = ref(Boolean(shipmentOperations.carrier_cost_recorded_at));
+const shipmentCostRecorded = ref(
+    Boolean(shipmentOperations.carrier_cost_recorded_at),
+);
 const shipmentCostEditing = ref(!shipmentCostRecorded.value);
 const shipmentExceptionEditing = ref(
-    Boolean(shipmentOperations.exception_reported_at && !shipmentOperations.exception_resolved_at),
+    Boolean(
+        shipmentOperations.exception_reported_at &&
+        !shipmentOperations.exception_resolved_at,
+    ),
 );
 const shipmentExceptionActive = ref(
-    Boolean(shipmentOperations.exception_reported_at && !shipmentOperations.exception_resolved_at),
+    Boolean(
+        shipmentOperations.exception_reported_at &&
+        !shipmentOperations.exception_resolved_at,
+    ),
 );
 const shipmentHandedOff = computed(() =>
     ['handed_to_lbc', 'in_transit', 'out_for_delivery', 'delivered'].includes(
@@ -201,10 +209,14 @@ const shipmentOperationsForm = useForm({
     handoff_mode: shipmentOperations.handoff_mode ?? '',
     actual_carrier_cost: shipmentOperations.actual_carrier_cost ?? '',
     carrier_cost_reference: shipmentOperations.carrier_cost_reference ?? '',
-    carrier_cost_confirmed: Boolean(shipmentOperations.carrier_cost_recorded_at),
+    carrier_cost_confirmed: Boolean(
+        shipmentOperations.carrier_cost_recorded_at,
+    ),
     shipment_exception_code: shipmentOperations.exception_code ?? '',
     shipment_exception_note: shipmentOperations.exception_note ?? '',
-    shipment_exception_resolved: Boolean(shipmentOperations.exception_resolved_at),
+    shipment_exception_resolved: Boolean(
+        shipmentOperations.exception_resolved_at,
+    ),
 });
 watch(
     () => props.order.id,
@@ -220,10 +232,14 @@ watch(
             handoff_mode: operations.handoff_mode ?? '',
             actual_carrier_cost: operations.actual_carrier_cost ?? '',
             carrier_cost_reference: operations.carrier_cost_reference ?? '',
-            carrier_cost_confirmed: Boolean(operations.carrier_cost_recorded_at),
+            carrier_cost_confirmed: Boolean(
+                operations.carrier_cost_recorded_at,
+            ),
             shipment_exception_code: operations.exception_code ?? '',
             shipment_exception_note: operations.exception_note ?? '',
-            shipment_exception_resolved: Boolean(operations.exception_resolved_at),
+            shipment_exception_resolved: Boolean(
+                operations.exception_resolved_at,
+            ),
         };
 
         shipmentOperationsForm.defaults(values);
@@ -231,9 +247,14 @@ watch(
         shipmentOperationsForm.clearErrors();
         shipmentOperationsSaved.value = Boolean(operations.package_count);
         shipmentPackageEditing.value = !shipmentOperationsSaved.value;
-        shipmentCostRecorded.value = Boolean(operations.carrier_cost_recorded_at);
+        shipmentCostRecorded.value = Boolean(
+            operations.carrier_cost_recorded_at,
+        );
         shipmentCostEditing.value = !shipmentCostRecorded.value;
-        shipmentExceptionActive.value = Boolean(operations.exception_reported_at && !operations.exception_resolved_at);
+        shipmentExceptionActive.value = Boolean(
+            operations.exception_reported_at &&
+            !operations.exception_resolved_at,
+        );
         shipmentExceptionEditing.value = shipmentExceptionActive.value;
     },
 );
@@ -355,9 +376,25 @@ function submitShipmentOperations(group) {
     }
 
     const fields = {
-        package: ['package_count', 'package_weight_kg', 'package_length_cm', 'package_width_cm', 'package_height_cm', 'declared_value', 'handoff_mode'],
-        carrier_cost: ['actual_carrier_cost', 'carrier_cost_reference', 'carrier_cost_confirmed'],
-        exception: ['shipment_exception_code', 'shipment_exception_note', 'shipment_exception_resolved'],
+        package: [
+            'package_count',
+            'package_weight_kg',
+            'package_length_cm',
+            'package_width_cm',
+            'package_height_cm',
+            'declared_value',
+            'handoff_mode',
+        ],
+        carrier_cost: [
+            'actual_carrier_cost',
+            'carrier_cost_reference',
+            'carrier_cost_confirmed',
+        ],
+        exception: [
+            'shipment_exception_code',
+            'shipment_exception_note',
+            'shipment_exception_resolved',
+        ],
     }[group];
 
     if (!fields) {
@@ -377,7 +414,8 @@ function submitShipmentOperations(group) {
                 shipmentCostRecorded.value = true;
                 shipmentCostEditing.value = false;
             } else {
-                shipmentExceptionActive.value = !shipmentOperationsForm.shipment_exception_resolved;
+                shipmentExceptionActive.value =
+                    !shipmentOperationsForm.shipment_exception_resolved;
                 shipmentExceptionEditing.value = shipmentExceptionActive.value;
             }
         },
@@ -572,7 +610,10 @@ function submitManualShipment() {
 }
 
 function requestLocalLbcBookingSimulation() {
-    if (!canProcess.value || !props.order.shipment_actions?.can_simulate_local_lbc_booking) {
+    if (
+        !canProcess.value ||
+        !props.order.shipment_actions?.can_simulate_local_lbc_booking
+    ) {
         return;
     }
 
@@ -809,7 +850,9 @@ defineOptions({
                     >
                         Next delivery step
                     </h2>
-                    <p class="font-semibold">{{ order.delivery_next_step.title }}</p>
+                    <p class="font-semibold">
+                        {{ order.delivery_next_step.title }}
+                    </p>
                     <p class="text-muted-foreground text-sm leading-5">
                         {{ order.delivery_next_step.detail }}
                     </p>
@@ -825,73 +868,203 @@ defineOptions({
                     aria-labelledby="shipment-operations-heading"
                 >
                     <div>
-                        <h2 id="shipment-operations-heading" class="font-semibold">Package and carrier records</h2>
+                        <h2
+                            id="shipment-operations-heading"
+                            class="font-semibold"
+                        >
+                            Package and carrier records
+                        </h2>
                         <p class="text-muted-foreground mt-1 text-sm">
-                            Enter the packed parcel details before confirming handoff. These records support manual LBC processing; they are not an LBC quote or booking.
+                            Enter the packed parcel details before confirming
+                            handoff. These records support manual LBC
+                            processing; they are not an LBC quote or booking.
                         </p>
                     </div>
                     <fieldset
                         class="grid gap-4"
-                        :disabled="!order.shipment_actions?.can_update_package_details || !shipmentPackageEditing || shipmentHandedOff"
+                        :disabled="
+                            !order.shipment_actions
+                                ?.can_update_package_details ||
+                            !shipmentPackageEditing ||
+                            shipmentHandedOff
+                        "
                     >
-                        <legend class="text-sm font-medium">Packed shipment</legend>
+                        <legend class="text-sm font-medium">
+                            Packed shipment
+                        </legend>
                         <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                             <div class="grid gap-2">
-                                <Label for="shipment-package-count">Parcel count</Label>
-                                <Input id="shipment-package-count" v-model="shipmentOperationsForm.package_count" type="number" min="1" max="99" step="1" />
-                                <InputError :message="shipmentOperationsForm.errors.package_count" />
+                                <Label for="shipment-package-count"
+                                    >Parcel count</Label
+                                >
+                                <Input
+                                    id="shipment-package-count"
+                                    v-model="
+                                        shipmentOperationsForm.package_count
+                                    "
+                                    type="number"
+                                    min="1"
+                                    max="99"
+                                    step="1"
+                                />
+                                <InputError
+                                    :message="
+                                        shipmentOperationsForm.errors
+                                            .package_count
+                                    "
+                                />
                             </div>
                             <div class="grid gap-2">
-                                <Label for="shipment-weight">Total weight (kg)</Label>
-                                <Input id="shipment-weight" v-model="shipmentOperationsForm.package_weight_kg" type="number" min="0.001" step="0.001" />
-                                <InputError :message="shipmentOperationsForm.errors.package_weight_kg" />
+                                <Label for="shipment-weight"
+                                    >Total weight (kg)</Label
+                                >
+                                <Input
+                                    id="shipment-weight"
+                                    v-model="
+                                        shipmentOperationsForm.package_weight_kg
+                                    "
+                                    type="number"
+                                    min="0.001"
+                                    step="0.001"
+                                />
+                                <InputError
+                                    :message="
+                                        shipmentOperationsForm.errors
+                                            .package_weight_kg
+                                    "
+                                />
                             </div>
                             <div class="grid gap-2">
-                                <Label for="shipment-declared-value">Declared value (PHP)</Label>
-                                <Input id="shipment-declared-value" v-model="shipmentOperationsForm.declared_value" type="number" min="0" step="0.01" />
-                                <InputError :message="shipmentOperationsForm.errors.declared_value" />
+                                <Label for="shipment-declared-value"
+                                    >Declared value (PHP)</Label
+                                >
+                                <Input
+                                    id="shipment-declared-value"
+                                    v-model="
+                                        shipmentOperationsForm.declared_value
+                                    "
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                />
+                                <InputError
+                                    :message="
+                                        shipmentOperationsForm.errors
+                                            .declared_value
+                                    "
+                                />
                             </div>
                         </div>
                         <fieldset class="grid gap-3">
-                            <legend class="text-sm font-medium">Parcel dimensions (cm)</legend>
+                            <legend class="text-sm font-medium">
+                                Parcel dimensions (cm)
+                            </legend>
                             <div class="grid gap-4 sm:grid-cols-3">
                                 <div class="grid gap-2">
                                     <Label for="shipment-length">Length</Label>
-                                    <Input id="shipment-length" v-model="shipmentOperationsForm.package_length_cm" type="number" min="0.01" step="0.01" />
-                                    <InputError :message="shipmentOperationsForm.errors.package_length_cm" />
+                                    <Input
+                                        id="shipment-length"
+                                        v-model="
+                                            shipmentOperationsForm.package_length_cm
+                                        "
+                                        type="number"
+                                        min="0.01"
+                                        step="0.01"
+                                    />
+                                    <InputError
+                                        :message="
+                                            shipmentOperationsForm.errors
+                                                .package_length_cm
+                                        "
+                                    />
                                 </div>
                                 <div class="grid gap-2">
                                     <Label for="shipment-width">Width</Label>
-                                    <Input id="shipment-width" v-model="shipmentOperationsForm.package_width_cm" type="number" min="0.01" step="0.01" />
-                                    <InputError :message="shipmentOperationsForm.errors.package_width_cm" />
+                                    <Input
+                                        id="shipment-width"
+                                        v-model="
+                                            shipmentOperationsForm.package_width_cm
+                                        "
+                                        type="number"
+                                        min="0.01"
+                                        step="0.01"
+                                    />
+                                    <InputError
+                                        :message="
+                                            shipmentOperationsForm.errors
+                                                .package_width_cm
+                                        "
+                                    />
                                 </div>
                                 <div class="grid gap-2">
                                     <Label for="shipment-height">Height</Label>
-                                    <Input id="shipment-height" v-model="shipmentOperationsForm.package_height_cm" type="number" min="0.01" step="0.01" />
-                                    <InputError :message="shipmentOperationsForm.errors.package_height_cm" />
+                                    <Input
+                                        id="shipment-height"
+                                        v-model="
+                                            shipmentOperationsForm.package_height_cm
+                                        "
+                                        type="number"
+                                        min="0.01"
+                                        step="0.01"
+                                    />
+                                    <InputError
+                                        :message="
+                                            shipmentOperationsForm.errors
+                                                .package_height_cm
+                                        "
+                                    />
                                 </div>
                             </div>
                         </fieldset>
                         <div class="grid gap-2">
-                            <Label for="shipment-handoff-mode">LBC handoff arrangement</Label>
-                            <Select
-                                :model-value="shipmentOperationsForm.handoff_mode"
-                                :disabled="!order.shipment_actions?.can_update_package_details || !shipmentPackageEditing || shipmentHandedOff"
-                                @update:model-value="shipmentOperationsForm.handoff_mode = $event"
+                            <Label for="shipment-handoff-mode"
+                                >LBC handoff arrangement</Label
                             >
-                                <SelectTrigger id="shipment-handoff-mode" class="w-full">
-                                    <SelectValue placeholder="Select manually arranged handoff" />
+                            <Select
+                                :model-value="
+                                    shipmentOperationsForm.handoff_mode
+                                "
+                                :disabled="
+                                    !order.shipment_actions
+                                        ?.can_update_package_details ||
+                                    !shipmentPackageEditing ||
+                                    shipmentHandedOff
+                                "
+                                @update:model-value="
+                                    shipmentOperationsForm.handoff_mode = $event
+                                "
+                            >
+                                <SelectTrigger
+                                    id="shipment-handoff-mode"
+                                    class="w-full"
+                                >
+                                    <SelectValue
+                                        placeholder="Select manually arranged handoff"
+                                    />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="rider_pickup">Rider pickup</SelectItem>
-                                    <SelectItem value="branch_dropoff">Branch drop-off</SelectItem>
+                                    <SelectItem value="rider_pickup"
+                                        >Rider pickup</SelectItem
+                                    >
+                                    <SelectItem value="branch_dropoff"
+                                        >Branch drop-off</SelectItem
+                                    >
                                 </SelectContent>
                             </Select>
-                            <InputError :message="shipmentOperationsForm.errors.handoff_mode" />
+                            <InputError
+                                :message="
+                                    shipmentOperationsForm.errors.handoff_mode
+                                "
+                            />
                         </div>
                     </fieldset>
                     <Button
-                        v-if="order.shipment_actions?.can_update_package_details && shipmentOperationsSaved && !shipmentPackageEditing"
+                        v-if="
+                            order.shipment_actions
+                                ?.can_update_package_details &&
+                            shipmentOperationsSaved &&
+                            !shipmentPackageEditing
+                        "
                         type="button"
                         variant="outline"
                         @click="shipmentPackageEditing = true"
@@ -899,56 +1072,136 @@ defineOptions({
                         Edit package details
                     </Button>
                     <Button
-                        v-else-if="order.shipment_actions?.can_update_package_details && shipmentPackageEditing"
+                        v-else-if="
+                            order.shipment_actions
+                                ?.can_update_package_details &&
+                            shipmentPackageEditing
+                        "
                         type="button"
                         :disabled="shipmentOperationsForm.processing"
                         @click="submitShipmentOperations('package')"
                     >
                         Save package details
                     </Button>
-                    <div class="grid gap-3 border-t border-border pt-4">
+                    <div class="border-border grid gap-3 border-t pt-4">
                         <div>
-                            <h3 class="text-sm font-medium">Carrier cost reconciliation</h3>
+                            <h3 class="text-sm font-medium">
+                                Carrier cost reconciliation
+                            </h3>
                             <p class="text-muted-foreground mt-1 text-sm">
-                                The variance compares the saved customer delivery fee with the recorded carrier cost. It never changes the order total.
+                                The variance compares the saved customer
+                                delivery fee with the recorded carrier cost. It
+                                never changes the order total.
                             </p>
                         </div>
                         <div class="grid gap-4 sm:grid-cols-2">
                             <div class="grid gap-2">
-                                <Label for="shipment-carrier-cost">Actual carrier cost (PHP)</Label>
+                                <Label for="shipment-carrier-cost"
+                                    >Actual carrier cost (PHP)</Label
+                                >
                                 <Input
                                     id="shipment-carrier-cost"
-                                    v-model="shipmentOperationsForm.actual_carrier_cost"
+                                    v-model="
+                                        shipmentOperationsForm.actual_carrier_cost
+                                    "
                                     type="number"
                                     min="0"
                                     step="0.01"
-                                    :disabled="!order.shipment_actions?.can_record_carrier_cost || !shipmentCostEditing || shipmentCostRecorded"
+                                    :disabled="
+                                        !order.shipment_actions
+                                            ?.can_record_carrier_cost ||
+                                        !shipmentCostEditing ||
+                                        shipmentCostRecorded
+                                    "
                                 />
-                                <InputError :message="shipmentOperationsForm.errors.actual_carrier_cost" />
+                                <InputError
+                                    :message="
+                                        shipmentOperationsForm.errors
+                                            .actual_carrier_cost
+                                    "
+                                />
                             </div>
                             <div class="grid gap-2">
-                                <Label for="shipment-carrier-cost-reference">Receipt or carrier reference</Label>
+                                <Label for="shipment-carrier-cost-reference"
+                                    >Receipt or carrier reference</Label
+                                >
                                 <Input
                                     id="shipment-carrier-cost-reference"
-                                    v-model="shipmentOperationsForm.carrier_cost_reference"
+                                    v-model="
+                                        shipmentOperationsForm.carrier_cost_reference
+                                    "
                                     maxlength="100"
-                                    :disabled="!order.shipment_actions?.can_record_carrier_cost || !shipmentCostEditing || shipmentCostRecorded"
+                                    :disabled="
+                                        !order.shipment_actions
+                                            ?.can_record_carrier_cost ||
+                                        !shipmentCostEditing ||
+                                        shipmentCostRecorded
+                                    "
                                 />
-                                <InputError :message="shipmentOperationsForm.errors.carrier_cost_reference" />
+                                <InputError
+                                    :message="
+                                        shipmentOperationsForm.errors
+                                            .carrier_cost_reference
+                                    "
+                                />
                             </div>
                         </div>
-                        <p v-if="order.shipment.operations?.carrier_cost_recorded_at" class="text-sm">
-                            Recorded cost: {{ formatCurrency(order.shipment.operations.actual_carrier_cost) }}
-                            · variance {{ formatCurrency(order.shipment.operations.delivery_fee_variance) }}
+                        <p
+                            v-if="
+                                order.shipment.operations
+                                    ?.carrier_cost_recorded_at
+                            "
+                            class="text-sm"
+                        >
+                            Recorded cost:
+                            {{
+                                formatCurrency(
+                                    order.shipment.operations
+                                        .actual_carrier_cost,
+                                )
+                            }}
+                            · variance
+                            {{
+                                formatCurrency(
+                                    order.shipment.operations
+                                        .delivery_fee_variance,
+                                )
+                            }}
                         </p>
-                        <div v-else-if="shipmentOperationsForm.actual_carrier_cost !== ''" class="flex items-start gap-3">
-                            <Checkbox id="carrier-cost-confirmed" v-model="shipmentOperationsForm.carrier_cost_confirmed" />
-                            <Label for="carrier-cost-confirmed" class="text-sm leading-5 font-normal">I checked this cost against the carrier receipt or reference.</Label>
+                        <div
+                            v-else-if="
+                                shipmentOperationsForm.actual_carrier_cost !==
+                                ''
+                            "
+                            class="flex items-start gap-3"
+                        >
+                            <Checkbox
+                                id="carrier-cost-confirmed"
+                                v-model="
+                                    shipmentOperationsForm.carrier_cost_confirmed
+                                "
+                            />
+                            <Label
+                                for="carrier-cost-confirmed"
+                                class="text-sm leading-5 font-normal"
+                                >I checked this cost against the carrier receipt
+                                or reference.</Label
+                            >
                         </div>
-                        <InputError :message="shipmentOperationsForm.errors.carrier_cost_confirmed" />
+                        <InputError
+                            :message="
+                                shipmentOperationsForm.errors
+                                    .carrier_cost_confirmed
+                            "
+                        />
                         <div class="flex flex-wrap items-center gap-3">
                             <Button
-                                v-if="order.shipment_actions?.can_record_carrier_cost && !shipmentCostRecorded && !shipmentCostEditing"
+                                v-if="
+                                    order.shipment_actions
+                                        ?.can_record_carrier_cost &&
+                                    !shipmentCostRecorded &&
+                                    !shipmentCostEditing
+                                "
                                 type="button"
                                 variant="outline"
                                 @click="shipmentCostEditing = true"
@@ -956,56 +1209,150 @@ defineOptions({
                                 Record carrier cost
                             </Button>
                             <Button
-                                v-else-if="order.shipment_actions?.can_record_carrier_cost && !shipmentCostRecorded && shipmentCostEditing"
+                                v-else-if="
+                                    order.shipment_actions
+                                        ?.can_record_carrier_cost &&
+                                    !shipmentCostRecorded &&
+                                    shipmentCostEditing
+                                "
                                 type="button"
                                 :disabled="shipmentOperationsForm.processing"
-                                @click="submitShipmentOperations('carrier_cost')"
+                                @click="
+                                    submitShipmentOperations('carrier_cost')
+                                "
                             >
                                 Save carrier cost
                             </Button>
                         </div>
                     </div>
-                    <div class="grid gap-3 border-t border-border pt-4">
+                    <div class="border-border grid gap-3 border-t pt-4">
                         <div>
-                            <h3 class="text-sm font-medium">Shipment exception</h3>
-                            <p class="text-muted-foreground mt-1 text-sm">Record operational problems for staff follow-up. This does not cancel the order or refund payment.</p>
+                            <h3 class="text-sm font-medium">
+                                Shipment exception
+                            </h3>
+                            <p class="text-muted-foreground mt-1 text-sm">
+                                Record operational problems for staff follow-up.
+                                This does not cancel the order or refund
+                                payment.
+                            </p>
                         </div>
                         <div class="grid gap-4 sm:grid-cols-2">
                             <div class="grid gap-2">
-                                <Label for="shipment-exception-code">Issue</Label>
-                                <Select
-                                    :model-value="shipmentOperationsForm.shipment_exception_code"
-                                    :disabled="!order.shipment_actions?.can_update_shipment_exception || !shipmentExceptionEditing || shipmentExceptionActive"
-                                    @update:model-value="shipmentOperationsForm.shipment_exception_code = $event"
+                                <Label for="shipment-exception-code"
+                                    >Issue</Label
                                 >
-                                    <SelectTrigger id="shipment-exception-code" class="w-full">
-                                        <SelectValue placeholder="No active exception" />
+                                <Select
+                                    :model-value="
+                                        shipmentOperationsForm.shipment_exception_code
+                                    "
+                                    :disabled="
+                                        !order.shipment_actions
+                                            ?.can_update_shipment_exception ||
+                                        !shipmentExceptionEditing ||
+                                        shipmentExceptionActive
+                                    "
+                                    @update:model-value="
+                                        shipmentOperationsForm.shipment_exception_code =
+                                            $event
+                                    "
+                                >
+                                    <SelectTrigger
+                                        id="shipment-exception-code"
+                                        class="w-full"
+                                    >
+                                        <SelectValue
+                                            placeholder="No active exception"
+                                        />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="booking_failed">Booking could not be arranged</SelectItem>
-                                        <SelectItem value="pickup_missed">Pickup was missed</SelectItem>
-                                        <SelectItem value="delivery_attempt_failed">Delivery attempt failed</SelectItem>
-                                        <SelectItem value="damaged">Package reported damaged</SelectItem>
-                                        <SelectItem value="lost">Package reported missing</SelectItem>
-                                        <SelectItem value="return_to_sender">Return to sender</SelectItem>
-                                        <SelectItem value="other">Other</SelectItem>
+                                        <SelectItem value="booking_failed"
+                                            >Booking could not be
+                                            arranged</SelectItem
+                                        >
+                                        <SelectItem value="pickup_missed"
+                                            >Pickup was missed</SelectItem
+                                        >
+                                        <SelectItem
+                                            value="delivery_attempt_failed"
+                                            >Delivery attempt failed</SelectItem
+                                        >
+                                        <SelectItem value="damaged"
+                                            >Package reported
+                                            damaged</SelectItem
+                                        >
+                                        <SelectItem value="lost"
+                                            >Package reported
+                                            missing</SelectItem
+                                        >
+                                        <SelectItem value="return_to_sender"
+                                            >Return to sender</SelectItem
+                                        >
+                                        <SelectItem value="other"
+                                            >Other</SelectItem
+                                        >
                                     </SelectContent>
                                 </Select>
-                                <InputError :message="shipmentOperationsForm.errors.shipment_exception_code" />
+                                <InputError
+                                    :message="
+                                        shipmentOperationsForm.errors
+                                            .shipment_exception_code
+                                    "
+                                />
                             </div>
                             <div class="grid gap-2">
-                                <Label for="shipment-exception-note">Staff note</Label>
-                                <Textarea id="shipment-exception-note" v-model="shipmentOperationsForm.shipment_exception_note" maxlength="2000" :disabled="!order.shipment_actions?.can_update_shipment_exception || !shipmentExceptionEditing || shipmentExceptionActive" />
-                                <InputError :message="shipmentOperationsForm.errors.shipment_exception_note" />
+                                <Label for="shipment-exception-note"
+                                    >Staff note</Label
+                                >
+                                <Textarea
+                                    id="shipment-exception-note"
+                                    v-model="
+                                        shipmentOperationsForm.shipment_exception_note
+                                    "
+                                    maxlength="2000"
+                                    :disabled="
+                                        !order.shipment_actions
+                                            ?.can_update_shipment_exception ||
+                                        !shipmentExceptionEditing ||
+                                        shipmentExceptionActive
+                                    "
+                                />
+                                <InputError
+                                    :message="
+                                        shipmentOperationsForm.errors
+                                            .shipment_exception_note
+                                    "
+                                />
                             </div>
                         </div>
-                        <div v-if="shipmentExceptionActive" class="flex items-start gap-3">
-                            <Checkbox id="shipment-exception-resolved" v-model="shipmentOperationsForm.shipment_exception_resolved" :disabled="!order.shipment_actions?.can_update_shipment_exception || !shipmentExceptionEditing" />
-                            <Label for="shipment-exception-resolved" class="text-sm leading-5 font-normal">Mark the recorded issue resolved.</Label>
+                        <div
+                            v-if="shipmentExceptionActive"
+                            class="flex items-start gap-3"
+                        >
+                            <Checkbox
+                                id="shipment-exception-resolved"
+                                v-model="
+                                    shipmentOperationsForm.shipment_exception_resolved
+                                "
+                                :disabled="
+                                    !order.shipment_actions
+                                        ?.can_update_shipment_exception ||
+                                    !shipmentExceptionEditing
+                                "
+                            />
+                            <Label
+                                for="shipment-exception-resolved"
+                                class="text-sm leading-5 font-normal"
+                                >Mark the recorded issue resolved.</Label
+                            >
                         </div>
                         <div class="flex flex-wrap items-center gap-3">
                             <Button
-                                v-if="order.shipment_actions?.can_update_shipment_exception && !shipmentExceptionActive && !shipmentExceptionEditing"
+                                v-if="
+                                    order.shipment_actions
+                                        ?.can_update_shipment_exception &&
+                                    !shipmentExceptionActive &&
+                                    !shipmentExceptionEditing
+                                "
                                 type="button"
                                 variant="outline"
                                 @click="startShipmentException"
@@ -1013,40 +1360,98 @@ defineOptions({
                                 Record shipping issue
                             </Button>
                             <Button
-                                v-else-if="order.shipment_actions?.can_update_shipment_exception && shipmentExceptionEditing"
+                                v-else-if="
+                                    order.shipment_actions
+                                        ?.can_update_shipment_exception &&
+                                    shipmentExceptionEditing
+                                "
                                 type="button"
-                                :disabled="shipmentOperationsForm.processing || (shipmentExceptionActive && !shipmentOperationsForm.shipment_exception_resolved)"
+                                :disabled="
+                                    shipmentOperationsForm.processing ||
+                                    (shipmentExceptionActive &&
+                                        !shipmentOperationsForm.shipment_exception_resolved)
+                                "
                                 @click="submitShipmentOperations('exception')"
                             >
-                                {{ shipmentExceptionActive ? 'Resolve shipping issue' : 'Save shipping issue' }}
+                                {{
+                                    shipmentExceptionActive
+                                        ? 'Resolve shipping issue'
+                                        : 'Save shipping issue'
+                                }}
                             </Button>
                         </div>
                     </div>
-                    <InputError :message="shipmentOperationsForm.errors.shipment" />
+                    <InputError
+                        :message="shipmentOperationsForm.errors.shipment"
+                    />
                 </section>
                 <section
-                    v-if="canProcess && order.payment.method.value === 'cod' && order.shipment?.carrier_cod_settlement"
+                    v-if="
+                        canProcess &&
+                        order.payment.method.value === 'cod' &&
+                        order.shipment?.carrier_cod_settlement
+                    "
                     class="border-border bg-card grid gap-3 border p-5"
                     aria-labelledby="lbc-cod-settlement-heading"
                 >
-                    <h2 id="lbc-cod-settlement-heading" class="font-semibold">LBC COD settlement record</h2>
+                    <h2 id="lbc-cod-settlement-heading" class="font-semibold">
+                        LBC COD settlement record
+                    </h2>
                     <p class="text-muted-foreground text-sm">
-                        LBC collects the full saved order total from the buyer. Reconcile the same amount when recording seller remittance.
+                        LBC collects the full saved order total from the buyer.
+                        Reconcile the same amount when recording seller
+                        remittance.
                     </p>
                     <div class="grid gap-1 text-sm">
                         <p>
                             Collection:
-                            {{ order.shipment.carrier_cod_settlement.collected_at ? formatCurrency(order.shipment.carrier_cod_settlement.collected_amount) : 'Awaiting confirmation' }}
+                            {{
+                                order.shipment.carrier_cod_settlement
+                                    .collected_at
+                                    ? formatCurrency(
+                                          order.shipment.carrier_cod_settlement
+                                              .collected_amount,
+                                      )
+                                    : 'Awaiting confirmation'
+                            }}
                         </p>
-                        <p v-if="order.shipment.carrier_cod_settlement.collection_reference" class="text-muted-foreground">
-                            Collection reference: {{ order.shipment.carrier_cod_settlement.collection_reference }}
+                        <p
+                            v-if="
+                                order.shipment.carrier_cod_settlement
+                                    .collection_reference
+                            "
+                            class="text-muted-foreground"
+                        >
+                            Collection reference:
+                            {{
+                                order.shipment.carrier_cod_settlement
+                                    .collection_reference
+                            }}
                         </p>
                         <p>
                             Remittance:
-                            {{ order.shipment.carrier_cod_settlement.remitted_at ? formatCurrency(order.shipment.carrier_cod_settlement.remitted_amount) : 'Awaiting reconciliation' }}
+                            {{
+                                order.shipment.carrier_cod_settlement
+                                    .remitted_at
+                                    ? formatCurrency(
+                                          order.shipment.carrier_cod_settlement
+                                              .remitted_amount,
+                                      )
+                                    : 'Awaiting reconciliation'
+                            }}
                         </p>
-                        <p v-if="order.shipment.carrier_cod_settlement.remittance_reference" class="text-muted-foreground">
-                            Remittance reference: {{ order.shipment.carrier_cod_settlement.remittance_reference }}
+                        <p
+                            v-if="
+                                order.shipment.carrier_cod_settlement
+                                    .remittance_reference
+                            "
+                            class="text-muted-foreground"
+                        >
+                            Remittance reference:
+                            {{
+                                order.shipment.carrier_cod_settlement
+                                    .remittance_reference
+                            }}
                         </p>
                     </div>
                 </section>
@@ -1054,23 +1459,33 @@ defineOptions({
                     v-if="
                         order.shipment &&
                         canProcess &&
-                        (order.shipment_actions?.can_simulate_local_lbc_booking ||
+                        (order.shipment_actions
+                            ?.can_simulate_local_lbc_booking ||
                             order.shipment.booking_simulation)
                     "
                     class="border-border bg-card grid gap-3 border p-5"
                     aria-labelledby="local-lbc-simulation-heading"
                 >
-                    <div class="flex flex-wrap items-center justify-between gap-3">
+                    <div
+                        class="flex flex-wrap items-center justify-between gap-3"
+                    >
                         <div>
-                            <h2 id="local-lbc-simulation-heading" class="font-semibold">
+                            <h2
+                                id="local-lbc-simulation-heading"
+                                class="font-semibold"
+                            >
                                 LBC booking simulation
                             </h2>
                             <p class="text-muted-foreground mt-1 text-sm">
-                                Local workflow check only. This does not contact LBC or create a carrier shipment.
+                                Local workflow check only. This does not contact
+                                LBC or create a carrier shipment.
                             </p>
                         </div>
                         <Button
-                            v-if="order.shipment_actions?.can_simulate_local_lbc_booking"
+                            v-if="
+                                order.shipment_actions
+                                    ?.can_simulate_local_lbc_booking
+                            "
                             type="button"
                             variant="outline"
                             @click="requestLocalLbcBookingSimulation"
@@ -1083,9 +1498,12 @@ defineOptions({
                         class="border-border bg-secondary/40 grid gap-1 border p-4 text-sm"
                         role="status"
                     >
-                        <p class="font-medium">{{ order.shipment.booking_simulation.label }}</p>
+                        <p class="font-medium">
+                            {{ order.shipment.booking_simulation.label }}
+                        </p>
                         <p class="text-muted-foreground">
-                            Reference: {{ order.shipment.booking_simulation.reference }}
+                            Reference:
+                            {{ order.shipment.booking_simulation.reference }}
                         </p>
                         <p class="text-muted-foreground">
                             {{ order.shipment.booking_simulation.notice }}
@@ -1095,21 +1513,31 @@ defineOptions({
                     <Dialog v-model:open="localLbcBookingDialogOpen">
                         <DialogContent>
                             <DialogHeader>
-                                <DialogTitle>Run local booking simulation?</DialogTitle>
+                                <DialogTitle
+                                    >Run local booking simulation?</DialogTitle
+                                >
                                 <DialogDescription>
-                                    Battlefront will save a synthetic reference for this eligible prepaid order. No LBC request, carrier booking, tracking number, payment change, or customer notification will be created.
+                                    Battlefront will save a synthetic reference
+                                    for this eligible prepaid order. No LBC
+                                    request, carrier booking, tracking number,
+                                    payment change, or customer notification
+                                    will be created.
                                 </DialogDescription>
                             </DialogHeader>
                             <DialogFooter>
                                 <DialogClose as-child>
-                                    <Button type="button" variant="outline">Keep shipment unchanged</Button>
+                                    <Button type="button" variant="outline"
+                                        >Keep shipment unchanged</Button
+                                    >
                                 </DialogClose>
                                 <Button
                                     type="button"
                                     :disabled="localLbcBookingForm.processing"
                                     @click="submitLocalLbcBookingSimulation"
                                 >
-                                    <Spinner v-if="localLbcBookingForm.processing" />
+                                    <Spinner
+                                        v-if="localLbcBookingForm.processing"
+                                    />
                                     Run simulation
                                 </Button>
                             </DialogFooter>
@@ -1143,7 +1571,10 @@ defineOptions({
                         "
                         class="text-muted-foreground leading-6"
                     >
-                        The saved regional delivery fee is included in the order total. Confirm the actual delivery arrangement and ETA before creating the manual shipment. The saved order amount cannot be repriced.
+                        The saved regional delivery fee is included in the order
+                        total. Confirm the actual delivery arrangement and ETA
+                        before creating the manual shipment. The saved order
+                        amount cannot be repriced.
                     </p>
                     <p v-else class="text-muted-foreground leading-6">
                         This order remains at its saved product subtotal with no
@@ -1457,19 +1888,57 @@ defineOptions({
                                 </dt>
                                 <dd class="mt-1 font-semibold tabular-nums">
                                     {{ formatCurrency(order.delivery_fee) }}
-                                    <p v-if="order.delivery_quote?.billable_weight_kg" class="text-muted-foreground mt-1 text-xs font-normal">
-                                        Route {{ formatCurrency(order.delivery_quote.route_base_fee) }} + weight {{ formatCurrency(order.delivery_quote.weight_surcharge) }} + handling {{ formatCurrency(order.delivery_quote.handling_surcharge) }} · {{ order.delivery_quote.billable_weight_kg }} kg billable
-                                    </p>
                                     <p
-                                        v-if="order.delivery_quote?.fixed_delivery_fee"
+                                        v-if="
+                                            order.delivery_quote
+                                                ?.billable_weight_kg
+                                        "
                                         class="text-muted-foreground mt-1 text-xs font-normal"
                                     >
-                                        Customer fee fixed at placement; Battlefront absorbs any courier cost difference.
+                                        Route
+                                        {{
+                                            formatCurrency(
+                                                order.delivery_quote
+                                                    .route_base_fee,
+                                            )
+                                        }}
+                                        + weight
+                                        {{
+                                            formatCurrency(
+                                                order.delivery_quote
+                                                    .weight_surcharge,
+                                            )
+                                        }}
+                                        + handling
+                                        {{
+                                            formatCurrency(
+                                                order.delivery_quote
+                                                    .handling_surcharge,
+                                            )
+                                        }}
+                                        ·
+                                        {{
+                                            order.delivery_quote
+                                                .billable_weight_kg
+                                        }}
+                                        kg billable
                                     </p>
                                     <p
                                         v-if="
                                             order.delivery_quote
-                                                ?.pricing_status === 'not_configured'
+                                                ?.fixed_delivery_fee
+                                        "
+                                        class="text-muted-foreground mt-1 text-xs font-normal"
+                                    >
+                                        Customer fee fixed at placement;
+                                        Battlefront absorbs any courier cost
+                                        difference.
+                                    </p>
+                                    <p
+                                        v-if="
+                                            order.delivery_quote
+                                                ?.pricing_status ===
+                                            'not_configured'
                                         "
                                         class="text-muted-foreground mt-1 text-xs font-normal"
                                     >
@@ -1509,8 +1978,12 @@ defineOptions({
                                     />
                                 </div>
                                 <div class="min-w-0">
-                                    <p v-if="item.pc_build_group" class="text-primary-ink text-xs font-semibold uppercase tracking-wide">
-                                        PC build · {{ item.pc_build_group.name }}
+                                    <p
+                                        v-if="item.pc_build_group"
+                                        class="text-primary-ink text-xs font-semibold tracking-wide uppercase"
+                                    >
+                                        PC build ·
+                                        {{ item.pc_build_group.name }}
                                     </p>
                                     <h3 class="truncate font-semibold">
                                         {{ item.product.name }}
@@ -1843,16 +2316,29 @@ defineOptions({
                             changed.
                         </template>
                         <template
-                            v-else-if="order.payment.method.value === 'cod' && order.payment.status.value === 'pending'"
+                            v-else-if="
+                                order.payment.method.value === 'cod' &&
+                                order.payment.status.value === 'pending'
+                            "
                         >
-                            <template v-if="order.payment.can_confirm_cod_collection">
-                                Delivery is recorded. Record LBC collection below; payment remains pending until remittance is reconciled.
+                            <template
+                                v-if="order.payment.can_confirm_cod_collection"
+                            >
+                                Delivery is recorded. Record LBC collection
+                                below; payment remains pending until remittance
+                                is reconciled.
                             </template>
-                            <template v-else-if="order.payment.can_confirm_cod_remittance">
-                                LBC collection is recorded. Reconcile seller remittance below to complete the order.
+                            <template
+                                v-else-if="
+                                    order.payment.can_confirm_cod_remittance
+                                "
+                            >
+                                LBC collection is recorded. Reconcile seller
+                                remittance below to complete the order.
                             </template>
                             <template v-else>
-                                Continue the delivery milestones. Delivery alone does not confirm collection or remittance.
+                                Continue the delivery milestones. Delivery alone
+                                does not confirm collection or remittance.
                             </template>
                         </template>
                         <template v-else-if="order.payment.pay_at_pickup">
@@ -1978,31 +2464,66 @@ defineOptions({
                         class="border-border mt-5 border-t pt-5"
                     >
                         <p class="text-sm font-medium">Online payment</p>
-                        <dl class="text-muted-foreground mt-3 grid gap-2 text-sm">
+                        <dl
+                            class="text-muted-foreground mt-3 grid gap-2 text-sm"
+                        >
                             <div class="flex justify-between gap-4">
                                 <dt>Provider flow</dt>
                                 <dd class="text-foreground text-right">
-                                    {{ order.payment.gateway.channel === 'hosted_checkout' ? 'Hosted Checkout' : 'Direct Online Banking' }}
+                                    {{
+                                        order.payment.gateway.channel ===
+                                        'hosted_checkout'
+                                            ? 'Hosted Checkout'
+                                            : 'Direct Online Banking'
+                                    }}
                                 </dd>
                             </div>
-                            <div v-if="order.payment.gateway.bank" class="flex justify-between gap-4">
+                            <div
+                                v-if="order.payment.gateway.bank"
+                                class="flex justify-between gap-4"
+                            >
                                 <dt>Bank</dt>
-                                <dd class="text-foreground uppercase">{{ order.payment.gateway.bank }}</dd>
+                                <dd class="text-foreground uppercase">
+                                    {{ order.payment.gateway.bank }}
+                                </dd>
                             </div>
                             <div class="flex justify-between gap-4">
                                 <dt>Reconciliation status</dt>
-                                <dd class="text-foreground">{{ order.payment.gateway.status.replaceAll('_', ' ') }}</dd>
+                                <dd class="text-foreground">
+                                    {{
+                                        order.payment.gateway.status.replaceAll(
+                                            '_',
+                                            ' ',
+                                        )
+                                    }}
+                                </dd>
                             </div>
                             <div class="flex justify-between gap-4">
                                 <dt>Merchant cutoff</dt>
-                                <dd class="text-foreground text-right">{{ formatDateTime(order.payment.gateway.merchant_cutoff_at) }}</dd>
+                                <dd class="text-foreground text-right">
+                                    {{
+                                        formatDateTime(
+                                            order.payment.gateway
+                                                .merchant_cutoff_at,
+                                        )
+                                    }}
+                                </dd>
                             </div>
                         </dl>
                         <p
-                            v-if="['closing', 'failed', 'retrying', 'reconciliation_required'].includes(order.payment.gateway.status)"
+                            v-if="
+                                [
+                                    'closing',
+                                    'failed',
+                                    'retrying',
+                                    'reconciliation_required',
+                                ].includes(order.payment.gateway.status)
+                            "
                             class="text-muted-foreground mt-3 text-sm leading-6"
                         >
-                            Provider confirmation is still required. Keep this order pending and inventory reserved until reconciliation completes.
+                            Provider confirmation is still required. Keep this
+                            order pending and inventory reserved until
+                            reconciliation completes.
                         </p>
                     </div>
 
@@ -2222,14 +2743,39 @@ defineOptions({
                             saved order total is reconciled as remitted.
                         </p>
                         <div
-                            v-if="order.shipment?.carrier_cod_settlement?.collected_at"
+                            v-if="
+                                order.shipment?.carrier_cod_settlement
+                                    ?.collected_at
+                            "
                             class="border-border bg-secondary/40 grid gap-1 border p-4 text-sm"
                         >
-                            <p>Collected {{ formatCurrency(order.shipment.carrier_cod_settlement.collected_amount) }}</p>
+                            <p>
+                                Collected
+                                {{
+                                    formatCurrency(
+                                        order.shipment.carrier_cod_settlement
+                                            .collected_amount,
+                                    )
+                                }}
+                            </p>
                             <p class="text-muted-foreground">
-                                {{ formatDateTime(order.shipment.carrier_cod_settlement.collected_at) }}
-                                <span v-if="order.shipment.carrier_cod_settlement.collection_reference">
-                                    · {{ order.shipment.carrier_cod_settlement.collection_reference }}
+                                {{
+                                    formatDateTime(
+                                        order.shipment.carrier_cod_settlement
+                                            .collected_at,
+                                    )
+                                }}
+                                <span
+                                    v-if="
+                                        order.shipment.carrier_cod_settlement
+                                            .collection_reference
+                                    "
+                                >
+                                    ·
+                                    {{
+                                        order.shipment.carrier_cod_settlement
+                                            .collection_reference
+                                    }}
                                 </span>
                             </p>
                         </div>
@@ -2254,21 +2800,46 @@ defineOptions({
                             Record LBC Remittance
                         </Button>
                         <div
-                            v-if="order.shipment?.carrier_cod_settlement?.remitted_at"
+                            v-if="
+                                order.shipment?.carrier_cod_settlement
+                                    ?.remitted_at
+                            "
                             class="border-border bg-secondary/40 grid gap-1 border p-4 text-sm"
                             role="status"
                         >
-                            <p>Remitted {{ formatCurrency(order.shipment.carrier_cod_settlement.remitted_amount) }}</p>
+                            <p>
+                                Remitted
+                                {{
+                                    formatCurrency(
+                                        order.shipment.carrier_cod_settlement
+                                            .remitted_amount,
+                                    )
+                                }}
+                            </p>
                             <p class="text-muted-foreground">
-                                {{ order.shipment.carrier_cod_settlement.remittance_reference }}
-                                · {{ formatDateTime(order.shipment.carrier_cod_settlement.remitted_at) }}
+                                {{
+                                    order.shipment.carrier_cod_settlement
+                                        .remittance_reference
+                                }}
+                                ·
+                                {{
+                                    formatDateTime(
+                                        order.shipment.carrier_cod_settlement
+                                            .remitted_at,
+                                    )
+                                }}
                             </p>
                         </div>
                         <p
-                            v-if="!order.shipment?.carrier_cod_settlement?.collected_at && !order.payment.can_confirm_cod_collection"
+                            v-if="
+                                !order.shipment?.carrier_cod_settlement
+                                    ?.collected_at &&
+                                !order.payment.can_confirm_cod_collection
+                            "
                             class="text-muted-foreground text-sm"
                         >
-                            Collection confirmation becomes available after the shipment reaches Delivered.
+                            Collection confirmation becomes available after the
+                            shipment reaches Delivered.
                         </p>
                         <p class="text-muted-foreground text-xs leading-5">
                             Handle failed delivery, unpaid orders, and returns
@@ -2285,8 +2856,9 @@ defineOptions({
                                     </DialogTitle>
                                     <DialogDescription>
                                         Confirm that you manually verified LBC
-                                        collected {{ formatCurrency(order.total) }}.
-                                        The order stays unpaid until the seller
+                                        collected
+                                        {{ formatCurrency(order.total) }}. The
+                                        order stays unpaid until the seller
                                         remittance is reconciled.
                                     </DialogDescription>
                                 </DialogHeader>
@@ -2306,13 +2878,23 @@ defineOptions({
                                     </Label>
                                 </div>
                                 <div class="grid gap-2">
-                                    <Label for="cod-collection-reference">LBC collection reference (optional)</Label>
+                                    <Label for="cod-collection-reference"
+                                        >LBC collection reference
+                                        (optional)</Label
+                                    >
                                     <Input
                                         id="cod-collection-reference"
-                                        v-model="codCollectionForm.carrier_cod_collection_reference"
+                                        v-model="
+                                            codCollectionForm.carrier_cod_collection_reference
+                                        "
                                         maxlength="100"
                                     />
-                                    <InputError :message="codCollectionForm.errors.carrier_cod_collection_reference" />
+                                    <InputError
+                                        :message="
+                                            codCollectionForm.errors
+                                                .carrier_cod_collection_reference
+                                        "
+                                    />
                                 </div>
                                 <InputError
                                     :message="
@@ -2345,41 +2927,75 @@ defineOptions({
                         <Dialog v-model:open="codRemittanceConfirmationOpen">
                             <DialogContent>
                                 <DialogHeader>
-                                    <DialogTitle>Reconcile LBC COD remittance for {{ order.reference }}?</DialogTitle>
+                                    <DialogTitle
+                                        >Reconcile LBC COD remittance for
+                                        {{ order.reference }}?</DialogTitle
+                                    >
                                     <DialogDescription>
-                                        Confirm LBC remitted the full saved order total of {{ formatCurrency(order.total) }}.
-                                        This verifies payment, completes the order, and records the sale.
+                                        Confirm LBC remitted the full saved
+                                        order total of
+                                        {{ formatCurrency(order.total) }}. This
+                                        verifies payment, completes the order,
+                                        and records the sale.
                                     </DialogDescription>
                                 </DialogHeader>
                                 <div class="grid gap-2">
-                                    <Label for="cod-remittance-reference">LBC remittance reference</Label>
+                                    <Label for="cod-remittance-reference"
+                                        >LBC remittance reference</Label
+                                    >
                                     <Input
                                         id="cod-remittance-reference"
-                                        v-model="codRemittanceForm.carrier_cod_remittance_reference"
+                                        v-model="
+                                            codRemittanceForm.carrier_cod_remittance_reference
+                                        "
                                         maxlength="100"
                                     />
-                                    <InputError :message="codRemittanceForm.errors.carrier_cod_remittance_reference" />
+                                    <InputError
+                                        :message="
+                                            codRemittanceForm.errors
+                                                .carrier_cod_remittance_reference
+                                        "
+                                    />
                                 </div>
                                 <div class="flex items-start gap-3">
                                     <Checkbox
                                         id="cod-remittance-confirmed"
-                                        v-model="codRemittanceForm.cod_remittance_confirmed"
+                                        v-model="
+                                            codRemittanceForm.cod_remittance_confirmed
+                                        "
                                     />
-                                    <Label for="cod-remittance-confirmed" class="text-sm leading-5 font-normal">
-                                        I reconciled the LBC remittance against the saved order total.
+                                    <Label
+                                        for="cod-remittance-confirmed"
+                                        class="text-sm leading-5 font-normal"
+                                    >
+                                        I reconciled the LBC remittance against
+                                        the saved order total.
                                     </Label>
                                 </div>
-                                <InputError :message="codRemittanceForm.errors.cod_remittance_confirmed" />
+                                <InputError
+                                    :message="
+                                        codRemittanceForm.errors
+                                            .cod_remittance_confirmed
+                                    "
+                                />
                                 <DialogFooter>
                                     <DialogClose as-child>
-                                        <Button type="button" variant="outline">Keep payment pending</Button>
+                                        <Button type="button" variant="outline"
+                                            >Keep payment pending</Button
+                                        >
                                     </DialogClose>
                                     <Button
                                         type="button"
-                                        :disabled="!codRemittanceForm.cod_remittance_confirmed || !codRemittanceForm.carrier_cod_remittance_reference || codRemittanceForm.processing"
+                                        :disabled="
+                                            !codRemittanceForm.cod_remittance_confirmed ||
+                                            !codRemittanceForm.carrier_cod_remittance_reference ||
+                                            codRemittanceForm.processing
+                                        "
                                         @click="submitCodRemittance"
                                     >
-                                        <Spinner v-if="codRemittanceForm.processing" />
+                                        <Spinner
+                                            v-if="codRemittanceForm.processing"
+                                        />
                                         Reconcile and Complete
                                     </Button>
                                 </DialogFooter>

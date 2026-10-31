@@ -66,7 +66,7 @@ test('web and API expose identical persisted shipment facts at every lifecycle m
             ->assertInertia(fn (Assert $page) => $page
                 ->where('order.shipment', $expected)
                 ->where('order.delivery_quote.destination', 'Bacolod City')
-                ->where('order.delivery_fee', '250.00')
+                ->where('order.delivery_fee', '150.00')
                 ->missing('order.shipment_actions')
                 ->missing('order.payment_proof_path'));
         $this->get('/api/v1/orders/'.$order->id)->assertOk()
@@ -81,7 +81,7 @@ test('web and API expose identical persisted shipment facts at every lifecycle m
     $this->get('/api/v1/orders/'.$order->id)->assertOk()
         ->assertJsonPath('data.shipment.carrier', 'lbc')
         ->assertJsonPath('data.shipment.eta.estimated_delivery_start', '2026-10-10')
-        ->assertJsonPath('data.delivery_quote.delivery_fee', '250.00');
+        ->assertJsonPath('data.delivery_quote.delivery_fee', '150.00');
 });
 
 test('customers cannot read foreign shipment data on web or API', function (string $channel) {

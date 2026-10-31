@@ -5,6 +5,7 @@ import { nextTick, onMounted, ref, watch } from 'vue';
 import ChatbotController from '@/actions/App/Http/Controllers/ChatbotController';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { quickQuestions } from './quickQuestions';
 
 const inquiry = useHttp({ message: '', context_token: null });
 const page = usePage();
@@ -17,6 +18,10 @@ const conversation = ref(null);
 const composer = ref(null);
 const launcher = ref(null);
 const isMounted = ref(false);
+const quickMenu = ref('main');
+const showQuickQuestions = ref(true);
+let readerScrolledBack = false;
+let savedScrollTop = 0;
 let nextMessageId = 1;
 let conversationVersion = 0;
 
@@ -33,6 +38,10 @@ function startNewChat() {
     inputError.value = '';
     requestError.value = '';
     pendingMessage.value = '';
+    quickMenu.value = 'main';
+    showQuickQuestions.value = true;
+    readerScrolledBack = false;
+    savedScrollTop = 0;
 }
 
 watch(() => page.props.auth?.user?.id ?? null, startNewChat);
@@ -41,10 +50,13 @@ async function openPanel() {
     isOpen.value = true;
     await nextTick();
     composer.value?.$el?.focus();
-    await scrollToLatest();
+    if (conversation.value) {
+        conversation.value.scrollTop = savedScrollTop;
+    }
 }
 
 async function closePanel() {
+    savedScrollTop = conversation.value?.scrollTop ?? 0;
     isOpen.value = false;
     await nextTick();
     launcher.value?.$el?.focus();
@@ -65,7 +77,36 @@ async function scrollToLatest() {
     }
 }
 
-async function submitMessage() {
+function trackReadingPosition() {
+    const panel = conversation.value;
+    if (inquiry.processing && panel) {
+        readerScrolledBack =
+            panel.scrollHeight - panel.scrollTop - panel.clientHeight > 48;
+    }
+}
+
+async function showReply(messageId) {
+    await nextTick();
+    const panel = conversation.value;
+    const reply = panel?.querySelector(`[data-message-id="${messageId}"]`);
+    if (panel && reply && !readerScrolledBack) {
+        panel.scrollTop +=
+            reply.getBoundingClientRect().top -
+            panel.getBoundingClientRect().top -
+            16;
+    }
+}
+
+async function chooseQuickQuestion(item) {
+    if (inquiry.processing) return;
+    if (item.menu) {
+        quickMenu.value = item.menu;
+        return;
+    }
+    await submitMessage(item.question);
+}
+
+async function submitMessage(quickQuestion = null) {
     if (inquiry.processing) {
         return;
     }
@@ -74,7 +115,9 @@ async function submitMessage() {
     requestError.value = '';
     inquiry.clearErrors();
 
-    const message = inquiry.message.trim();
+    const draft = inquiry.message;
+    const previousToken = inquiry.context_token;
+    const message = (quickQuestion ?? draft).trim();
 
     if (!message) {
         inputError.value = 'Please enter a question.';
@@ -82,13 +125,22 @@ async function submitMessage() {
     }
 
     pendingMessage.value = message;
+    readerScrolledBack = false;
     const submittedVersion = conversationVersion;
+    let receivedReply = false;
+    if (quickQuestion !== null) {
+        inquiry.message = message;
+        inquiry.context_token = null;
+    }
     void scrollToLatest();
 
     try {
         const response = await inquiry.post(ChatbotController.store.url(), {
             onHttpException: (httpResponse) => {
-                if (httpResponse.status === 429) {
+                if (
+                    submittedVersion === conversationVersion &&
+                    httpResponse.status === 429
+                ) {
                     requestError.value = JSON.parse(httpResponse.data).message;
                 }
             },
@@ -98,6 +150,8 @@ async function submitMessage() {
             return;
         }
 
+        const replyId = nextMessageId + 1;
+        receivedReply = true;
         messages.value.push(
             { id: nextMessageId++, role: 'customer', content: message },
             {
@@ -107,14 +161,23 @@ async function submitMessage() {
                 source: response.source,
             },
         );
-        inquiry.message = '';
+        inquiry.message = quickQuestion !== null ? draft : '';
         inquiry.context_token = response.context_token ?? null;
+        showQuickQuestions.value = false;
+        void showReply(replyId);
     } catch {
-        requestError.value ||=
-            'Unable to send your question. Please try again.';
+        if (submittedVersion === conversationVersion) {
+            requestError.value ||=
+                'Unable to send your question. Please try again.';
+        }
     } finally {
-        pendingMessage.value = '';
-        void scrollToLatest();
+        if (submittedVersion === conversationVersion) {
+            if (quickQuestion !== null) {
+                inquiry.message = draft;
+                if (!receivedReply) inquiry.context_token = previousToken;
+            }
+            pendingMessage.value = '';
+        }
     }
 }
 </script>
@@ -191,21 +254,23 @@ async function submitMessage() {
                     ref="conversation"
                     class="min-h-0 flex-1 overflow-y-auto px-4 py-4"
                     :aria-busy="inquiry.processing"
+                    @scroll="trackReadingPosition"
                 >
                     <div
                         v-if="messages.length === 0 && !inquiry.processing"
-                        class="flex min-h-full flex-col items-center justify-center text-center"
+                        class="flex flex-col items-center justify-center text-center"
                     >
                         <MessageSquareText
                             class="text-primary-ink size-8"
                             aria-hidden="true"
                         />
-                        <h2 class="mt-3 font-semibold">How can we help?</h2>
+                        <h2 class="mt-3 font-semibold">
+                            Hello! I’m the Battlefront assistant.
+                        </h2>
                         <p
                             class="text-muted-foreground mt-2 max-w-xs text-sm leading-5"
                         >
-                            Ask about products, your orders, store information,
-                            payment, pickup, or delivery.
+                            Choose a question below or type your own.
                         </p>
                     </div>
 
@@ -220,7 +285,8 @@ async function submitMessage() {
                         <li
                             v-for="message in messages"
                             :key="message.id"
-                            class="flex"
+                            :data-message-id="message.id"
+                            class="flex min-w-0"
                             :class="
                                 message.role === 'customer'
                                     ? 'justify-end'
@@ -228,7 +294,7 @@ async function submitMessage() {
                             "
                         >
                             <article
-                                class="max-w-[88%] rounded-md border px-3 py-2"
+                                class="max-w-[88%] min-w-0 rounded-md border px-3 py-2"
                                 :class="
                                     message.role === 'customer'
                                         ? 'border-primary/30 bg-primary/10'
@@ -246,11 +312,19 @@ async function submitMessage() {
                                             : 'Battlefront assistant'
                                     }}
                                 </p>
-                                <p
-                                    class="mt-1 text-sm leading-5 wrap-break-word whitespace-pre-wrap"
+                                <div
+                                    class="mt-1 space-y-3 text-sm leading-6 [overflow-wrap:anywhere]"
                                 >
-                                    {{ message.content }}
-                                </p>
+                                    <p
+                                        v-for="(
+                                            paragraph, index
+                                        ) in message.content.split(/\n\s*\n/)"
+                                        :key="index"
+                                        class="whitespace-pre-wrap"
+                                    >
+                                        {{ paragraph }}
+                                    </p>
+                                </div>
                             </article>
                         </li>
                         <li v-if="inquiry.processing" class="flex justify-end">
@@ -276,12 +350,53 @@ async function submitMessage() {
                             </div>
                         </li>
                     </ol>
+                    <div
+                        v-if="showQuickQuestions && !inquiry.processing"
+                        id="battlefront-quick-questions"
+                        class="mt-4"
+                        role="group"
+                        aria-label="Quick questions"
+                    >
+                        <Button
+                            v-if="quickMenu !== 'main'"
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            @click="quickMenu = 'main'"
+                            >Back to topics</Button
+                        >
+                        <div class="flex flex-wrap gap-2">
+                            <Button
+                                v-for="item in quickQuestions[quickMenu]"
+                                :key="item.label"
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                class="min-h-10 max-w-full text-left whitespace-normal"
+                                @click="chooseQuickQuestion(item)"
+                                >{{ item.label }}</Button
+                            >
+                        </div>
+                    </div>
                 </div>
 
                 <form
                     class="border-border bg-card shrink-0 border-t p-3"
-                    @submit.prevent="submitMessage"
+                    @submit.prevent="submitMessage()"
                 >
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        :disabled="inquiry.processing"
+                        :aria-expanded="showQuickQuestions"
+                        aria-controls="battlefront-quick-questions"
+                        @click="
+                            showQuickQuestions = !showQuickQuestions;
+                            quickMenu = 'main';
+                        "
+                        >Quick questions</Button
+                    >
                     <label
                         for="floating-chatbot-message"
                         class="text-sm font-semibold"

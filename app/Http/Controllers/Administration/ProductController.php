@@ -12,8 +12,9 @@ use App\Http\Requests\Administration\SaveProductRequest;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\Tag;
+use App\Repositories\Administration\ProductRepository;
+use App\Services\AdministratorProductPresenter;
 use App\Services\CatalogProductPresenter;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -22,7 +23,11 @@ use Inertia\Response;
 
 class ProductController extends Controller
 {
-    public function __construct(private readonly CatalogProductPresenter $presenter) {}
+    public function __construct(
+        private readonly CatalogProductPresenter $presenter,
+        private readonly ProductRepository $products,
+        private readonly AdministratorProductPresenter $administratorPresenter,
+    ) {}
 
     /**
      * Display a listing of the resource.
@@ -33,45 +38,8 @@ class ProductController extends Controller
         if ((bool) ($filters['deleted'] ?? false)) {
             $this->authorize('catalog.delete');
 
-            $products = Product::onlyTrashed()
-                ->when($filters['q'] ?? null, fn (Builder $query, string $search): Builder => $query->where(
-                    fn (Builder $query): Builder => $query
-                        ->where('name', 'like', "%{$search}%")
-                        ->orWhere('product_code', 'like', "%{$search}%")
-                        ->orWhere('brand', 'like', "%{$search}%")
-                        ->orWhere('description', 'like', "%{$search}%"),
-                ))
-                ->with([
-                    'category' => fn ($query) => $query->withTrashed()->select(['id', 'name', 'is_active', 'deleted_at']),
-                    'deletedBy:id,name',
-                    'inventory:id,product_id,quantity,quarantined_quantity',
-                ])
-                ->orderByDesc('deleted_at')->orderBy('id')
-                ->paginate(12)->withQueryString()
-                ->through(fn (Product $product): array => [
-                    'id' => $product->id,
-                    'product_code' => $product->product_code,
-                    'is_catalog_imported' => $product->is_catalog_imported,
-                    'name' => $product->name,
-                    'brand' => $product->brand,
-                    'price' => $product->price,
-                    'discount_price' => $product->discount_price,
-                    'image_url' => $product->image_url,
-                    'is_featured' => $product->is_featured,
-                    'is_active' => false,
-                    'deleted_at' => $product->deleted_at?->toDateTimeString(),
-                    'deleted_by' => $product->deletedBy?->name,
-                    'inventory' => $product->inventory === null ? null : [
-                        'quantity' => $product->inventory->quantity,
-                        'quarantined_quantity' => $product->inventory->quarantined_quantity,
-                    ],
-                    'category' => [
-                        'name' => $product->category->name,
-                        'is_active' => $product->category->is_active,
-                        'is_deleted' => $product->category->trashed(),
-                    ],
-                    'tags' => [],
-                ]);
+            $products = $this->products->paginateArchived($filters)
+                ->through(fn (Product $product): array => $this->administratorPresenter->archived($product));
 
             return Inertia::render('Administration/Products/Index', [
                 'products' => $products,
@@ -87,95 +55,8 @@ class ProductController extends Controller
             ? $request->integer('tag_id')
             : null;
 
-        $products = Product::query()
-            ->select([
-                'id',
-                'product_code',
-                'is_catalog_imported',
-                'name',
-                'category_id',
-                'brand',
-                'price',
-                'discount_price',
-                'image_path',
-                'is_featured',
-                'is_active',
-                'shipping_profile',
-            ])
-            ->when($request->user()->can('products.cost'), fn (Builder $query): Builder => $query->addSelect('acquisition_cost'))
-            ->with([
-                'category:id,name,is_active',
-                'tags:id,name',
-                'inventory:id,product_id,quantity,quarantined_quantity',
-            ])
-            ->when(
-                $filters['q'] ?? null,
-                fn (Builder $query, string $search): Builder => $query->where(
-                    fn (Builder $query): Builder => $query
-                        ->where('name', 'like', "%{$search}%")
-                        ->orWhere('product_code', 'like', "%{$search}%")
-                        ->orWhere('brand', 'like', "%{$search}%")
-                        ->orWhere('description', 'like', "%{$search}%"),
-                ),
-            )
-            ->when(
-                $filters['category_id'] ?? null,
-                fn (Builder $query, int $categoryId): Builder => $query->where('category_id', $categoryId),
-            )
-            ->when(
-                $filters['brand'] ?? null,
-                fn (Builder $query, string $brand): Builder => $query->where('brand', $brand),
-            )
-            ->when(
-                $filters['tag_id'] ?? null,
-                fn (Builder $query, int $tagId): Builder => $query->whereHas(
-                    'tags',
-                    fn (Builder $query): Builder => $query->whereKey($tagId),
-                ),
-            )
-            ->when(
-                $filters['status'] ?? null,
-                fn (Builder $query, string $status): Builder => $query->where('is_active', $status === 'active'),
-            )
-            ->orderBy('name')
-            ->orderBy('id')
-            ->paginate(12)
-            ->appends($filters)
-            ->through(fn (Product $product): array => [
-                'id' => $product->id,
-                'product_code' => $product->product_code,
-                'is_catalog_imported' => $product->is_catalog_imported,
-                'name' => $product->name,
-                'brand' => $product->brand,
-                'price' => $product->price,
-                ...($request->user()->can('products.cost') ? ['acquisition_cost' => $product->acquisition_cost] : []),
-                'discount_price' => $product->discount_price,
-                'image_url' => $product->image_url,
-                'is_featured' => $product->is_featured,
-                'is_active' => $product->is_active,
-                'inventory' => $product->inventory === null ? null : [
-                    'quantity' => $product->inventory->quantity,
-                    'quarantined_quantity' => $product->inventory->quarantined_quantity,
-                ],
-                'storefront_visibility' => match (true) {
-                    ! $product->is_active => 'Inactive product',
-                    ! $product->category->is_active => 'Inactive category',
-                    $product->inventory === null => 'Inventory not initialized',
-                    $product->inventory->quantity === 0 => 'Out of stock',
-                    default => 'Visible in storefront',
-                },
-                'shipping_handling' => $this->presenter->handling($product->shipping_profile),
-                'category' => [
-                    'name' => $product->category->name,
-                    'is_active' => $product->category->is_active,
-                ],
-                'tags' => $product->tags
-                    ->map(fn (Tag $tag): array => [
-                        'id' => $tag->id,
-                        'name' => $tag->name,
-                    ])
-                    ->values(),
-            ]);
+        $products = $this->products->paginate($filters, $request->user()->can('products.cost'))
+            ->through(fn (Product $product): array => $this->administratorPresenter->listing($product, $request->user()->can('products.cost')));
 
         return Inertia::render('Administration/Products/Index', [
             'products' => $products,

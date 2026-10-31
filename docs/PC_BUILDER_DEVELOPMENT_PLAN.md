@@ -16,12 +16,12 @@ PayMongo Hosted Checkout and payment flows already exist, along with order/payme
 
 Public pages reviewed on 2026-10-27:
 
-| Reference | Publicly visible evidence | Limits |
-|---|---|---|
-| [EasyPC homepage](https://easypc.com.ph/) | Build-a-PC navigation, hardware categories, products and cart controls. | Checkout behavior was not tested. |
-| [Build A PC](https://easypc.com.ph/pages/build-a-pc) | Advertises 17 categories, real-time compatibility, comparisons, sharing, pricing and cart transfer. | These are published claims; correctness and runtime behavior were not validated. |
+| Reference                                                  | Publicly visible evidence                                                                                                                  | Limits                                                                                      |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
+| [EasyPC homepage](https://easypc.com.ph/)                  | Build-a-PC navigation, hardware categories, products and cart controls.                                                                    | Checkout behavior was not tested.                                                           |
+| [Build A PC](https://easypc.com.ph/pages/build-a-pc)       | Advertises 17 categories, real-time compatibility, comparisons, sharing, pricing and cart transfer.                                        | These are published claims; correctness and runtime behavior were not validated.            |
 | [Build Your PC](https://easypc.com.ph/pages/build-your-pc) | Eight selectors, build load/save/share/clear controls, price/power/compatibility summary, Add All to Cart, search and out-of-stock toggle. | Controls observed but not exercised; persistence and compatibility accuracy remain unknown. |
-| [Easybuild](https://easypc.com.ph/pages/easybuild) | Priced prebuilt configurations with product links. | Not evidence of an interactive compatibility engine. |
+| [Easybuild](https://easypc.com.ph/pages/easybuild)         | Priced prebuilt configurations with product links.                                                                                         | Not evidence of an interactive compatibility engine.                                        |
 
 No Simple/Advanced mode was observed; these are proposed Battlefront modes. Do not copy competitor code, images, branding, or proprietary text.
 
@@ -109,13 +109,13 @@ Acceptance requires reviewed source-backed specification fixtures, deterministic
 
 ## 19. Implementation phases
 
-| Phase | Proposed work | Exit evidence |
-|---|---|---|
-| Approval and discovery | Resolve scope extension, compatibility policy, admin/review ownership, schema details, and checkout warning policy. | Explicit developer/adviser approvals where required; reviewed decision record. |
-| MVP foundation | Product-linked reviewed specs, core deterministic rules, saved builds, Simple web selection, grouped cart handoff. | Rule/source coverage, authorization, migration review, focused automated tests. |
-| Commerce completion | Aggregated inventory/delivery validation, checkout/order snapshots, admin visibility, regression and security checks. | Cart/checkout/payment/shipping regressions pass; human operational review. |
-| Enhancements | Advanced filters, comparisons, controlled sharing, improved explanations and admin tools. | Usability/accessibility evidence and updated acceptance matrix. |
-| Optional advanced | Mobile consumer, Gemini explanations, recommendations, or assembly services if separately approved. | Separate scope, security, operations, and evaluation approval. |
+| Phase                  | Proposed work                                                                                                         | Exit evidence                                                                   |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Approval and discovery | Resolve scope extension, compatibility policy, admin/review ownership, schema details, and checkout warning policy.   | Explicit developer/adviser approvals where required; reviewed decision record.  |
+| MVP foundation         | Product-linked reviewed specs, core deterministic rules, saved builds, Simple web selection, grouped cart handoff.    | Rule/source coverage, authorization, migration review, focused automated tests. |
+| Commerce completion    | Aggregated inventory/delivery validation, checkout/order snapshots, admin visibility, regression and security checks. | Cart/checkout/payment/shipping regressions pass; human operational review.      |
+| Enhancements           | Advanced filters, comparisons, controlled sharing, improved explanations and admin tools.                             | Usability/accessibility evidence and updated acceptance matrix.                 |
+| Optional advanced      | Mobile consumer, Gemini explanations, recommendations, or assembly services if separately approved.                   | Separate scope, security, operations, and evaluation approval.                  |
 
 ## 20. Risks and approval decisions
 

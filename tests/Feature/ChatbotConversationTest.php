@@ -1,5 +1,6 @@
 <?php
 
+use App\Ai\Agents\ChatbotIntentAgent;
 use App\Ai\Agents\ChatbotResponseAgent;
 use App\Enums\ChatbotCategory;
 use App\Enums\PaymentStatus;
@@ -11,7 +12,88 @@ use App\Models\Product;
 use App\Models\User;
 use App\Services\Chatbot\ChatbotConversation;
 use Illuminate\Support\Facades\Http;
+use Laravel\Ai\Exceptions\AiException;
 use Laravel\Ai\Prompts\AgentPrompt;
+
+test('short catalog queries resolve without intent classification', function (string $query) {
+    Product::factory()->available()->create(['name' => 'Atlas Monitor X240', 'brand' => 'Atlas']);
+    ChatbotResponseAgent::fake(['Current catalog facts.'])->preventStrayPrompts();
+
+    $response = app(ChatbotConversation::class)->respond($query, null, null, 'short-query');
+
+    expect($response['message'])->toBe('Current catalog facts.');
+    ChatbotIntentAgent::assertNeverPrompted();
+    ChatbotResponseAgent::assertPrompted(fn (AgentPrompt $prompt): bool => str_contains($prompt->prompt, 'Atlas Monitor X240'));
+})->with(['monitor', 'Atlas', 'X240', 'Atlas Monitor X240']);
+
+test('new product categories replace pending choices without description distractors', function (string $query) {
+    Product::factory()->available()->create(['name' => 'Atlas Laptop A1', 'description' => 'Works with a monitor and battery']);
+    Product::factory()->available()->create(['name' => 'Atlas Laptop A2', 'description' => 'Includes monitor support']);
+    Product::factory()->available()->create(['name' => 'Helios Monitor M24']);
+    Product::factory()->available()->create(['name' => 'Helios Battery B20']);
+    ChatbotResponseAgent::fake(fn () => throw new AiException)->preventStrayPrompts();
+    $chat = app(ChatbotConversation::class);
+    $first = $chat->respond('laptop', null, null, 'switch');
+
+    $second = $chat->respond($query, null, $first['context_token'], 'switch');
+
+    expect($first['message'])->toContain('Which product');
+    expect($second['message'])->toContain('Helios')->not->toContain('Laptop');
+    ChatbotResponseAgent::assertPromptedTimes(1);
+    ChatbotIntentAgent::assertNeverPrompted();
+})->with(['monitor', 'battery', 'M24', 'Helios Monitor M24']);
+
+test('a selected short query retains price and live availability follow ups but a new chat does not', function () {
+    $product = Product::factory()->available()->create(['name' => 'Atlas Monitor X240', 'price' => '4200.00', 'discount_price' => null]);
+    ChatbotResponseAgent::fake(fn () => throw new AiException)->preventStrayPrompts();
+    $chat = app(ChatbotConversation::class);
+    $first = $chat->respond('monitor', null, null, 'follow');
+    $price = $chat->respond('How much is it?', null, $first['context_token'], 'follow');
+    $product->inventory->update(['quantity' => 0]);
+    $stock = $chat->respond('Is it available?', null, $price['context_token'], 'follow');
+    $reset = $chat->respond('How much is it?', null, null, 'follow');
+
+    expect($price['message'])->toContain('PHP 4,200.00');
+    expect($stock['message'])->toContain('out of stock at Sagay');
+    expect($reset['message'])->toContain('Which product');
+    ChatbotResponseAgent::assertPromptedTimes(3);
+});
+
+test('ambiguous short queries show at most three relevant examples', function () {
+    foreach (['A100', 'B100', 'C100', 'D100'] as $model) {
+        Product::factory()->available()->create(['name' => 'Atlas Monitor '.$model]);
+    }
+    Product::factory()->available()->create(['name' => 'A Laptop', 'description' => 'External monitor supported']);
+    $response = app(ChatbotConversation::class)->respond('monitor', null, null, 'examples');
+
+    expect($response['message'])->toContain('A100', 'B100', 'C100', 'brand')->not->toContain('D100', 'Laptop');
+    ChatbotResponseAgent::assertNeverPrompted();
+});
+
+test('single word discovery does not substitute description only products', function () {
+    Product::factory()->available()->create(['name' => 'Atlas Laptop', 'description' => 'Battery included']);
+
+    $response = app(ChatbotConversation::class)->respond('battery', null, null, 'missing');
+
+    expect($response['message'])->toContain("couldn't find a matching product");
+    ChatbotResponseAgent::assertNeverPrompted();
+});
+
+test('an independent short query replaces a selected product and does not revive it after a miss', function () {
+    Product::factory()->available()->create(['name' => 'Atlas Laptop A1']);
+    Product::factory()->available()->create(['name' => 'Helios Monitor M24']);
+    ChatbotResponseAgent::fake(fn () => throw new AiException)->preventStrayPrompts();
+    $chat = app(ChatbotConversation::class);
+    $first = $chat->respond('laptop', null, null, 'selected');
+    $second = $chat->respond('monitor', null, $first['context_token'], 'selected');
+    $missing = $chat->respond('battery', null, $second['context_token'], 'selected');
+    $followUp = $chat->respond('How much is it?', null, $missing['context_token'], 'selected');
+
+    expect($second['message'])->toContain('Helios Monitor')->not->toContain('Laptop');
+    expect($missing['message'])->toContain("couldn't find a matching product");
+    expect($followUp['message'])->toContain('Which product')->not->toContain('Helios', 'Atlas');
+    ChatbotResponseAgent::assertPromptedTimes(2);
+});
 
 test('branch follow ups retain the intent and use the newly named city', function () {
     Http::preventStrayRequests();
@@ -221,7 +303,7 @@ test('an explicit earlier order can be revisited after a FAQ without retaining i
     $order->update(['payment_status' => PaymentStatus::Verified]);
     $third = $chat->respond('Payment for the earlier order?', $customer, $second['context_token'], 'session-a');
 
-    expect($second['message'])->toBe('Pickup orders support Cash (Pay at Pickup), Debit/Credit Card (Pay at Store), GCash, Maya, Pay online. Delivery orders support GCash, Maya, Cash on Delivery (COD), Pay online.');
+    expect($second['message'])->toBe('Pickup orders support Cash (Pay at Pickup), Debit/Credit Card (Pay at Store), Pay online. Delivery orders support Cash on Delivery (COD), Pay online. Pay online uses PayMongo Hosted Checkout for QR Ph, online card, GCash, Maya. New online payments require no receipt or screenshot upload. Confirmation comes from authenticated server processing; a browser return is not proof of payment. Use Continue payment in your saved order when available. Development transactions are test mode only. Route restrictions still apply; use the options offered at checkout. Direct online banking is not offered for new orders.');
     expect($third['message'])->toBe('Current order payment.');
     ChatbotResponseAgent::assertPrompted(fn (AgentPrompt $prompt): bool => str_contains($prompt->prompt, 'earlier order') && str_contains($prompt->prompt, 'verified'));
     ChatbotResponseAgent::assertPromptedTimes(2);

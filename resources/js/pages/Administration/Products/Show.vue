@@ -207,11 +207,21 @@ defineOptions({
                     />
                     <div class="border-border mt-5 border-t pt-5">
                         <div class="flex items-center gap-2">
-                            <h3 class="font-semibold">Packed parcel measurements</h3>
-                            <Badge variant="outline">{{ product.package_measurement_source === 'measured' ? 'Measured' : 'Estimated' }}</Badge>
+                            <h3 class="font-semibold">
+                                Packed parcel measurements
+                            </h3>
+                            <Badge variant="outline">{{
+                                product.package_measurement_source ===
+                                'measured'
+                                    ? 'Measured'
+                                    : 'Estimated'
+                            }}</Badge>
                         </div>
                         <p class="text-muted-foreground mt-2 text-sm">
-                            {{ product.package_weight_kg }} kg · {{ product.package_length_cm }} × {{ product.package_width_cm }} × {{ product.package_height_cm }} cm (L × W × H)
+                            {{ product.package_weight_kg }} kg ·
+                            {{ product.package_length_cm }} ×
+                            {{ product.package_width_cm }} ×
+                            {{ product.package_height_cm }} cm (L × W × H)
                         </p>
                     </div>
                     <div

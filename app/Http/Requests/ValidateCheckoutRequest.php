@@ -10,6 +10,7 @@ use App\Services\Order\PsgcDeliveryLocations;
 use App\Support\PhilippineMobileNumber;
 use DomainException;
 use Illuminate\Contracts\Validation\ValidationRule;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Enum;
 use Illuminate\Validation\Validator;
@@ -95,7 +96,7 @@ class ValidateCheckoutRequest extends CheckoutPreviewRequest
                 'nullable',
                 'string',
                 function (string $attribute, mixed $value, \Closure $fail): void {
-                    if (! is_string($value) || (! preg_match('/\A[0-9]{10}\z/', $value) && ! array_key_exists($value, app(DeliveryRules::class)->destinations()))) {
+                    if (! is_string($value) || (! preg_match('/\A[0-9]{10}\z/', $value) && ! array_key_exists($value, Config::array('battlefront.delivery.destinations')))) {
                         $fail('Select a supported delivery destination.');
                     }
                 },

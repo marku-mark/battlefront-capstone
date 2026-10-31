@@ -1,9 +1,11 @@
 # Security and privacy baseline
 
 ## Confirmed provider controls
+
 Official webhook docs describe `Paymongo-Signature` with timestamp and mode-specific signatures, calculated as HMAC-SHA256 over `timestamp.raw_request_body` using the endpoint secret. The selected test (`te`) or live (`li`) signature must match the event mode. PayMongo requires HTTPS and retries unsuccessful deliveries; consult `01-official-sources.md` for references.
 
 ## Required project controls
+
 - Follow `11-system-aligned-setup.md` for private root `.env` test-key storage, the separate webhook signing secret, future `config/services.php` mapping, existing business/technical permissions, and retained minimal financial history. Never inspect or print actual local secret values to demonstrate setup.
 - Keep API secret keys and webhook secrets in server environment/secret management; never commit or render them to Vue/mobile clients, logs, exception pages, screenshots, or docs.
 - Use distinct test/live credentials and endpoint secrets. This preparation contains no credentials.
@@ -16,9 +18,11 @@ Official webhook docs describe `Paymongo-Signature` with timestamp and mode-spec
 - Minimize provider payload retention; define retention/deletion and incident handling with project privacy obligations.
 
 ## Threats to test/review
+
 Forged or replayed webhook; test/live mix-up; secret leak; wrong-order/amount/currency association; duplicate/out-of-order delivery; race with cancellation/admin action; return URL spoofing; API timeout followed by duplicate create; provider event loss; log/exception leakage; webhook denial-of-service.
 
 ## Local webhook exposure
+
 PayMongo cannot reach localhost directly. For authorized test-mode webhook checks, an HTTPS tunnel may expose only the application webhook endpoint. Never expose MySQL, admin routes, local credentials, or debugging consoles through the tunnel. Tunnel use and webhook registration are later test activities requiring explicit approval; neither was performed during preparation.
 
 ## Concrete acceptance boundaries

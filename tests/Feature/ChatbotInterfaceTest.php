@@ -151,7 +151,7 @@ test('guests receive application payment rules without saved FAQ overrides or Ge
         ->assertJsonCount(3)
         ->assertJsonStructure(['message', 'source', 'context_token'])
         ->assertJson([
-            'message' => 'Pickup orders support Cash (Pay at Pickup), Debit/Credit Card (Pay at Store), GCash, Maya, Pay online. Delivery orders support GCash, Maya, Cash on Delivery (COD), Pay online.',
+            'message' => 'Pickup orders support Cash (Pay at Pickup), Debit/Credit Card (Pay at Store), Pay online. Delivery orders support Cash on Delivery (COD), Pay online. Pay online uses PayMongo Hosted Checkout for QR Ph, online card, GCash, Maya. New online payments require no receipt or screenshot upload. Confirmation comes from authenticated server processing; a browser return is not proof of payment. Use Continue payment in your saved order when available. Development transactions are test mode only. Route restrictions still apply; use the options offered at checkout. Direct online banking is not offered for new orders.',
             'source' => 'fallback',
         ]);
 

@@ -29,8 +29,17 @@ class DeliveryRules
     /** @return array<string, DeliveryDestination> */
     public function destinations(): array
     {
-        /** @var array<string, DeliveryDestination> $destinations */
-        $destinations = Config::array('battlefront.delivery.destinations');
+        $destinations = [];
+        $locations = app(PsgcDeliveryLocations::class);
+        foreach (Config::array('battlefront.delivery.destinations') as $name => $route) {
+            $city = $locations->city($locations->destination($name)['code']);
+            $pricing = $this->regionalPricing($city['region_code']);
+            $destinations[$name] = [
+                'base_fee' => $pricing['base_fee'],
+                'transit_min_days' => $route['transit_min_days'],
+                'transit_max_days' => $route['transit_max_days'],
+            ];
+        }
 
         return $destinations;
     }
@@ -62,7 +71,7 @@ class DeliveryRules
                 break;
             }
             if (isset($zone['legacy_destination'])) {
-                $legacy = $this->destinations()[$zone['legacy_destination']] ?? null;
+                $legacy = Config::array('battlefront.delivery.destinations')[$zone['legacy_destination']] ?? null;
                 if ($legacy === null) {
                     break;
                 }
@@ -88,8 +97,7 @@ class DeliveryRules
                 $zone = [...$distanceBand, ...$zone];
                 unset($zone['distance_band'], $zone['minimum_exclusive_km'], $zone['maximum_inclusive_km']);
             }
-            if (! is_string($zone['base_fee'] ?? null) || preg_match('/\A[0-9]{1,10}\.[0-9]{2}\z/', $zone['base_fee']) !== 1
-                || ! is_int($zone['transit_min_days'] ?? null) || ! is_int($zone['transit_max_days'] ?? null)
+            if (! is_int($zone['transit_min_days'] ?? null) || ! is_int($zone['transit_max_days'] ?? null)
                 || $zone['transit_min_days'] < 0 || $zone['transit_max_days'] < $zone['transit_min_days']
                 || ! is_array($zone['payment_methods'] ?? null) || ! array_is_list($zone['payment_methods']) || $zone['payment_methods'] === []
                 || count(array_filter($zone['payment_methods'], is_string(...))) !== count($zone['payment_methods'])
@@ -97,7 +105,7 @@ class DeliveryRules
                 break;
             }
 
-            return [...$zone, 'configured' => true, 'rule_id' => $level.':'.$code, 'city_code' => $city['code'],
+            return [...$zone, ...$this->regionalPricing($city['region_code']), 'configured' => true, 'rule_id' => $level.':'.$code, 'city_code' => $city['code'],
                 'region_code' => $city['region_code'], 'province_code' => $city['province_code'],
                 'destination' => $city['destination'], 'rules_version' => Config::string('battlefront.delivery.rules_version')];
         }
@@ -106,32 +114,33 @@ class DeliveryRules
             throw new DomainException('Delivery is unavailable for this location.');
         }
 
-        $regionalEstimates = Config::array('battlefront.delivery.regional_estimates');
-        $regionGroup = $regionalEstimates['regions'][$city['region_code']] ?? null;
-        $regionalFee = is_string($regionGroup)
-            ? ($regionalEstimates['fees'][$regionGroup] ?? null)
-            : null;
-
-        if (! is_string($regionGroup) || ! is_string($regionalFee)
-            || preg_match('/\A[0-9]{1,10}\.[0-9]{2}\z/', $regionalFee) !== 1) {
-            throw new DomainException('Delivery pricing is unavailable for this location.');
-        }
-
         return [
+            ...$this->regionalPricing($city['region_code']),
             'configured' => false,
             'regional_estimate' => true,
-            'base_fee' => $regionalFee,
             'transit_min_days' => null,
             'transit_max_days' => null,
             'payment_methods' => Config::array('battlefront.delivery.unconfigured_route.payment_methods'),
             'rule_id' => 'regional_estimate:'.$city['region_code'],
-            'region_group' => $regionGroup,
             'city_code' => $city['code'],
             'region_code' => $city['region_code'],
             'province_code' => $city['province_code'],
             'destination' => $city['destination'],
             'rules_version' => Config::string('battlefront.delivery.rules_version'),
         ];
+    }
+
+    /** @return array{base_fee: numeric-string, region_group: string} */
+    private function regionalPricing(string $regionCode): array
+    {
+        $group = $this->regionGroup($regionCode);
+        $fee = Config::array('battlefront.delivery.regional_estimates.fees')[$group] ?? null;
+        if (! in_array($group, ['visayas', 'luzon', 'mindanao'], true)
+            || ! $this->isValidDecimal($fee, '/\A[0-9]{1,10}\.[0-9]{2}\z/')) {
+            throw new DomainException('Delivery pricing is unavailable for this location.');
+        }
+
+        return ['base_fee' => $fee, 'region_group' => $group];
     }
 
     /** @return HandlingRules */
@@ -187,7 +196,7 @@ class DeliveryRules
 
         $destination ??= '';
         // All code and legacy-name requests use the same zone precedence and eligibility.
-        if (! preg_match('/\A[0-9]{10}\z/', $destination) && ! array_key_exists($destination, $this->destinations())) {
+        if (! preg_match('/\A[0-9]{10}\z/', $destination) && ! array_key_exists($destination, Config::array('battlefront.delivery.destinations'))) {
             throw new DomainException('Unsupported delivery destination.');
         }
         $zone = $this->zone($destination);

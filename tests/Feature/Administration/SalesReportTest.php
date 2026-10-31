@@ -470,11 +470,13 @@ test('historical and newly recorded sales use product snapshots across reporting
         ['product' => $processor, 'quantity' => 2, 'price' => '50.00'],
         ['product' => $keyboard, 'quantity' => 1, 'price' => '100.00'],
     ]);
+    config(['battlefront.delivery.regional_estimates.fees.visayas' => '80.00']);
     $delivery = Order::factory()->withDeliverySnapshot(subtotal: '200.00')
         ->create(['status' => OrderStatus::Completed, 'payment_status' => PaymentStatus::Verified]);
     OrderItem::factory()->for($delivery)->for($processor)->create(['quantity' => 2, 'price_at_time' => '50.00']);
     OrderItem::factory()->for($delivery)->for($keyboard)->create(['quantity' => 1, 'price_at_time' => '100.00']);
     $historicalSale = Sale::factory()->for($delivery)->create(['sale_date' => '2026-09-02', 'amount' => '280.00']);
+    config(['battlefront.delivery.regional_estimates.fees.visayas' => '150.00']);
     $newOrder = Order::factory()->withDeliverySnapshot(subtotal: '100.00')
         ->create(['status' => OrderStatus::Completed, 'payment_status' => PaymentStatus::Verified]);
     OrderItem::factory()->for($newOrder)->for($processor)->create(['quantity' => 2, 'price_at_time' => '50.00']);
@@ -494,7 +496,7 @@ test('historical and newly recorded sales use product snapshots across reporting
             ->where('dashboard.kpis.recorded_sales', 3)
             ->where('dashboard.recent_orders', fn ($orders): bool => collect($orders)->firstWhere('id', $delivery->id)['total'] === '280.00')));
     expect($newOrder->refresh()->sale->amount)->toBe('100.00');
-    expect($newOrder->total_amount)->toBe('180.00');
+    expect($newOrder->total_amount)->toBe('250.00');
     expect($legacySale->refresh()->amount)->toBe('230.00');
     expect($historicalSale->refresh()->amount)->toBe('280.00');
     expect(DB::table('sales')->orderBy('id')->get()->all())->toEqual($before);

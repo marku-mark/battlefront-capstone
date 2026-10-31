@@ -39,6 +39,15 @@ Simple focused operation: `Controller -> Action`.
 
 Coordinated workflow: `Controller -> Service -> Repository` and/or `Service -> Actions`.
 
-## Separate IT audit detail visibility from permission management
+## Database Query Performance
 
-IT may inspect known account-management audit actions, including Owner role-permission changes and CLI/seeder account events, without permissions.manage or audit.export. Classify by action and subject type, never actor; user subjects also carry restricted business alerts. Reuse the explicit account-event allowlist for IT detail visibility and raw detail search. Preserve credential/path redaction and Owner/other-role behavior.
+- Avoid N+1 queries by eager-loading only necessary relationships.
+- Select only required database columns when practical.
+- Use pagination for potentially large datasets instead of loading all records.
+- Prefer database-level filtering, sorting, counting, and aggregation over processing large collections in PHP.
+- Reuse existing Eloquent scopes and queries before adding abstractions.
+- Use indexes for frequently filtered, joined, or sorted columns when justified by actual query performance.
+- Use EXPLAIN and query measurements to identify bottlenecks before optimizing.
+- Keep simple queries in controllers when they only prepare responses. Move complex or reusable queries into an existing Service or a Repository when justified.
+- Preserve existing business rules, authorization, transactions, and data integrity.
+- Avoid premature optimization, unnecessary repositories, and speculative database changes.

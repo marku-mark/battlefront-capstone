@@ -21,6 +21,26 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Validation\ValidationException;
 use Inertia\Testing\AssertableInertia as Assert;
 
+test('specification index preserves current revision and missing attribute semantics', function (bool $missingRevision) {
+    $product = Product::factory()->create();
+    $profile = ProductComponentProfile::factory()->for($product)->create(['component_type' => 'processor', 'current_revision' => 2]);
+    $specifications = ['socket' => '', 'generation' => null, 'supported_chipsets' => [], 'maximum_power_w' => 0, 'integrated_graphics' => false, 'included_cooler' => false];
+    ComponentSpecificationRevision::factory()->for($profile, 'profile')->create(['revision' => 1, 'specifications' => ['socket' => 'old']]);
+    if (! $missingRevision) {
+        ComponentSpecificationRevision::factory()->for($profile, 'profile')->create(['revision' => 2, 'specifications' => $specifications, 'evidence' => []]);
+    }
+
+    $this->actingAs(User::factory()->administrator()->create())->get(route('administration.component-specifications.index'))
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('profiles.0.product_name', $product->name)
+            ->where('profiles.0.revision', $missingRevision ? null : 2)
+            ->where('profiles.0.specifications', $missingRevision ? [] : $specifications)
+            ->where('profiles.0.evidence', [])
+            ->where('profiles.0.incomplete_attributes', $missingRevision
+                ? ['socket', 'generation', 'supported_chipsets', 'maximum_power_w', 'integrated_graphics', 'included_cooler', 'required_power_connectors']
+                : ['socket', 'generation', 'required_power_connectors']));
+})->with([false, true]);
+
 test('guests can browse stock status without making unavailable components purchasable', function () {
     $processor = createBuilderProduct('processor', [
         'socket' => 'AM5',
@@ -211,6 +231,8 @@ test('admin template editing round trips component configuration and product ide
             ->where('templates.0.components.0.configuration', $configuration)
             ->where('templates.0.components.0.product_name', $fan->name)
             ->where('templates.0.components.0.product_code', $fan->product_code)
+            ->where('templates.0.components.0.quantity', 2)
+            ->where('templates.0.is_active', false)
             ->where('products', fn ($products) => collect($products)->firstWhere('id', $case->id)['fan_mounting_positions'] === ['front', 'rear']));
 
     $this->putJson(route('administration.pc-build-templates.update', $template), [

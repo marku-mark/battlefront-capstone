@@ -108,6 +108,10 @@ class CategorizeChatbotQuery
 
     /** @var list<string> */
     private const PRODUCT_PHRASES = [
+        'monitor',
+        'monitors',
+        'battery',
+        'batteries',
         'price',
         'prices',
         'pricing',
@@ -191,6 +195,14 @@ class CategorizeChatbotQuery
             return ChatbotQueryCategory::Order;
         }
 
+        if ($this->language->isPcBuilderHelp($message)) {
+            return ChatbotQueryCategory::Faq;
+        }
+
+        if (preg_match('/\Ahow (?:do|can) i cancel (?:my|an) order\z/u', $normalizedMessage) === 1) {
+            return ChatbotQueryCategory::Faq;
+        }
+
         if (preg_match('/\b(?:my (?:payment|proof)|did (?:you receive|i pay)|have i paid)\b/u', $normalizedMessage) === 1) {
             return ChatbotQueryCategory::Order;
         }
@@ -204,7 +216,7 @@ class CategorizeChatbotQuery
             return ChatbotQueryCategory::Faq;
         }
 
-        if (preg_match('/\b(?:how (?:do|can|should) i pay|how to pay|payment (?:methods?|options?)|ways to pay|what does .+ mean)\b/u', $normalizedMessage) === 1) {
+        if (preg_match('/\b(?:paymongo|qr ph|qrph|bank transfer|online banking|how (?:do|can|should) i pay|how to pay|payment (?:methods?|options?)|ways to pay|what does .+ mean)\b/u', $normalizedMessage) === 1) {
             return ChatbotQueryCategory::Faq;
         }
 

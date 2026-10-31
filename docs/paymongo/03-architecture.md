@@ -5,6 +5,7 @@
 The detailed creation/cancellation/state contracts and responsibility matrix are in `10-readiness-audit.md`. They extend this architecture without adding a parallel application layer.
 
 ## Existing integration points
+
 - Current environment, queue/job budgets, database isolation, role permissions, and existing customer refund/review integration points are mapped in `11-system-aligned-setup.md`; use these existing mechanisms rather than introducing parallel infrastructure or a second refund ledger.
 - `routes/web.php`: authenticated customer checkout preview, order placement, order history and admin payment/order decisions.
 - `routes/api.php`: versioned mobile checkout preview and order placement; maintain parity through shared business actions.
@@ -15,6 +16,7 @@ The detailed creation/cancellation/state contracts and responsibility matrix are
 - Existing order completion actions record sales and coordinate inventory. Gateway confirmation must not bypass them.
 
 ## Candidate component flow
+
 First-release customer payment methods are online card, GCash, Maya, QR Ph, and eligible Direct Online Banking for both delivery and pickup. Use Hosted Checkout v2 for card, GCash, Maya, and QR Ph; use PayMongo's documented Payment Intent redirect flow for Direct Online Banking, without assuming Hosted Checkout supports it. Enable only bank routes available in test mode and activated for the merchant. Absorb provider fees by default; enable pass-on fees only after written PayMongo/acquirer permission and disclosure review. Battlefront records payment only after authenticated provider confirmation; customers do not upload receipts. Request a provider email receipt only where the selected API supports it and a valid email is available; delivery is not guaranteed or payment evidence. Existing cash/card-at-pickup and COD remain separate workflows.
 
 An unpaid order has a 24-hour validity window from placement. At the cutoff, reconcile provider state and close the provider payment path only through a documented supported action (expire the Checkout Session or resolve/cancel the Payment Intent only where supported). Cancel the order and release its already-deducted stock only after provider closure is confirmed and no attempt is paid, pending, processing, or uncertain. If closure is unsupported or its result is unclear, retain the order and stock and raise an operator reconciliation task.
@@ -35,6 +37,7 @@ Customer return -> read-only status presentation; no payment mutation
 Map these responsibilities to existing Laravel conventions. Keep controllers thin; use focused Actions and a Service only for a coordinated workflow, matching `.ai/rules/application-architecture.md`.
 
 ## State ownership (proposal)
+
 - Provider state is external evidence; local payment attempt state is an auditable projection.
 - Order, shipment, inventory, and sales statuses remain separate domains.
 - A verified, matching successful provider payment sets the existing order payment state to `verified`; provider attempt failures/expiry remain on the separate payment-attempt record and must not be mislabeled as manual proof rejection.
@@ -47,19 +50,20 @@ Map these responsibilities to existing Laravel conventions. Keep controllers thi
 
 These are responsibilities to place within the inspected Laravel Actions, Services, controllers, jobs, and existing order workflow. The names below are conceptual labels, not mandatory PHP filenames or new architectural layers.
 
-| Responsibility | Proposed boundary |
-|---|---|
-| Provider API client | Server-side PayMongo calls for Checkout Sessions v2 and Direct Online Banking Payment Intents; handles authentication, idempotency, retrieval/closure, and provider errors. |
-| Payment lifecycle | Tracks flow-specific attempts and reconciles provider state; keeps payment state independent from order state and prevents duplicate payable sessions/intents/charges. |
-| Webhook ingress | Public HTTPS route verifies the raw-body signature, records/deduplicates the event durably, returns a prompt 2xx, and hands safe processing to existing async mechanisms where appropriate. |
-| Order lifecycle | Existing order Actions/Services remain authoritative for order transitions, stock, sales, cancellation, and fulfillment. At 24 hours, reconcile provider state and confirm provider closure before cancellation/restoration. |
-| Expiry/recovery | A scheduled/queued process handles the 24-hour cutoff, reconciles Checkout Session or Payment Intent state, and escalates uncertainty without releasing stock. Select the mechanism after inspecting existing scheduling conventions. |
-| Refund lifecycle | Automated refund operation is excluded from first release; route requests to administrator review and record any externally completed refund for audit. |
-| Payment audit/logging | Records references, state changes, timestamps, and safe correlation data; excludes credentials and unnecessary personal/full payload data. |
+| Responsibility        | Proposed boundary                                                                                                                                                                                                                     |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Provider API client   | Server-side PayMongo calls for Checkout Sessions v2 and Direct Online Banking Payment Intents; handles authentication, idempotency, retrieval/closure, and provider errors.                                                           |
+| Payment lifecycle     | Tracks flow-specific attempts and reconciles provider state; keeps payment state independent from order state and prevents duplicate payable sessions/intents/charges.                                                                |
+| Webhook ingress       | Public HTTPS route verifies the raw-body signature, records/deduplicates the event durably, returns a prompt 2xx, and hands safe processing to existing async mechanisms where appropriate.                                           |
+| Order lifecycle       | Existing order Actions/Services remain authoritative for order transitions, stock, sales, cancellation, and fulfillment. At 24 hours, reconcile provider state and confirm provider closure before cancellation/restoration.          |
+| Expiry/recovery       | A scheduled/queued process handles the 24-hour cutoff, reconciles Checkout Session or Payment Intent state, and escalates uncertainty without releasing stock. Select the mechanism after inspecting existing scheduling conventions. |
+| Refund lifecycle      | Automated refund operation is excluded from first release; route requests to administrator review and record any externally completed refund for audit.                                                                               |
+| Payment audit/logging | Records references, state changes, timestamps, and safe correlation data; excludes credentials and unnecessary personal/full payload data.                                                                                            |
 
 ## Specialized agent role specifications
 
 ### Architecture Agent
+
 - **Purpose:** maintain alignment with project scope and existing Laravel boundaries.
 - **Responsibilities:** trace web/API order workflows, keep order/payment lifecycles separate, assess migration impacts, plan online methods for delivery/pickup versus physical card/cash/COD at fulfillment, assess fee presentation, expiry, cancellation/recovery and refund handling, propose options and decision records.
 - **Allowed:** read repository/docs, draft documentation, review proposed diffs after implementation is approved.
@@ -69,6 +73,7 @@ These are responsibilities to place within the inspected Laravel Actions, Servic
 - **Review:** developer approves scope and architecture before implementation.
 
 ### PayMongo Integration Agent
+
 - **Purpose:** implement only an explicitly approved provider boundary.
 - **Responsibilities:** verify current PayMongo docs, propose/implement Laravel integration for Hosted Checkout methods and the separate online banking Payment Intent flow, map API errors, method/order expiry, idempotent retries, fee absorption, and automatic provider confirmation. Automated refunds and pass-on fees remain out of first release unless separately approved.
 - **Allowed:** after explicit approval, modify scoped application files and use local test fakes; use test credentials only when separately supplied/authorized.
@@ -78,6 +83,7 @@ These are responsibilities to place within the inspected Laravel Actions, Servic
 - **Review:** independent security review and developer approval before merge/release.
 
 ### Payment Security Agent
+
 - **Purpose:** independently assess threats and verify trusted payment state.
 - **Responsibilities:** secrets, webhook signatures, authorization, replay/duplicate defense, amount/order binding, cancellation races, late payments, refund authorization boundaries, privacy/logging, and recovery.
 - **Allowed:** read-only review and, after approved implementation, scoped remediation proposals or changes explicitly assigned.
@@ -87,6 +93,7 @@ These are responsibilities to place within the inspected Laravel Actions, Servic
 - **Review:** findings need developer disposition; critical/high findings need independent re-review.
 
 ### Payment QA Agent
+
 - **Purpose:** prove intended payment lifecycle and failure behavior without production effects.
 - **Responsibilities:** test matrix for each enabled method, automatic success confirmation, no-receipt behavior, fakes/feature tests, duplicate/out-of-order/retry/cancellation/refund/late-payment scenarios, test-mode evidence and gaps.
 - **Allowed:** run approved local test suite; test mode only after explicit authorization and credential availability.
@@ -96,4 +103,5 @@ These are responsibilities to place within the inspected Laravel Actions, Servic
 - **Review:** developer reviews test scope/evidence; tests do not grant implementation or launch approval.
 
 ## Codex agent configuration decision
+
 Current official Codex documentation supports project agents at `.codex/agents/*.toml` with required `name`, `description`, and `developer_instructions` fields, and multi-agent delegation with parent-inherited permissions. The local executable reports `codex-cli 0.163.0`; four role files are present. The CLI emitted a missing-home warning, so verify project agent discovery in the developer's normal CLI environment. Existing `.codex/config.toml` was reviewed and left unchanged.

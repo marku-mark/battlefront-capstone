@@ -570,8 +570,9 @@ defineOptions({
                                             requestReasonCodes[product.id] ===
                                                 'other' ||
                                             (canAdjustStock &&
-                                                requestReasonCodes[product.id] ===
-                                                    'theft_loss')
+                                                requestReasonCodes[
+                                                    product.id
+                                                ] === 'theft_loss')
                                                 ? 'Additional notes (required)'
                                                 : 'Additional notes (optional)'
                                         }}</Label
@@ -584,8 +585,9 @@ defineOptions({
                                             requestReasonCodes[product.id] ===
                                                 'other' ||
                                             (canAdjustStock &&
-                                                requestReasonCodes[product.id] ===
-                                                    'theft_loss')
+                                                requestReasonCodes[
+                                                    product.id
+                                                ] === 'theft_loss')
                                         "
                                         minlength="5"
                                         maxlength="2000"
@@ -840,7 +842,8 @@ defineOptions({
                                         <option value="other">Other</option>
                                     </select>
                                     <InputError :message="errors.reason_code" />
-                                    <Label :for="`opening-reason-${product.id}`"
+                                    <Label
+                                        :for="`opening-reason-${product.id}`"
                                         >{{
                                             requestReasonCodes[product.id] ===
                                             'other'

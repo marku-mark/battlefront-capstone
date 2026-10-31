@@ -190,6 +190,7 @@ test('CSV omits profitability fields when the administrator lacks the profit per
 
 test('exports restore saved selections and exclude snapshotted LBC fees without changing remembered filters', function (string $format) {
     $this->travelTo('2026-09-17 10:00:00');
+    config(['battlefront.delivery.regional_estimates.fees.visayas' => '80.00']);
     $administrator = User::factory()->administrator()->create();
     $components = Category::factory()->create(['name' => 'Components']);
     $peripherals = Category::factory()->create(['name' => 'Peripherals']);
@@ -200,6 +201,7 @@ test('exports restore saved selections and exclude snapshotted LBC fees without 
     OrderItem::factory()->for($order)->for($processor)->create(['quantity' => 2, 'price_at_time' => '50.00']);
     OrderItem::factory()->for($order)->for($keyboard)->create(['quantity' => 1, 'price_at_time' => '100.00']);
     $sale = Sale::factory()->for($order)->create(['sale_date' => '2026-09-12', 'amount' => '280.00']);
+    config(['battlefront.delivery.regional_estimates.fees.visayas' => '150.00']);
     $filters = ['from' => '2026-09-01', 'to' => '2026-09-30', 'period' => 'month', 'product_id' => null, 'category_id' => null];
     $key = 'administration.sales_report_filters.'.$administrator->id;
     $this->actingAs($administrator)->get(route('administration.reports.sales', $filters))

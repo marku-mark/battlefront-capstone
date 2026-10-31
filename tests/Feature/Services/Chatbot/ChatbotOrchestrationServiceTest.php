@@ -47,7 +47,7 @@ test('categorizes before resolving context and resolves context before generatin
     $adapter = mock(ChatbotAiAdapter::class);
     $categorizer->shouldReceive('execute')
         ->once()
-        ->with('Is the Aurelius Link Station available?')
+        ->with('Is the Aurelius Link Station available?', true)
         ->globally()->ordered()
         ->andReturn(['category' => ChatbotQueryCategory::Product, 'choices' => []]);
     $productResolver->shouldReceive('execute')
@@ -304,6 +304,7 @@ test('returns category-specific missing-context fallbacks without Gemini', funct
 ]);
 
 test('passes only minimized owned order context to Gemini', function () {
+    config(['app.timezone' => 'UTC', 'battlefront.timezone' => 'Asia/Manila']);
     Http::preventStrayRequests();
     ChatbotResponseAgent::fake([
         'Your order is being prepared for delivery.',
@@ -316,7 +317,7 @@ test('passes only minimized owned order context to Gemini', function () {
         'payment_rejection_reason' => PaymentRejectionReason::Other,
         'payment_rejection_note' => 'Private administrator feedback.',
         'payment_proof_path' => 'payment-proofs/private-proof.jpg',
-        'created_at' => '2026-09-20 10:00:00',
+        'created_at' => '2026-09-23 16:01:00',
     ]);
     $otherCustomer = User::factory()->customer()->create();
     Order::factory()->for($otherCustomer)->create([
@@ -336,7 +337,7 @@ test('passes only minimized owned order context to Gemini', function () {
     $expectedContext = [
         'orders' => [[
             'reference' => $order->reference,
-            'created_at' => '2026-09-20T10:00:00+00:00',
+            'created_at' => 'September 24, 2026 at 12:01 AM (UTC+08:00)',
             'status' => ['value' => 'processing', 'label' => 'Processing'],
             'fulfillment' => ['value' => 'delivery', 'label' => 'Delivery'],
         ]],

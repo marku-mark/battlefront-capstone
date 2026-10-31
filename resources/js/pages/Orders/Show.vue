@@ -84,7 +84,10 @@ watch(
 );
 
 function refreshWhenVisible() {
-    if (document.visibilityState === 'visible' && props.order.payment.status.value === 'pending') {
+    if (
+        document.visibilityState === 'visible' &&
+        props.order.payment.status.value === 'pending'
+    ) {
         paymentStatusPolling.start();
     }
 }
@@ -96,7 +99,9 @@ onMounted(() => {
         window.close();
     }
 });
-onUnmounted(() => document.removeEventListener('visibilitychange', refreshWhenVisible));
+onUnmounted(() =>
+    document.removeEventListener('visibilitychange', refreshWhenVisible),
+);
 
 function requestCancellation() {
     if (
@@ -151,7 +156,14 @@ function submitReplacementProof() {
 }
 
 function retryOnlinePayment() {
-    if (!(props.order.payment.can_retry || props.order.payment.can_retry_hosted) || paymentRetryForm.processing) return;
+    if (
+        !(
+            props.order.payment.can_retry ||
+            props.order.payment.can_retry_hosted
+        ) ||
+        paymentRetryForm.processing
+    )
+        return;
     paymentWindow = window.open('about:blank', '_blank');
     if (paymentWindow) {
         paymentWindow.opener = null;
@@ -340,8 +352,12 @@ function finishPaymentWindow(page) {
                                 class="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"
                             >
                                 <div class="min-w-0">
-                                    <p v-if="item.pc_build_group" class="text-primary-ink text-xs font-semibold uppercase tracking-wide">
-                                        PC build · {{ item.pc_build_group.name }}
+                                    <p
+                                        v-if="item.pc_build_group"
+                                        class="text-primary-ink text-xs font-semibold tracking-wide uppercase"
+                                    >
+                                        PC build ·
+                                        {{ item.pc_build_group.name }}
                                     </p>
                                     <p
                                         v-if="item.product.brand"
@@ -410,10 +426,15 @@ function finishPaymentWindow(page) {
                                 <dd class="font-semibold tabular-nums">
                                     {{ formatCurrency(order.delivery_fee) }}
                                     <p
-                                        v-if="order.delivery_quote?.fixed_delivery_fee"
-                                        class="text-muted-foreground mt-1 max-w-xs text-left text-xs font-normal leading-5"
+                                        v-if="
+                                            order.delivery_quote
+                                                ?.fixed_delivery_fee
+                                        "
+                                        class="text-muted-foreground mt-1 max-w-xs text-left text-xs leading-5 font-normal"
                                     >
-                                        This fee was fixed when you placed the order. Battlefront covers any difference from the courier's final charge.
+                                        This fee was fixed when you placed the
+                                        order. Battlefront covers any difference
+                                        from the courier's final charge.
                                     </p>
                                 </dd>
                             </div>
@@ -451,7 +472,10 @@ function finishPaymentWindow(page) {
                                 </p>
                             </template>
                             <template
-                                v-else-if="order.delivery_quote.delivery_arrangement_required"
+                                v-else-if="
+                                    order.delivery_quote
+                                        .delivery_arrangement_required
+                                "
                             >
                                 <p class="font-semibold">
                                     Battlefront regional shipping estimate ·
@@ -460,14 +484,50 @@ function finishPaymentWindow(page) {
                                 <p class="text-muted-foreground text-sm">
                                     {{ order.delivery_quote.notice }}
                                 </p>
-                                <p v-if="order.delivery_quote.billable_weight_kg" class="text-sm">
-                                    Route {{ formatCurrency(order.delivery_quote.route_base_fee) }} + weight {{ formatCurrency(order.delivery_quote.weight_surcharge) }} + handling {{ formatCurrency(order.delivery_quote.handling_surcharge) }} · {{ order.delivery_quote.billable_weight_kg }} kg billable
+                                <p
+                                    v-if="
+                                        order.delivery_quote.billable_weight_kg
+                                    "
+                                    class="text-sm"
+                                >
+                                    Route
+                                    {{
+                                        formatCurrency(
+                                            order.delivery_quote.route_base_fee,
+                                        )
+                                    }}
+                                    + weight
+                                    {{
+                                        formatCurrency(
+                                            order.delivery_quote
+                                                .weight_surcharge,
+                                        )
+                                    }}
+                                    + handling
+                                    {{
+                                        formatCurrency(
+                                            order.delivery_quote
+                                                .handling_surcharge,
+                                        )
+                                    }}
+                                    ·
+                                    {{
+                                        order.delivery_quote.billable_weight_kg
+                                    }}
+                                    kg billable
                                 </p>
                                 <p class="text-muted-foreground text-xs">
                                     {{ order.delivery_quote.assumption_label }}
                                 </p>
-                                <p v-if="order.delivery_quote.estimate_disclosure" class="text-muted-foreground text-xs">
-                                    {{ order.delivery_quote.estimate_disclosure }}
+                                <p
+                                    v-if="
+                                        order.delivery_quote.estimate_disclosure
+                                    "
+                                    class="text-muted-foreground text-xs"
+                                >
+                                    {{
+                                        order.delivery_quote.estimate_disclosure
+                                    }}
                                 </p>
                             </template>
                             <template v-else>
@@ -482,8 +542,37 @@ function finishPaymentWindow(page) {
                                         order.delivery_quote.packing_expectation
                                     }}
                                 </p>
-                                <p v-if="order.delivery_quote.billable_weight_kg" class="text-sm">
-                                    Route {{ formatCurrency(order.delivery_quote.route_base_fee) }} + weight {{ formatCurrency(order.delivery_quote.weight_surcharge) }} + handling {{ formatCurrency(order.delivery_quote.handling_surcharge) }} · {{ order.delivery_quote.billable_weight_kg }} kg billable
+                                <p
+                                    v-if="
+                                        order.delivery_quote.billable_weight_kg
+                                    "
+                                    class="text-sm"
+                                >
+                                    Route
+                                    {{
+                                        formatCurrency(
+                                            order.delivery_quote.route_base_fee,
+                                        )
+                                    }}
+                                    + weight
+                                    {{
+                                        formatCurrency(
+                                            order.delivery_quote
+                                                .weight_surcharge,
+                                        )
+                                    }}
+                                    + handling
+                                    {{
+                                        formatCurrency(
+                                            order.delivery_quote
+                                                .handling_surcharge,
+                                        )
+                                    }}
+                                    ·
+                                    {{
+                                        order.delivery_quote.billable_weight_kg
+                                    }}
+                                    kg billable
                                 </p>
                                 <p>
                                     Estimated preparation and transit:
@@ -616,10 +705,25 @@ function finishPaymentWindow(page) {
                                     <dd class="mt-1 font-semibold">
                                         {{ order.payment.method.label }}
                                     </dd>
-                                    <dd v-if="order.payment.hosted_payment_method === 'qrph'" class="text-muted-foreground mt-1 text-sm">
-                                        QR Ph — GCash, Maya, and supported bank apps
+                                    <dd
+                                        v-if="
+                                            order.payment
+                                                .hosted_payment_method ===
+                                            'qrph'
+                                        "
+                                        class="text-muted-foreground mt-1 text-sm"
+                                    >
+                                        QR Ph — GCash, Maya, and supported bank
+                                        apps
                                     </dd>
-                                    <dd v-else-if="order.payment.hosted_payment_method === 'card'" class="text-muted-foreground mt-1 text-sm">
+                                    <dd
+                                        v-else-if="
+                                            order.payment
+                                                .hosted_payment_method ===
+                                            'card'
+                                        "
+                                        class="text-muted-foreground mt-1 text-sm"
+                                    >
                                         Credit or debit card
                                     </dd>
                                     <dd class="mt-2">
@@ -639,54 +743,154 @@ function finishPaymentWindow(page) {
                                     >
                                         {{ order.payment.notice }}
                                     </dd>
-                                    <dd v-if="order.payment.checkout_url" class="mt-3">
+                                    <dd
+                                        v-if="order.payment.checkout_url"
+                                        class="mt-3"
+                                    >
                                         <Button as-child>
-                                            <a :href="order.payment.checkout_url" target="_blank" rel="noopener noreferrer">
+                                            <a
+                                                :href="
+                                                    order.payment.checkout_url
+                                                "
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                            >
                                                 Continue payment
                                             </a>
                                         </Button>
                                     </dd>
-                                    <dd v-if="order.payment.qr_code_image_url" class="mt-4 grid justify-items-start gap-3">
-                                        <p class="font-semibold">Amount due: {{ formatCurrency(order.total) }}</p>
+                                    <dd
+                                        v-if="order.payment.qr_code_image_url"
+                                        class="mt-4 grid justify-items-start gap-3"
+                                    >
+                                        <p class="font-semibold">
+                                            Amount due:
+                                            {{ formatCurrency(order.total) }}
+                                        </p>
                                         <img
-                                            :src="order.payment.qr_code_image_url"
+                                            :src="
+                                                order.payment.qr_code_image_url
+                                            "
                                             :alt="`QR Ph payment code for order ${order.reference}`"
-                                            class="size-64 max-w-full border border-border bg-white p-2"
+                                            class="border-border size-64 max-w-full border bg-white p-2"
                                         />
-                                        <p class="text-muted-foreground text-xs leading-5">
-                                            Scan with GCash, Maya, or a supported banking app. This code expires at {{ formatDateTime(order.payment.qr_expires_at, 'short') }}.
+                                        <p
+                                            class="text-muted-foreground text-xs leading-5"
+                                        >
+                                            Scan with GCash, Maya, or a
+                                            supported banking app. This code
+                                            expires at
+                                            {{
+                                                formatDateTime(
+                                                    order.payment.qr_expires_at,
+                                                    'short',
+                                                )
+                                            }}.
                                         </p>
                                         <a
-                                            :href="order.payment.qr_code_image_url"
+                                            :href="
+                                                order.payment.qr_code_image_url
+                                            "
                                             :download="`${order.reference}-qrph.png`"
                                             class="text-primary-ink text-sm font-semibold underline underline-offset-4"
                                         >
                                             Download QR code
                                         </a>
                                     </dd>
-                                    <dd v-if="order.payment.qr_can_retry" class="mt-3 grid gap-2">
-                                        <p class="text-muted-foreground text-xs leading-5">The previous QR code expired. Create a new code to continue payment.</p>
-                                        <Button type="button" size="sm" :disabled="paymentRetryForm.processing" @click="retryOnlinePayment">
-                                            <Spinner v-if="paymentRetryForm.processing" />
+                                    <dd
+                                        v-if="order.payment.qr_can_retry"
+                                        class="mt-3 grid gap-2"
+                                    >
+                                        <p
+                                            class="text-muted-foreground text-xs leading-5"
+                                        >
+                                            The previous QR code expired. Create
+                                            a new code to continue payment.
+                                        </p>
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            :disabled="
+                                                paymentRetryForm.processing
+                                            "
+                                            @click="retryOnlinePayment"
+                                        >
+                                            <Spinner
+                                                v-if="
+                                                    paymentRetryForm.processing
+                                                "
+                                            />
                                             Generate new QR code
                                         </Button>
-                                        <InputError :message="paymentRetryForm.errors.payment" />
+                                        <InputError
+                                            :message="
+                                                paymentRetryForm.errors.payment
+                                            "
+                                        />
                                     </dd>
-                                    <dd v-if="order.payment.can_retry" class="mt-3 grid gap-2">
-                                        <p class="text-muted-foreground text-xs leading-5">The bank did not complete the payment. You can try again with {{ order.payment.bank_code }}.</p>
-                                        <Button type="button" size="sm" :disabled="paymentRetryForm.processing" @click="retryOnlinePayment">
-                                            <Spinner v-if="paymentRetryForm.processing" />
+                                    <dd
+                                        v-if="order.payment.can_retry"
+                                        class="mt-3 grid gap-2"
+                                    >
+                                        <p
+                                            class="text-muted-foreground text-xs leading-5"
+                                        >
+                                            The bank did not complete the
+                                            payment. You can try again with
+                                            {{ order.payment.bank_code }}.
+                                        </p>
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            :disabled="
+                                                paymentRetryForm.processing
+                                            "
+                                            @click="retryOnlinePayment"
+                                        >
+                                            <Spinner
+                                                v-if="
+                                                    paymentRetryForm.processing
+                                                "
+                                            />
                                             Retry bank payment
                                         </Button>
-                                        <InputError :message="paymentRetryForm.errors.payment" />
+                                        <InputError
+                                            :message="
+                                                paymentRetryForm.errors.payment
+                                            "
+                                        />
                                     </dd>
-                                    <dd v-if="order.payment.can_retry_hosted" class="mt-3 grid gap-2">
-                                        <p class="text-muted-foreground text-xs leading-5">Payment setup needs another check. Retry to resume this order's secure PayMongo checkout.</p>
-                                        <Button type="button" size="sm" :disabled="paymentRetryForm.processing" @click="retryOnlinePayment">
-                                            <Spinner v-if="paymentRetryForm.processing" />
+                                    <dd
+                                        v-if="order.payment.can_retry_hosted"
+                                        class="mt-3 grid gap-2"
+                                    >
+                                        <p
+                                            class="text-muted-foreground text-xs leading-5"
+                                        >
+                                            Payment setup needs another check.
+                                            Retry to resume this order's secure
+                                            PayMongo checkout.
+                                        </p>
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            :disabled="
+                                                paymentRetryForm.processing
+                                            "
+                                            @click="retryOnlinePayment"
+                                        >
+                                            <Spinner
+                                                v-if="
+                                                    paymentRetryForm.processing
+                                                "
+                                            />
                                             Retry online payment
                                         </Button>
-                                        <InputError :message="paymentRetryForm.errors.payment" />
+                                        <InputError
+                                            :message="
+                                                paymentRetryForm.errors.payment
+                                            "
+                                        />
                                     </dd>
                                 </div>
                             </div>

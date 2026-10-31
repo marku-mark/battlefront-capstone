@@ -94,7 +94,7 @@ test('general payment guidance is available to guests without resolving their or
 
     expect($result['category'])->toBe(ChatbotQueryCategory::Faq)
         ->and($result['source'])->toBe('fallback')
-        ->and($result['message'])->toBe('Pickup orders support Cash (Pay at Pickup), Debit/Credit Card (Pay at Store), GCash, Maya, Pay online. Delivery orders support GCash, Maya, Cash on Delivery (COD), Pay online.');
+        ->and($result['message'])->toBe('Pickup orders support Cash (Pay at Pickup), Debit/Credit Card (Pay at Store), Pay online. Delivery orders support Cash on Delivery (COD), Pay online. Pay online uses PayMongo Hosted Checkout for QR Ph, online card, GCash, Maya. New online payments require no receipt or screenshot upload. Confirmation comes from authenticated server processing; a browser return is not proof of payment. Use Continue payment in your saved order when available. Development transactions are test mode only. Route restrictions still apply; use the options offered at checkout. Direct online banking is not offered for new orders.');
     ChatbotResponseAgent::assertNeverPrompted();
 });
 

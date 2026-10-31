@@ -38,7 +38,7 @@ test('completed transaction history identifies demonstration orders and their as
             ->where('orders.data.0.payment.status.value', 'verified')
             ->where('orders.data.0.item_count', $lastOrder->items->count())
             ->where('orders.data.0.total_quantity', $lastOrder->items->sum('quantity'))
-            ->where('orders.data.0.total', '6540.00'));
+            ->where('orders.data.0.total', '6570.00'));
 });
 
 test('guests are redirected from administrator order workflows', function () {
@@ -225,7 +225,7 @@ test('administrator item ledger exposes saved product subtotal delivery fee and 
             ->where('order.items.0.line_total', '250.00')
             ->where('order.items.1.line_total', '30.00'));
 })->with([
-    'delivery' => [true, '180.00', '460.00'],
+    'delivery' => [true, '250.00', '530.00'],
     'pickup' => [false, '0.00', '280.00'],
 ]);
 

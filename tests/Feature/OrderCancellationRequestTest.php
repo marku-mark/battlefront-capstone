@@ -123,7 +123,7 @@ test('approval restores stock once and caps refunds at the original delivery inc
     $this->patch(route('administration.orders.cancellation-request.update', $order), cancellationDecision($received))->assertSessionHasErrors('status');
     expect($stock->fresh()->quantity)->toBe(5);
     Storage::disk('local')->assertExists('payment-proofs/original.jpg');
-})->with(['not received' => ['0.00', null], 'partial' => ['50.25', '50.25'], 'full' => ['180.00', '180.00'], 'excess' => ['300.00', '180.00']]);
+})->with(['not received' => ['0.00', null], 'partial' => ['50.25', '50.25'], 'full' => ['250.00', '250.00'], 'excess' => ['300.00', '250.00']]);
 
 test('only an authorized active Manager or Owner can review cancellation', function (string $role) {
     [$order, $stock] = walletCancellationOrder();

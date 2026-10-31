@@ -4,11 +4,12 @@ use App\Models\Inventory;
 use App\Models\Product;
 use App\Services\RealCatalogImportService;
 use Illuminate\Support\Facades\Storage;
+use Tests\TestCase;
 
 /** @return array{manifest: string, mapping: string, approvals: string} */
-function demoInventorySources(): array
+function demoInventorySources(TestCase $testCase): array
 {
-    Storage::fake('public');
+    $testCase->fakeIsolatedStorage('public');
     $examples = [
         ['80520996', 'BRAND NEW COMPUTER PACKAGE AMD RYZEN 5 5600G 16GB RAM/256GB SSD , 19\\ MONITOR', 'Bundles & Packages', '26000', null],
         ['10044', 'PROCESSOR AMD RYZEN™ 5 5600X (6CORES 12THREADS)', 'Processor', '10000', '4'],
@@ -78,7 +79,7 @@ function demoInventoryCsv(string $path): array
 
 test('demo preparation preserves catalog provenance and produces repeatable importable inventory without database writes', function () {
     $sentinel = Inventory::factory()->create(['quantity' => 42]);
-    $paths = demoInventorySources();
+    $paths = demoInventorySources($this);
     $originalManifest = json_decode(file_get_contents($paths['manifest']), true, flags: JSON_THROW_ON_ERROR);
     $originalCsv = demoInventoryCsv($paths['mapping']);
     $options = collect($paths)->mapWithKeys(fn ($path, $key) => ['--'.$key => $path])->all();
@@ -169,7 +170,7 @@ test('demo preparation rejects unsafe environments without writing files', funct
 })->with(['production', 'staging']);
 
 test('invalid demo preparation inputs leave all private files untouched', function (string $problem) {
-    $paths = demoInventorySources();
+    $paths = demoInventorySources($this);
     $options = collect($paths)->mapWithKeys(fn ($path, $key) => ['--'.$key => $path])->all();
     $manifest = json_decode(file_get_contents($paths['manifest']), true, flags: JSON_THROW_ON_ERROR);
     match ($problem) {

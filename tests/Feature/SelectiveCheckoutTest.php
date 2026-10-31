@@ -115,10 +115,10 @@ test('selected checkout previews and purchases exactly one multiple or all owned
         expect($order->shipment)->toBeNull();
     }
 })->with(['web', 'api'])->with(['pickup', 'delivery'])->with([
-    'single standard leaves fragile and bulky' => [[0], '18.66', 'standard', '125.00', 1],
-    'single last item leaves earlier items' => [[2], '30.00', 'bulky', '180.00', 3],
-    'multiple leaves bulky' => [[0, 1], '38.66', 'fragile', '220.00', 2],
-    'all items' => [[0, 1, 2], '68.66', 'bulky', '315.00', 3],
+    'single standard leaves fragile and bulky' => [[0], '18.66', 'standard', '195.00', 1],
+    'single last item leaves earlier items' => [[2], '30.00', 'bulky', '250.00', 3],
+    'multiple leaves bulky' => [[0, 1], '38.66', 'fragile', '290.00', 2],
+    'all items' => [[0, 1, 2], '68.66', 'bulky', '385.00', 3],
 ]);
 
 test('checkout rejects missing empty malformed and duplicate selections without writes', function (string $channel, mixed $selection, string $field) {
@@ -260,7 +260,7 @@ test('selected placement reloads current quantity price and shipping profile aft
 
     $channel === 'web' ? $response->assertSessionHasNoErrors() : $response->assertSuccessful();
     $order = Order::sole();
-    expect($order)->product_subtotal->toBe('21.75')->delivery_fee->toBe('220.00')->total_amount->toBe('241.75')->shipping_profile->toBe(ShippingProfile::Fragile);
+    expect($order)->product_subtotal->toBe('21.75')->delivery_fee->toBe('290.00')->total_amount->toBe('311.75')->shipping_profile->toBe(ShippingProfile::Fragile);
     expect($order->items->sole())->quantity->toBe(3)->price_at_time->toBe('7.25');
     expect($order->shipment)->preparation_days->toBe(2)->eta_min_days->toBe(2)->eta_max_days->toBe(3);
     expect(array_map(fn ($stock) => $stock->refresh()->quantity, $stocks))->toBe([2, 5, 5]);

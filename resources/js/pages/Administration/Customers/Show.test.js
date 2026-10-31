@@ -103,10 +103,7 @@ for (const viewOrders of [true, false]) {
                 html.includes('href="/administration/orders/1"'),
                 viewOrders,
             );
-            assert.equal(
-                html.includes('Record return'),
-                false,
-            );
+            assert.equal(html.includes('Record return'), false);
         });
     }
 }

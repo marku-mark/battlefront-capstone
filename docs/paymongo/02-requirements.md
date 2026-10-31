@@ -3,6 +3,7 @@
 **Status:** implementation baseline approved by the developer within the PayMongo replacement scope; provider/account-specific activation and production launch remain gated. Derived from current code, project rules, and official sources reviewed 2026-10-23.
 
 ## Current project behavior (confirmed in repository)
+
 - Checkout preview validates cart and fulfillment/payment eligibility; order placement is a later operation.
 - Order commercial totals and item details are server-owned snapshots. Orders are persisted before fulfillment workflow and stock/sales effects follow existing rules.
 - Manual GCash/Maya require private proof and administration review. Pickup cash/card require explicit payment and handover confirmation. COD requires separate delivery/collection behavior.
@@ -10,6 +11,7 @@
 - Customer web requires authentication; mobile API has a separate route layer reusing shared business behavior.
 
 ## Approved first-release functional requirements
+
 1. Use PayMongo Hosted Checkout v2 for card, GCash, Maya, and QR Ph. Integrate Direct Online Banking through its documented PayMongo Payment Intent redirect flow, not by assuming Hosted Checkout support. Offer these methods for delivery and pickup only when the method/bank is available in test mode and activated for the merchant.
 2. Create the provider Checkout Session or Direct Online Banking Payment Intent only from a persisted, eligible order and server-calculated amount/currency.
 3. Persist enough local provider references to associate attempts and events unambiguously with one order.
@@ -29,6 +31,7 @@
 17. Request PayMongo's customer receipt email after successful payment only where the selected provider API documents that capability and a valid customer email is available. This does not replace webhook/API verification and does not ask the customer to submit a receipt.
 
 ## Candidate nonfunctional requirements (proposed)
+
 - Apply the creation, durable inbox, local state, cancellation and rollback contracts in `10-readiness-audit.md`. Persistent payment origin distinguishes historical manual wallets from PayMongo even when their method labels match.
 - Customer, administrator, scheduler and method-switch actions share the same provider closure checks. Do not let existing local-only cancellation/manual-review predicates bypass verified gateway state.
 - A duplicate-safe API result must be recoverable after browser/app closure, retried checkout submission, provider timeout and process crash; exact operation identity and database constraints belong in the reviewed design.
@@ -40,20 +43,21 @@
 
 The implementation baseline is approved. The following operational/provider checks remain before the relevant test or production activity.
 
-| Checklist item | Preparation status / remaining gate |
-|---|---|
-| Payment lifecycle | Documented: order and payment states are separate. Approve exact state mapping and existing order workflow integration. |
-| Expiration rules | Decision: use PayMongo method/action expiry plus a separate 24-hour merchant order cutoff. Keep Checkout Session and Payment Intent closure semantics distinct; verify supported Payment Intent closure for each enabled bank before implementation. |
+| Checklist item         | Preparation status / remaining gate                                                                                                                                                                                                                                                                                                                     |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Payment lifecycle      | Documented: order and payment states are separate. Approve exact state mapping and existing order workflow integration.                                                                                                                                                                                                                                 |
+| Expiration rules       | Decision: use PayMongo method/action expiry plus a separate 24-hour merchant order cutoff. Keep Checkout Session and Payment Intent closure semantics distinct; verify supported Payment Intent closure for each enabled bank before implementation.                                                                                                    |
 | Automatic cancellation | Decision: reconcile and close the provider flow at 24 hours where a documented closure operation exists; cancel/release only after confirmed terminal closure and no unresolved payment. If closure is unsupported or unclear, retain the order/stock hold and escalate. Scheduler implementation and failure alerting belong in implementation design. |
-| Webhooks | Baseline: verify signatures, persist/deduplicate durably before prompt acknowledgement, and process idempotently. Test endpoint registration/tunnel use remains a separately authorized test activity. |
-| Duplicate prevention | Documented: order/session/payment/event uniqueness and idempotency. Design transaction and concurrency controls before implementation. |
-| Payment recovery | Decision: retry in the same provider flow within 24 hours where supported; reconcile before any replacement order. Uncertain cases retain stock and escalate. |
-| Refund handling | Decision: no automated refunds in first release; administrator review and explicit authorization, with provider eligibility checked per method. |
-| Security | Documented: server-only secrets, raw-body signature verification, least privilege, no redirect-as-proof. Review concrete implementation before test activity. |
-| Database records | Documented: persist provider references, statuses, timestamps, and minimized audit/dedupe data. Approve schema, retention, and MySQL concurrency design. |
-| Testing | Scenarios are in `07-testing.md`. Focused automated tests are part of implementation; test-mode end-to-end validation awaits credentials and account access. |
+| Webhooks               | Baseline: verify signatures, persist/deduplicate durably before prompt acknowledgement, and process idempotently. Test endpoint registration/tunnel use remains a separately authorized test activity.                                                                                                                                                  |
+| Duplicate prevention   | Documented: order/session/payment/event uniqueness and idempotency. Design transaction and concurrency controls before implementation.                                                                                                                                                                                                                  |
+| Payment recovery       | Decision: retry in the same provider flow within 24 hours where supported; reconcile before any replacement order. Uncertain cases retain stock and escalate.                                                                                                                                                                                           |
+| Refund handling        | Decision: no automated refunds in first release; administrator review and explicit authorization, with provider eligibility checked per method.                                                                                                                                                                                                         |
+| Security               | Documented: server-only secrets, raw-body signature verification, least privilege, no redirect-as-proof. Review concrete implementation before test activity.                                                                                                                                                                                           |
+| Database records       | Documented: persist provider references, statuses, timestamps, and minimized audit/dedupe data. Approve schema, retention, and MySQL concurrency design.                                                                                                                                                                                                |
+| Testing                | Scenarios are in `07-testing.md`. Focused automated tests are part of implementation; test-mode end-to-end validation awaits credentials and account access.                                                                                                                                                                                            |
 
 ## Scope assumptions and open requirements
+
 - Hosted Checkout v2 is selected for card, GCash, Maya, and QR Ph. Direct Online Banking remains in the approved payment scope through the documented Payment Intent redirect flow; do not represent it as a Hosted Checkout method. Enable only bank routes available in test mode and activated for the merchant. Bank availability may change.
 - “Bank transfer” in this proposal means a customer authorizes a payment through PayMongo’s supported online banking flow. It does not mean manual transfer to Battlefront followed by receipt upload.
 - Partial payment, split tender, recurring billing, saved payment methods, and mobile-native payment SDKs are out of scope. Refunds remain manual/admin-authorized and are not automated in the first release.

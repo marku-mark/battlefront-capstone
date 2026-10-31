@@ -111,6 +111,10 @@ class ChatbotLanguage
 
     public function blocked(string $message): bool
     {
+        if ($this->isPcBuilderHelp($message)) {
+            return false;
+        }
+
         return preg_match('/\b(?:pinakamahusay|pinakamaganda|pinaka maayo|pinakamaayo|pinakanindot|ano ang best|unsa ang best|ano.*maayo.*(?:laptop|mouse|computer)|irekomenda|rekomendasyon|mag recommend|i recommend|ma suggest|bagay sa akin|compatible|compatibility|bagay ba|compatible ba|panahon bukas|balita|joke|biro|resipe|recipe|homework|takdang aralin|translate this|isalin (?:ito|it)|hubara|ignore (?:all|previous)|system prompt|developer message)\b/iu', $message) === 1;
     }
 
@@ -118,6 +122,29 @@ class ChatbotLanguage
     public function clauses(string $message): array
     {
         return preg_split('/\s+(?:and|also|plus|kag|ug|at saka|pati|tsaka)\s+|[;?]+\s*(?:(?:and|also|plus|kag|ug|at saka)\s+)?/iu', $this->withoutLanguageRequest($message), flags: PREG_SPLIT_NO_EMPTY) ?: [];
+    }
+
+    public function isPcBuilderHelp(string $message): bool
+    {
+        return $this->pcBuilderHelpTopic($message) !== null;
+    }
+
+    public function pcBuilderHelpTopic(string $message): ?string
+    {
+        $text = trim($this->normalized($message));
+        foreach ([
+            'overview' => '/\A(?:how (?:do|can) i use|where can i open) pc builder\z/u',
+            'components' => '/\Ahow (?:do|can) i (?:select|choose) components in pc builder\z/u',
+            'saved' => '/\A(?:how do saved pc builds work|how (?:do|can) i (?:save|share|load) (?:my|a) pc build)\z/u',
+            'templates' => '/\A(?:how do pc builder templates work|how (?:do|can) i (?:use|load) a pc builder template)\z/u',
+            'checks' => '/\Awhere can i (?:view|see|find) pc builder compatibility results\z/u',
+        ] as $topic => $pattern) {
+            if (preg_match($pattern, $text) === 1) {
+                return $topic;
+            }
+        }
+
+        return null;
     }
 
     public function classifierCandidate(string $message): bool

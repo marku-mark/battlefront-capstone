@@ -53,7 +53,7 @@ test('prepares the latest thirty six imported product months with exact quantiti
     expect($result['covered_months'])->toBe(36);
     expect($result['positive_sales_months'])->toBe([12, 12, 12]);
     expect($result['source_period'])->toBe(['start' => '2023-10-01', 'end_exclusive' => '2026-10-01']);
-    expect($result['target_quarter'])->toBe(['year' => 2026, 'quarter' => 4, 'start' => '2026-10-01', 'end_exclusive' => '2027-01-01']);
+    expect($result['target_period'])->toBe(['start' => '2026-10-01', 'end_exclusive' => '2027-01-01']);
     expect($result['coverage'])->toBe(monthlyForecastCoverage([
         'start' => '2022-10-01', 'source_kind' => 'synthetic_development', 'sales_scope' => 'development_fixture_transactions',
     ]));
@@ -114,7 +114,7 @@ test('counts each short trusted window without queries or observations', functio
         'message' => "{$count} completed months covered; 36 are required.",
         'product_id' => $product->id, 'product_code' => '00123', 'timezone' => 'UTC',
         'source_period' => ['start' => '2023-10-01', 'end_exclusive' => '2026-10-01'],
-        'target_quarter' => ['year' => 2026, 'quarter' => 4, 'start' => '2026-10-01', 'end_exclusive' => '2027-01-01'],
+        'target_period' => ['start' => '2026-10-01', 'end_exclusive' => '2027-01-01'],
         'covered_months' => $count, 'coverage' => $coverage, 'history' => null, 'positive_sales_months' => null,
     ]);
 })->with(range(0, 35));
@@ -197,9 +197,10 @@ test('uses calendar months across leap years and timezone quarter rollover', fun
     $result = $service->prepareMonthly($product);
 
     expect($result)->toBe($service->prepareMonthly($product, $instant));
+    expect($result)->toBe($service->prepareMonthlyBatch([$product], $instant)[$product->id]);
     expect($result['status'])->toBe('ready');
     expect($result['source_period'])->toBe(['start' => $start, 'end_exclusive' => $end]);
-    expect($result['target_quarter']['end_exclusive'])->toBe($targetEnd);
+    expect($result['target_period']['end_exclusive'])->toBe($targetEnd);
     expect($result['history']['timezone'])->toBe($timezone);
     $months = $result['history']['months'];
     expect($months)->toHaveCount(36);
@@ -210,10 +211,13 @@ test('uses calendar months across leap years and timezone quarter rollover', fun
     expect(array_slice(array_column($months, 'end_exclusive'), 0, 35))->toBe(array_slice($starts, 1));
 })->with([
     'UTC new year' => ['2027-01-01 00:00:00', 'UTC', '2024-01-01', '2027-01-01', '2027-04-01'],
-    'Shanghai before local new year' => ['2026-12-31 15:59:59', 'Asia/Shanghai', '2023-10-01', '2026-10-01', '2027-01-01'],
+    'Shanghai before local new year' => ['2026-12-31 15:59:59', 'Asia/Shanghai', '2023-12-01', '2026-12-01', '2027-03-01'],
     'Shanghai at local new year' => ['2026-12-31 16:00:00', 'Asia/Shanghai', '2024-01-01', '2027-01-01', '2027-04-01'],
-    'mid quarter remains anchored' => ['2026-12-15 12:00:00', 'UTC', '2023-10-01', '2026-10-01', '2027-01-01'],
+    'December rolls through February' => ['2026-12-15 12:00:00', 'UTC', '2023-12-01', '2026-12-01', '2027-03-01'],
     'April rollover' => ['2026-04-01 00:00:00', 'UTC', '2023-04-01', '2026-04-01', '2026-07-01'],
+    'before local November' => ['2026-10-31 15:59:59', 'Asia/Manila', '2023-10-01', '2026-10-01', '2027-01-01'],
+    'at local November' => ['2026-10-31 16:00:00', 'Asia/Manila', '2023-11-01', '2026-11-01', '2027-02-01'],
+    'leap February' => ['2028-02-29 12:00:00', 'UTC', '2025-02-01', '2028-02-01', '2028-05-01'],
 ]);
 
 test('uses sale dates including leap day and excludes every target quarter observation', function () {

@@ -12,7 +12,7 @@ defineEmits(['select', 'remove']);
 
 <template>
     <section
-        class="border-border grid gap-4 border-b py-6 last:border-0 sm:grid-cols-[8rem_minmax(0,1fr)] xl:grid-cols-[9rem_minmax(0,1fr)_auto] sm:items-start"
+        class="border-border grid gap-4 border-b py-6 last:border-0 sm:grid-cols-[8rem_minmax(0,1fr)] sm:items-start xl:grid-cols-[9rem_minmax(0,1fr)_auto]"
     >
         <h3 class="text-sm font-semibold sm:pt-2">
             {{ label }}
@@ -21,9 +21,20 @@ defineEmits(['select', 'remove']);
             >
         </h3>
         <div class="min-w-0">
-            <div v-if="!items.length" class="border-border bg-muted/30 rounded-lg border border-dashed px-4 py-3">
-                <p class="text-muted-foreground text-sm">No {{ label.toLowerCase() }} selected</p>
-                <p class="text-muted-foreground mt-1 text-xs">{{ required ? 'Required for your build' : 'Add if your setup needs it' }}</p>
+            <div
+                v-if="!items.length"
+                class="border-border bg-muted/30 rounded-lg border border-dashed px-4 py-3"
+            >
+                <p class="text-muted-foreground text-sm">
+                    No {{ label.toLowerCase() }} selected
+                </p>
+                <p class="text-muted-foreground mt-1 text-xs">
+                    {{
+                        required
+                            ? 'Required for your build'
+                            : 'Add if your setup needs it'
+                    }}
+                </p>
             </div>
             <ul v-else class="space-y-3">
                 <li
@@ -38,7 +49,11 @@ defineEmits(['select', 'remove']);
                         class="bg-muted/30 h-16 w-16 shrink-0 rounded-md object-contain p-1"
                     />
                     <div class="min-w-0 flex-1">
-                        <p class="text-sm font-medium leading-relaxed break-words">{{ item.name }}</p>
+                        <p
+                            class="text-sm leading-relaxed font-medium break-words"
+                        >
+                            {{ item.name }}
+                        </p>
                         <p class="mt-1 text-sm font-semibold tabular-nums">
                             {{ item.quantity }} × {{ item.formattedPrice }}
                         </p>

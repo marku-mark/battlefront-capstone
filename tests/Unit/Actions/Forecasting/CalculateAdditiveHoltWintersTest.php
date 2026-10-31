@@ -3,6 +3,17 @@
 use App\Actions\Forecasting\CalculateAdditiveHoltWinters;
 use Tests\MonthlyForecastFixtures;
 
+test('rolling month origins preserve the same Holt Winters numerical calculations', function (string $start, array $targets) {
+    $prepared = MonthlyForecastFixtures::preparation(range(1, 36), $start);
+    $result = (new CalculateAdditiveHoltWinters)->execute($prepared);
+    expect($result['forecast_quantity'])->toBe('114.00');
+    expect(array_column($result['monthly_forecasts'], 'raw_quantity'))->toBe(['37.000000000000', '38.000000000000', '39.000000000000']);
+    expect(array_column($result['monthly_forecasts'], 'start'))->toBe($targets);
+})->with([
+    'November' => ['2023-11-01', ['2026-11-01', '2026-12-01', '2027-01-01']],
+    'December' => ['2023-12-01', ['2026-12-01', '2027-01-01', '2027-02-01']],
+]);
+
 test('forecasts independently known stable growth decline seasonal and zero series', function (array $quantities, array $monthly, string $quarterly) {
     $prepared = MonthlyForecastFixtures::preparation($quantities);
 
@@ -63,8 +74,8 @@ test('rejects malformed ready preparations instead of repairing input', function
     'wrong timezone' => ['timezone', 'Invalid/Timezone'], 'empty timezone' => ['timezone', ''],
     'source gap' => ['source_period.start', '2023-11-01'], 'unaligned start' => ['source_period.start', '2023-10-02'],
     'invalid calendar date' => ['source_period.start', '2023-02-30'], 'year zero' => ['source_period.start', '0000-10-01'],
-    'target mismatch' => ['target_quarter.start', '2026-11-01'], 'wrong horizon' => ['target_quarter.end_exclusive', '2027-02-01'],
-    'wrong year' => ['target_quarter.year', 2027], 'wrong quarter' => ['target_quarter.quarter', 3],
+    'target mismatch' => ['target_period.start', '2026-11-01'], 'wrong horizon' => ['target_period.end_exclusive', '2027-02-01'],
+    'wrong end year' => ['target_period.end_exclusive', '2028-01-01'], 'reversed end' => ['target_period.end_exclusive', '2026-07-01'],
     'missing history' => ['history', null], 'wrong product' => ['history.product_id', 9], 'wrong history timezone' => ['history.timezone', 'Asia/Shanghai'],
     'wrong end' => ['history.end_exclusive', '2026-09-01'], 'empty months' => ['history.months', []], 'short months' => ['history.months', array_fill(0, 35, [])],
     'negative demand' => ['history.months.0.quantity_sold', -1], 'decimal demand' => ['history.months.0.quantity_sold', 1.5],

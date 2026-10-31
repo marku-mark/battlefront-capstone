@@ -13,9 +13,10 @@ use Illuminate\Support\Str;
 test('the default seed workflow creates approved chatbot FAQ scenarios', function () {
     $this->seed();
     $knowledge = ChatbotKnowledge::query()->get();
-    $this->assertDatabaseCount('chatbot_knowledge', 4);
+    $this->assertDatabaseCount('chatbot_knowledge', 9);
     expect($knowledge->every(fn ($record): bool => $record->category === ChatbotCategory::Faq && $record->is_active && $record->priority === 0))->toBeTrue();
     expect($knowledge->pluck('question_pattern')->all())->toBe([
+        'How do I use PC Builder?', 'How do I select components in PC Builder?', 'How do saved PC builds work?', 'How do PC Builder templates work?', 'Where can I view PC Builder compatibility results?',
         'How can I check my order status?', 'Do you offer real-time delivery tracking?',
         'How do I search for products?', "How can I view a product's details?",
     ]);
@@ -26,7 +27,7 @@ test('rerunning the default seed workflow preserves administrator edits and adds
     $record = ChatbotKnowledge::query()->where('question_pattern', 'How do I search for products?')->firstOrFail();
     $record->update(['response_template' => 'Edited search guidance.', 'priority' => -1, 'is_active' => false]);
     $this->seed();
-    $this->assertDatabaseCount('chatbot_knowledge', 4);
+    $this->assertDatabaseCount('chatbot_knowledge', 9);
     expect($record->refresh()->response_template)->toBe('Edited search guidance.')
         ->and($record->priority)->toBe(-1)->and($record->is_active)->toBeFalse();
 });
@@ -46,7 +47,7 @@ test('payment verification and method availability use application rules instead
     foreach (['How is GCash payment verified?', 'How is Maya payment verified?', 'Do I need payment proof for Maya?', 'How do staff verify cash payment?', 'How is card at store payment verified?', 'Do you accept GCash?'] as $question) {
         expect(app(MatchChatbotKnowledge::class)->execute($question))->toBe([]);
     }
-    expect(app(ResolveChatbotRuleGuidance::class)->execute('payment_proof')['guidance'])->toContain('GCash and Maya', 'Cash (Pay at Pickup) and Debit/Credit Card (Pay at Store)', 'physical card terminal', 'product handover together');
+    expect(app(ResolveChatbotRuleGuidance::class)->execute('payment_proof')['guidance'])->toContain('New online payments require no receipt or screenshot upload', 'Historical manual GCash and Maya', 'product handover together');
 });
 
 test('rerunning the FAQ seeder preserves legacy samples for migration or human review', function () {
@@ -56,7 +57,7 @@ test('rerunning the FAQ seeder preserves legacy samples for migration or human r
         'priority' => 60,
     ]);
     $this->seed();
-    $this->assertDatabaseCount('chatbot_knowledge', 5);
+    $this->assertDatabaseCount('chatbot_knowledge', 10);
     expect($original->refresh()->question_pattern)->toBe('How is GCash payment verified?')
         ->and($original->is_active)->toBeTrue();
     expect(app(MatchChatbotKnowledge::class)->execute($original->question_pattern))->toBe([]);

@@ -81,6 +81,59 @@ function forecastingZeroResult(Product $product): array
     return (new CalculateAdditiveHoltWinters)->execute($preparation);
 }
 
+test('rolling generation uses full local months and preserves matching calendar quarter history', function (string $instant, string $timezone, string $start, string $end, string $key, string $label) {
+    config(['app.timezone' => $timezone]);
+    $this->travelTo(CarbonImmutable::parse($instant, 'UTC'));
+    $product = Product::factory()->create();
+    $source = CarbonImmutable::parse($start, $timezone)->subMonths(36)->toDateString();
+    forecastingCoverage($product, ['start' => $source, 'end_exclusive' => $start]);
+    forecastingMonthlySales($product, array_fill(0, 36, 10), $source);
+    foreach (range(0, 2) as $offset) {
+        forecastingSale($product, CarbonImmutable::parse($start, $timezone)->addMonths($offset)->toDateString(), 9999);
+    }
+    $legacy = Forecast::factory()->for($product)->create(['method' => 'additive_holt_winters', 'forecast_quarter' => '2026-Q4']);
+    $snapshot = $legacy->refresh()->getAttributes();
+    $this->actingAs(User::factory()->administrator()->create())
+        ->post(route('administration.forecasting.store'), forecastingInput($product))
+        ->assertInertiaFlash('forecast_result.target_period.start', $start)
+        ->assertInertiaFlash('forecast_result.target_period.end_exclusive', $end)
+        ->assertInertiaFlash('forecast_result.target_label', $label)
+        ->assertInertiaFlash('forecast_result.forecast_quantity', '30.00');
+    $saved = Forecast::where('forecast_quarter', $key)->sole();
+    $this->post(route('administration.forecasting.store'), forecastingInput($product))
+        ->assertInertiaFlash('forecast_result.id', $saved->id);
+    $this->get(route('administration.forecasting.index', ['product_id' => $product->id]))
+        ->assertInertia(fn (Assert $page) => $page->where('forecasts.data.0.target_label', $label));
+    expect($legacy->refresh()->getAttributes())->toBe($snapshot);
+    $this->assertDatabaseCount('forecasts', 2);
+})->with([
+    'November' => ['2026-11-15 12:00:00', 'UTC', '2026-11-01', '2027-02-01', '2026-11/2027-01', 'Nov 2026 – Jan 2027'],
+    'December' => ['2026-12-15 12:00:00', 'UTC', '2026-12-01', '2027-03-01', '2026-12/2027-02', 'Dec 2026 – Feb 2027'],
+    'local month before UTC' => ['2026-10-31 16:00:00', 'Asia/Manila', '2026-11-01', '2027-02-01', '2026-11/2027-01', 'Nov 2026 – Jan 2027'],
+]);
+
+test('month advancement requires newly verified history and retains distinct overlapping periods', function () {
+    $product = Product::factory()->create();
+    forecastingCoverage($product);
+    $this->actingAs(User::factory()->administrator()->create())
+        ->post(route('administration.forecasting.store'), forecastingInput($product));
+    $october = Forecast::sole();
+    $snapshot = $october->getAttributes();
+    $this->travelTo(CarbonImmutable::parse('2026-11-01', 'UTC'));
+    $this->post(route('administration.forecasting.store'), forecastingInput($product))
+        ->assertInertiaFlash('forecast_result.status', 'history_unavailable');
+    expect($october->refresh()->getAttributes())->toBe($snapshot);
+    $this->assertDatabaseCount('forecasts', 1);
+
+    forecastingCoverage($product, ['end_exclusive' => '2026-11-01']);
+    $this->post(route('administration.forecasting.store'), forecastingInput($product))
+        ->assertInertiaFlash('forecast_result.status', 'ready');
+    $this->assertDatabaseHas('forecasts', ['forecast_quarter' => '2026-10/2026-12']);
+    $this->assertDatabaseHas('forecasts', ['forecast_quarter' => '2026-11/2027-01']);
+    expect($october->refresh()->getAttributes())->toBe($snapshot);
+    $this->assertDatabaseCount('forecasts', 2);
+});
+
 test('guests must log in and customers cannot read or generate forecasts', function (string $verb) {
     $this->$verb(route('administration.forecasting.'.($verb === 'get' ? 'index' : 'store')))
         ->assertRedirectToRoute('login');
@@ -161,8 +214,8 @@ test('generates three monthly estimates from exactly thirty six completed months
         ->assertInertiaFlash('forecast_result.source_period.start', '2023-10-01')
         ->assertInertiaFlash('forecast_result.source_period.end_exclusive', '2026-10-01')
         ->assertInertiaFlash('forecast_result.source_label', 'Oct 2023 – Sep 2026')
-        ->assertInertiaFlash('forecast_result.target_label', 'Q4 2026')
-        ->assertInertiaFlash('forecast_result.target_quarter.end_exclusive', '2027-01-01')
+        ->assertInertiaFlash('forecast_result.target_label', 'Oct 2026 – Dec 2026')
+        ->assertInertiaFlash('forecast_result.target_period.end_exclusive', '2027-01-01')
         ->assertInertiaFlash('forecast_result.generated_at', '2026-10-15T12:00:00+00:00')
         ->assertInertiaFlash('forecast_result.observations.0.label', 'Oct 2023')
         ->assertInertiaFlash('forecast_result.observations.35.label', 'Sep 2026')
@@ -180,7 +233,7 @@ test('generates three monthly estimates from exactly thirty six completed months
         ->assertInertiaFlash('forecast_result.guidance', 'Use this estimate alongside business judgment when planning stock. Actual demand may differ.');
     $this->assertDatabaseHas('forecasts', [
         'product_id' => $product->id, 'method' => 'additive_holt_winters',
-        'forecast_quarter' => '2026-Q4', 'predicted_demand' => '30.00',
+        'forecast_quarter' => '2026-10/2026-12', 'predicted_demand' => '30.00',
     ]);
     $this->get($response->headers->get('Location'))
         ->assertInertia(function (Assert $page) {
@@ -209,12 +262,12 @@ test('reruns replace only the Holt Winters product quarter and exclude all targe
     $otherProduct = Forecast::factory()->create(['method' => 'additive_holt_winters']);
     $this->actingAs(User::factory()->administrator()->create())
         ->post(route('administration.forecasting.store'), forecastingInput($product));
-    $original = Forecast::where('product_id', $product->id)->where('method', 'additive_holt_winters')->where('forecast_quarter', '2026-Q4')->sole();
+    $original = Forecast::where('product_id', $product->id)->where('method', 'additive_holt_winters')->where('forecast_quarter', '2026-10/2026-12')->sole();
     $others = Forecast::where('id', '!=', $original->id)->orderBy('id')->get()->toArray();
     forecastingSale($product, '2026-10-01', 900);
     forecastingSale($product, '2026-11-15', 900);
     forecastingSale($product, '2026-12-31', 900);
-    $this->travelTo(CarbonImmutable::parse('2026-11-16 12:00:00', 'UTC'));
+    $this->travelTo(CarbonImmutable::parse('2026-10-16 12:00:00', 'UTC'));
 
     $this->post(route('administration.forecasting.store'), forecastingInput($product))
         ->assertInertiaFlash('forecast_result.id', $original->id)
@@ -222,7 +275,7 @@ test('reruns replace only the Holt Winters product quarter and exclude all targe
         ->assertInertiaFlash('forecast_result.source_period.end_exclusive', '2026-10-01')
         ->assertInertiaFlash('forecast_result.monthly_forecasts.0.start', '2026-10-01')
         ->assertInertiaFlash('forecast_result.monthly_forecasts.2.end_exclusive', '2027-01-01')
-        ->assertInertiaFlash('forecast_result.generated_at', '2026-11-16T12:00:00+00:00');
+        ->assertInertiaFlash('forecast_result.generated_at', '2026-10-16T12:00:00+00:00');
 
     $this->assertDatabaseCount('forecasts', 5);
     expect(Forecast::where('id', '!=', $original->id)->orderBy('id')->get()->toArray())->toBe($others);
@@ -403,7 +456,7 @@ test('monthly display rounding never replaces the finalized quarterly total', fu
         ->assertInertiaFlash('forecast_result.monthly_forecasts.1.forecast_quantity', '10.00')
         ->assertInertiaFlash('forecast_result.monthly_forecasts.2.forecast_quantity', '10.00')
         ->assertInertiaFlash('forecast_result.forecast_quantity', '30.01')
-        ->assertInertiaFlash('forecast_result.rounding_note', 'Monthly estimates are rounded; the quarterly total is calculated before rounding.');
+        ->assertInertiaFlash('forecast_result.rounding_note', 'Monthly estimates are rounded; the 3-month total is calculated before rounding.');
 
     $this->assertDatabaseHas('forecasts', ['product_id' => $product->id, 'predicted_demand' => '30.01']);
 });
@@ -458,7 +511,7 @@ test('generation rejects obsolete or extra configuration controls', function (st
     ['coverage_confirmed', true], ['coverage_confirmation', true],
     ['history_start', '2025-10-01'], ['history_confirmed', true],
     ['history_confirmed', false], ['window_size', 8], ['quarter_count', 8],
-    ['target_quarter', '2027-Q1'], ['year', 2025], ['quarter', 1],
+    ['target_period', '2027-Q1'], ['year', 2025], ['quarter', 1],
 ]);
 
 test('application timezone controls monthly history and year rollover', function () {
@@ -472,13 +525,13 @@ test('application timezone controls monthly history and year rollover', function
     $this->actingAs(User::factory()->administrator()->create())
         ->post(route('administration.forecasting.store'), forecastingInput($product))
         ->assertInertiaFlash('forecast_result.timezone', 'Asia/Manila')
-        ->assertInertiaFlash('forecast_result.target_label', 'Q1 2027')
+        ->assertInertiaFlash('forecast_result.target_label', 'Jan 2027 – Mar 2027')
         ->assertInertiaFlash('forecast_result.forecast_quantity', '30.00')
         ->assertInertiaFlash('forecast_result.source_label', 'Jan 2024 – Dec 2026')
         ->assertInertiaFlash('forecast_result.monthly_forecasts.0.label', 'Jan 2027')
         ->assertInertiaFlash('forecast_result.monthly_forecasts.2.label', 'Mar 2027');
 
-    $this->assertDatabaseHas('forecasts', ['product_id' => $product->id, 'forecast_quarter' => '2027-Q1', 'predicted_demand' => '30.00']);
+    $this->assertDatabaseHas('forecasts', ['product_id' => $product->id, 'forecast_quarter' => '2027-01/2027-03', 'predicted_demand' => '30.00']);
 });
 
 test('saved review reads all methods without recalculation or reconstructed monthly context', function () {

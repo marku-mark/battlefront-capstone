@@ -5,6 +5,6 @@ paths:
 
 # Requests Js Pages Checkout
 
-## Allow zero-fee checkout where delivery pricing is not configured
+## Preserve historical zero-fee orders and separate pricing from fulfillment
 
-Historical not_configured orders retain their saved zero-fee presentation and manual shipment handling. New valid destinations in mapped regions receive a server-authored regional fee estimate plus the highest handling surcharge; snapshot pricing_status=regional_estimate, include the saved fee in the total, show no checkout ETA, and create no Shipment until the manual arrangement is confirmed. Preserve existing configured local rates and their workflow; explicit disabled or malformed rules still fail closed.
+Historical not_configured orders retain their saved zero-fee presentation and manual shipment handling. Every new delivery quote uses regional_estimates.fees plus package-weight and the highest handling surcharge once per order; missing or invalid pricing and explicitly disabled or malformed route rules reject delivery. Configured local routes retain their payment eligibility, transit estimates and Shipment workflow. Nationwide fallback routes snapshot pricing_status=regional_estimate, include the fee in order totals, and show no automatic ETA or Shipment until manual arrangement confirmation. Never reprice saved orders.

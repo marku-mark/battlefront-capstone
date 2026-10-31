@@ -12,16 +12,16 @@ the existing per-user preference. Legacy `system` values read as `light`.
 
 PC Builder uses the existing web services through these `/api/v1` JSON routes:
 
-| Method | Path | Result |
-| --- | --- | --- |
-| GET | `pc-builder` | Component catalog, published templates, ruleset version |
-| POST | `pc-builder/validate` | Shared compatibility findings for `components` |
-| GET | `pc-builds/shared/{token}` | Shared build; revoked links return 404 |
-| GET / POST | `pc-builds` | List owned builds / create a build |
-| PATCH / DELETE | `pc-builds/{uuid}` | Update / delete an owned build |
-| POST | `pc-builds/{uuid}/duplicate` | Create an owned copy |
-| POST / DELETE | `pc-builds/{uuid}/share` | Issue / revoke a web-compatible share link |
-| POST | `pc-builds/{uuid}/cart` | Atomically add a complete validated build |
+| Method         | Path                         | Result                                                  |
+| -------------- | ---------------------------- | ------------------------------------------------------- |
+| GET            | `pc-builder`                 | Component catalog, published templates, ruleset version |
+| POST           | `pc-builder/validate`        | Shared compatibility findings for `components`          |
+| GET            | `pc-builds/shared/{token}`   | Shared build; revoked links return 404                  |
+| GET / POST     | `pc-builds`                  | List owned builds / create a build                      |
+| PATCH / DELETE | `pc-builds/{uuid}`           | Update / delete an owned build                          |
+| POST           | `pc-builds/{uuid}/duplicate` | Create an owned copy                                    |
+| POST / DELETE  | `pc-builds/{uuid}/share`     | Issue / revoke a web-compatible share link              |
+| POST           | `pc-builds/{uuid}/cart`      | Atomically add a complete validated build               |
 
 All responses use a `data` envelope. Catalog, validation, and shared reads accept
 guests or customer bearer tokens; a supplied invalid token returns 401 and an

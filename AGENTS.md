@@ -337,6 +337,7 @@ Prefer:
 - Do not reorder Tailwind utility classes or change quote style unless the edited code actually requires it.
 
 ## PayMongo Preparation Boundary
+
 - Read `docs/paymongo/11-system-aligned-setup.md` for existing-system decisions and private test credential setup. Test keys belong in the ignored root `.env`, never chat, committed placeholders, logs or `VITE_*`. Follow current official PayMongo guides via `paymongo-api`; record endpoint-specific evidence rather than guessing. Preserve existing role permissions and manual refund recording/review workflows. Preparation-only requests do not activate payment configuration or external operations.
 
 - Follow the existing PHP/Laravel architecture and order/payment conventions documented in `.ai/rules`; do not introduce a parallel payment architecture without explicit review.
@@ -359,6 +360,7 @@ This project has a knowledge graph at graphify-out/ with god nodes, community st
 When the user types `/graphify`, use the installed graphify skill or instructions before doing anything else.
 
 Rules:
+
 - When graphify-out/graph.json exists, run `graphify query "<question>"` before your first grep, search or source-file read for a codebase question, and put this rule in every subagent prompt that explores code. Read raw files only for lines the graph or an earlier read already located. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
 - Dirty graphify-out/ files are expected after hooks or incremental updates; dirty graph files are not a reason to skip graphify. Only skip graphify if the task is about stale or incorrect graph output, or the user explicitly says not to use it.
 - If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.

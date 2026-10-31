@@ -71,7 +71,7 @@ test('web and mobile previews expose identical local dropdown data and conservat
     Http::assertNothingSent();
 });
 
-test('structured delivery placement saves each supported destination with its unchanged fee and readable address', function (
+test('structured delivery placement saves each supported destination with its regional fee and readable address', function (
     string $channel,
     string $destination,
     string $barangayCode,
@@ -105,18 +105,18 @@ test('structured delivery placement saves each supported destination with its un
     $this->assertModelMissing($item);
     expect($order->payment_proof_path)->toBeNull();
 })->with(['web', 'api'])->with([
-    ['Sagay City', '1804523018', '12 Mabini Street, Poblacion I, Sagay City, Negros Occidental', '80.00', '180.00'],
-    ['Escalante City', '1804509002', '12 Mabini Street, Balintawak, Escalante City, Negros Occidental', '100.00', '200.00'],
-    ['Cadiz City', '1804504001', '12 Mabini Street, Andres Bonifacio, Cadiz City, Negros Occidental', '120.00', '220.00'],
-    ['Toboso', '1804529001', '12 Mabini Street, Bandila, Toboso, Negros Occidental', '140.00', '240.00'],
-    ['Manapla', '1804518001', '12 Mabini Street, Chambery, Manapla, Negros Occidental', '160.00', '260.00'],
-    ['Calatrava', '1804505001', '12 Mabini Street, Agpangi, Calatrava, Negros Occidental', '180.00', '280.00'],
-    ['Victorias City', '1804531004', '12 Mabini Street, Barangay I, Victorias City, Negros Occidental', '180.00', '280.00'],
-    ['E.B. Magalona', '1804508001', '12 Mabini Street, Alacaygan, E.B. Magalona, Negros Occidental', '200.00', '300.00'],
-    ['San Carlos City', '1804524001', '12 Mabini Street, Bagonbon, San Carlos City, Negros Occidental', '220.00', '320.00'],
-    ['Silay City', '1804526001', '12 Mabini Street, Balaring, Silay City, Negros Occidental', '220.00', '320.00'],
-    ['Talisay City', '1804528001', '12 Mabini Street, Bubog, Talisay City, Negros Occidental', '240.00', '340.00'],
-    ['Bacolod City', '1830200008', '12 Mabini Street, Barangay 13, Bacolod City', '250.00', '350.00'],
+    ['Sagay City', '1804523018', '12 Mabini Street, Poblacion I, Sagay City, Negros Occidental', '150.00', '250.00'],
+    ['Escalante City', '1804509002', '12 Mabini Street, Balintawak, Escalante City, Negros Occidental', '150.00', '250.00'],
+    ['Cadiz City', '1804504001', '12 Mabini Street, Andres Bonifacio, Cadiz City, Negros Occidental', '150.00', '250.00'],
+    ['Toboso', '1804529001', '12 Mabini Street, Bandila, Toboso, Negros Occidental', '150.00', '250.00'],
+    ['Manapla', '1804518001', '12 Mabini Street, Chambery, Manapla, Negros Occidental', '150.00', '250.00'],
+    ['Calatrava', '1804505001', '12 Mabini Street, Agpangi, Calatrava, Negros Occidental', '150.00', '250.00'],
+    ['Victorias City', '1804531004', '12 Mabini Street, Barangay I, Victorias City, Negros Occidental', '150.00', '250.00'],
+    ['E.B. Magalona', '1804508001', '12 Mabini Street, Alacaygan, E.B. Magalona, Negros Occidental', '150.00', '250.00'],
+    ['San Carlos City', '1804524001', '12 Mabini Street, Bagonbon, San Carlos City, Negros Occidental', '150.00', '250.00'],
+    ['Silay City', '1804526001', '12 Mabini Street, Balaring, Silay City, Negros Occidental', '150.00', '250.00'],
+    ['Talisay City', '1804528001', '12 Mabini Street, Bubog, Talisay City, Negros Occidental', '150.00', '250.00'],
+    ['Bacolod City', '1830200008', '12 Mabini Street, Barangay 13, Bacolod City', '150.00', '250.00'],
 ]);
 
 test('invalid structured addresses fail before placement with no inventory or proof side effects', function (

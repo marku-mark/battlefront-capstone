@@ -3,6 +3,7 @@
 use App\Enums\FulfillmentMethod;
 use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
+use App\Enums\ShipmentStatus;
 use App\Models\Cart;
 use App\Models\CartItem;
 use App\Models\Category;
@@ -11,6 +12,7 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\Sale;
+use App\Models\Shipment;
 use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
 use Database\Seeders\DevelopmentCustomerSeeder;
@@ -254,6 +256,68 @@ test('administrators receive authoritative operational dashboard data', function
             ->missing('is_first_visit')));
 
     $this->assertDatabaseHas('users', ['id' => $administrator->id, 'has_visited_dashboard' => false]);
+});
+
+test('administrator dashboards load delivered COD orders with their collection labels', function (?string $collectedAt, string $label) {
+    $administrator = User::factory()->administrator()->create();
+    $orders = Order::factory()->cashOnDelivery()->count(2)->create([
+        'status' => OrderStatus::Processing,
+    ]);
+    foreach ($orders as $order) {
+        Shipment::factory()->for($order)->create([
+            'carrier' => 'lbc',
+            'status' => ShipmentStatus::Delivered,
+            'carrier_cod_collected_at' => $collectedAt,
+        ]);
+    }
+
+    $response = $this->actingAs($administrator)->get(route('dashboard'));
+
+    $response->assertInertia(fn (Assert $page) => $page
+        ->loadDeferredProps('dashboard', fn (Assert $page) => $page
+            ->where('dashboard.kpis.processing_orders', 2)
+            ->where('dashboard.needs_attention.pending_payment_reviews', 2)
+            ->has('dashboard.needs_attention.payment_orders', 2)
+            ->where('dashboard.needs_attention.payment_orders.0.payment_method', $label)
+            ->has('dashboard.recent_orders', 2)
+            ->where('dashboard.recent_orders.0.payment_status.label', $label)));
+})->with([
+    'awaiting collection' => [null, 'COD — Awaiting Collection'],
+    'awaiting remittance' => ['2026-09-20 12:00:00', 'COD — Awaiting LBC Remittance'],
+]);
+
+test('administrator dashboards load pending COD orders without shipments', function () {
+    $administrator = User::factory()->administrator()->create();
+    Order::factory()->cashOnDelivery()->count(2)->create();
+
+    $response = $this->actingAs($administrator)->get(route('dashboard'));
+
+    $response->assertInertia(fn (Assert $page) => $page
+        ->loadDeferredProps('dashboard', fn (Assert $page) => $page
+            ->where('dashboard.kpis.pending_orders', 2)
+            ->where('dashboard.needs_attention.pending_payment_reviews', 0)
+            ->has('dashboard.needs_attention.payment_orders', 0)
+            ->has('dashboard.recent_orders', 2)
+            ->where('dashboard.recent_orders.0.payment_status.label', 'COD — Awaiting Collection')));
+});
+
+test('customer dashboards show collected COD payments awaiting remittance', function () {
+    $customer = User::factory()->customer()->create();
+    $order = Order::factory()->for($customer)->cashOnDelivery()->create([
+        'status' => OrderStatus::Processing,
+    ]);
+    Shipment::factory()->for($order)->create([
+        'carrier' => 'lbc',
+        'status' => ShipmentStatus::Delivered,
+        'carrier_cod_collected_at' => '2026-09-20 12:00:00',
+    ]);
+
+    $response = $this->actingAs($customer)->get(route('dashboard'));
+
+    $response->assertInertia(fn (Assert $page) => $page
+        ->loadDeferredProps('dashboard', fn (Assert $page) => $page
+            ->where('dashboard.latest_order.status.label', 'Delivered — awaiting LBC remittance')
+            ->where('dashboard.latest_order.payment.status.label', 'COD — Awaiting LBC Remittance')));
 });
 
 test('customers receive stable empty dashboard data', function () {

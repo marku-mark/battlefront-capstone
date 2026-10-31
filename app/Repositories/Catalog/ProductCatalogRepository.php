@@ -83,7 +83,7 @@ class ProductCatalogRepository
      * @param  array<int, int>  $excludedProductIds
      * @return EloquentCollection<int, Product>
      */
-    public function contextMatches(array $terms, int $limit = 5, bool $availableOnly = false, array $excludedProductIds = []): EloquentCollection
+    public function contextMatches(array $terms, int $limit = 5, bool $availableOnly = false, array $excludedProductIds = [], bool $includeDescription = true): EloquentCollection
     {
         $matches = (new Product)->newCollection();
 
@@ -101,7 +101,9 @@ class ProductCatalogRepository
             $tiers[] = fn (Builder $query): Builder => $this->whereContextTerms($query, $terms);
         }
 
-        $tiers[] = fn (Builder $query): Builder => $this->whereContextTerms($query, $terms, includeDescription: true);
+        if ($includeDescription) {
+            $tiers[] = fn (Builder $query): Builder => $this->whereContextTerms($query, $terms, includeDescription: true);
+        }
 
         foreach ($tiers as $tier) {
             if ($matches->count() >= $limit) {

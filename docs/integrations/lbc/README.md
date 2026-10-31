@@ -6,14 +6,14 @@ This packet prepares Battlefront's LBC work. Public LBC pages describe advertise
 
 Read this README for every LBC task, then select references by task:
 
-| Task | Read |
-| --- | --- |
-| Official capability/API research | [API source audit](api-sources.md), [capability matrix](capability-matrix.md), [open decisions](open-questions.md) |
-| Domain mapping or system design | [scope](integration-scope.md), [architecture](architecture.md), [lifecycle](shipping-lifecycle.md), [payment coordination](payment-coordination.md), [open decisions](open-questions.md) |
-| Local simulation | [mock development](mock-development.md), [architecture](architecture.md), [lifecycle](shipping-lifecycle.md), [security](security.md), and relevant current `.ai/rules` |
-| Security review | [security](security.md), [mock development](mock-development.md), [payment coordination](payment-coordination.md), and relevant current `.ai/rules` |
-| Tests | [mock development](mock-development.md), [lifecycle](shipping-lifecycle.md), [security](security.md), and adjacent tests; read the [sandbox checklist](sandbox-checklist.md) only for authorized sandbox work |
-| Sandbox readiness or production proposal | [sandbox checklist](sandbox-checklist.md), [open decisions](open-questions.md), and selected product contract evidence |
+| Task                                     | Read                                                                                                                                                                                                          |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Official capability/API research         | [API source audit](api-sources.md), [capability matrix](capability-matrix.md), [open decisions](open-questions.md)                                                                                            |
+| Domain mapping or system design          | [scope](integration-scope.md), [architecture](architecture.md), [lifecycle](shipping-lifecycle.md), [payment coordination](payment-coordination.md), [open decisions](open-questions.md)                      |
+| Local simulation                         | [mock development](mock-development.md), [architecture](architecture.md), [lifecycle](shipping-lifecycle.md), [security](security.md), and relevant current `.ai/rules`                                       |
+| Security review                          | [security](security.md), [mock development](mock-development.md), [payment coordination](payment-coordination.md), and relevant current `.ai/rules`                                                           |
+| Tests                                    | [mock development](mock-development.md), [lifecycle](shipping-lifecycle.md), [security](security.md), and adjacent tests; read the [sandbox checklist](sandbox-checklist.md) only for authorized sandbox work |
+| Sandbox readiness or production proposal | [sandbox checklist](sandbox-checklist.md), [open decisions](open-questions.md), and selected product contract evidence                                                                                        |
 
 Read `docs/CAPSTONE_CONTEXT.md` for changes affecting approved project scope or architecture. Read PayMongo references only when the task touches gateway behavior. Current approved `.ai/rules` govern Battlefront behavior; this packet distinguishes requirements from verified implementation.
 

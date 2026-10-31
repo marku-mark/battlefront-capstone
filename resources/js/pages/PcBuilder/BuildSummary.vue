@@ -40,14 +40,32 @@ defineEmits(['retry']);
         </p>
         <div class="border-border my-5 border-y py-5">
             <p class="text-muted-foreground text-sm">Estimated total</p>
-            <p class="mt-2 text-3xl font-bold tracking-tight tabular-nums">{{ total }}</p>
-            <p v-if="budget !== '' && budget !== null" class="mt-2 text-sm" :class="budgetExceeded ? 'text-destructive' : 'text-muted-foreground'">
+            <p class="mt-2 text-3xl font-bold tracking-tight tabular-nums">
+                {{ total }}
+            </p>
+            <p
+                v-if="budget !== '' && budget !== null"
+                class="mt-2 text-sm"
+                :class="
+                    budgetExceeded
+                        ? 'text-destructive'
+                        : 'text-muted-foreground'
+                "
+            >
                 {{ difference }}
                 {{ budgetExceeded ? 'over budget' : 'remaining in budget' }}
             </p>
         </div>
-        <div aria-live="polite" :aria-busy="checking" class="bg-muted/30 mb-5 rounded-lg p-4">
-            <h3 class="text-muted-foreground mb-2 text-xs font-semibold uppercase tracking-wide">Compatibility review</h3>
+        <div
+            aria-live="polite"
+            :aria-busy="checking"
+            class="bg-muted/30 mb-5 rounded-lg p-4"
+        >
+            <h3
+                class="text-muted-foreground mb-2 text-xs font-semibold tracking-wide uppercase"
+            >
+                Compatibility review
+            </h3>
             <p v-if="checking" class="text-muted-foreground text-sm">
                 Checking compatibility…
             </p>

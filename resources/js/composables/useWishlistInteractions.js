@@ -30,9 +30,12 @@ export const useWishlistInteractions = createSharedComposable(() => {
         const visit = visits.get(detail.visitId);
         if (visit?.method !== 'get') return;
         const isInfiniteScroll = Object.keys(visit.headers ?? {}).some(
-            (name) => name.toLowerCase() === 'x-inertia-infinite-scroll-merge-intent',
+            (name) =>
+                name.toLowerCase() === 'x-inertia-infinite-scroll-merge-intent',
         );
-        const keys = visit.only.length ? visit.only : [...productProps, 'wishlist'];
+        const keys = visit.only.length
+            ? visit.only
+            : [...productProps, 'wishlist'];
         for (const key of productProps) {
             if (key === 'products' && isInfiniteScroll) continue;
             if (keys.includes(key)) reconcileProducts(detail.page.props[key]);
@@ -73,7 +76,10 @@ export const useWishlistInteractions = createSharedComposable(() => {
         { flush: 'sync' },
     );
 
-    function formOptions(productId, { only = ['wishlistCount'], isSaved } = {}) {
+    function formOptions(
+        productId,
+        { only = ['wishlistCount'], isSaved } = {},
+    ) {
         let token;
         let requestGeneration;
         const isCurrent = () =>
@@ -95,7 +101,8 @@ export const useWishlistInteractions = createSharedComposable(() => {
                     disposed ||
                     pending.has(productId) ||
                     !page.props.auth?.can?.useCustomerCart
-                ) return false;
+                )
+                    return false;
                 requestGeneration = generation;
                 token = Symbol();
                 overlappingRequests ||= pending.size > 0;
@@ -109,10 +116,13 @@ export const useWishlistInteractions = createSharedComposable(() => {
                     saved.set(productId, isSaved);
                 }
             },
-            onError: (fields) => fail(
-                fields.product_id || fields.quantity || Object.values(fields)[0] ||
-                'Your wishlist could not be updated. Please try again.',
-            ),
+            onError: (fields) =>
+                fail(
+                    fields.product_id ||
+                        fields.quantity ||
+                        Object.values(fields)[0] ||
+                        'Your wishlist could not be updated. Please try again.',
+                ),
             onNetworkError: () => {
                 fail('Unable to connect. Please try again.');
                 return false;
@@ -133,7 +143,9 @@ export const useWishlistInteractions = createSharedComposable(() => {
                     router.reload({
                         only: [
                             'wishlistCount',
-                            ...(page.component === 'Wishlist/Index' ? ['wishlist'] : []),
+                            ...(page.component === 'Wishlist/Index'
+                                ? ['wishlist']
+                                : []),
                         ],
                         showProgress: false,
                     });
@@ -151,7 +163,8 @@ export const useWishlistInteractions = createSharedComposable(() => {
     });
 
     return {
-        isSaved: (productId, fallback = false) => saved.get(productId) ?? fallback,
+        isSaved: (productId, fallback = false) =>
+            saved.get(productId) ?? fallback,
         isBusy: (productId) => pending.has(productId),
         error: (productId) => errors.get(productId),
         formOptions,

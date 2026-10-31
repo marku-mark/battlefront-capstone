@@ -105,7 +105,11 @@ class ResolveProductContext
         }
         $products = $namedProducts->isNotEmpty()
             ? $namedProducts
-            : $this->products->contextMatches($terms, availableOnly: true);
+            : $this->products->contextMatches($terms, availableOnly: true, includeDescription: false);
+
+        if ($products->isEmpty() && count($terms) > 1) {
+            $products = $this->products->contextMatches($terms, availableOnly: true);
+        }
 
         return [
             'resolution' => $products->isEmpty() ? 'not_found' : 'matched',
@@ -130,6 +134,15 @@ class ResolveProductContext
 
         return $this->namedProducts($message)->isNotEmpty() || $this->products->contextMatches($this->meaningfulTerms($message, canonical: false))
             ->contains(fn (Product $product): bool => $this->messageNamesProduct($normalizedMessage, $product));
+    }
+
+    public function matchesCatalogTerms(string $message): bool
+    {
+        $candidates = $this->products->contextMatches($this->meaningfulTerms($message), limit: 6, includeDescription: false);
+
+        $productIds = array_values($candidates->map(fn (Product $product): int => $product->id)->all());
+
+        return $this->clarificationChoices($productIds, $message) !== [];
     }
 
     /** @return Collection<int, Product> */
@@ -160,9 +173,10 @@ class ResolveProductContext
         }
 
         return array_values(Product::query()->customerEligible()->with(['category:id,name', 'tags:id,name'])
-            ->whereIn('id', array_slice($productIds, 0, 6))->orderBy('name')->orderBy('id')->limit(6)->get()
+            ->whereIn('id', array_slice($productIds, 0, 6))->limit(6)->get()
+            ->sortBy(fn (Product $product): int => (int) array_search($product->id, $productIds, true))
             ->filter(function (Product $product) use ($terms): bool {
-                $text = ' '.$this->normalizedText(implode(' ', [$product->name, $product->brand, $product->category->name, $product->description, ...$product->tags->pluck('name')->all()])).' ';
+                $text = ' '.$this->normalizedText(implode(' ', [$product->name, $product->brand, $product->category->name, ...$product->tags->pluck('name')->all()])).' ';
                 foreach ($terms as $term) {
                     if (! str_contains($text, ' '.$term.' ')) {
                         return false;

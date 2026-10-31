@@ -76,7 +76,7 @@ test('zero product subtotals record zero revenue even when delivery has a fee', 
     app(RecordCompletedOrderSale::class)->execute($order);
 
     expect($order->refresh()->sale->amount)->toBe('0.00');
-    expect($order)->product_subtotal->toBe('0.00')->delivery_fee->toBe('80.00')->total_amount->toBe('80.00');
+    expect($order)->product_subtotal->toBe('0.00')->delivery_fee->toBe('150.00')->total_amount->toBe('150.00');
 });
 
 test('negative sale amounts are rejected on insert and update', function () {

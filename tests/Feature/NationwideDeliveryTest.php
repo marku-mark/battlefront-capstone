@@ -11,6 +11,7 @@ use App\Services\Cart\CartService;
 use App\Services\CatalogShippingClassification;
 use App\Services\Order\DeliveryRules;
 use App\Services\Order\PsgcDeliveryLocations;
+use Database\Seeders\BranchSeeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
@@ -98,6 +99,34 @@ test('Negros Occidental expansion covers exactly the remaining province localiti
         ->and($locations->city('1830200000')['city_class'])->toBe('HUC');
 });
 
+test('missing local regional pricing leaves pickup previews available and rejects delivery', function (bool $mobile, bool $legacyAddress) {
+    $this->seed(BranchSeeder::class);
+    [$customer, $data, $inventory] = nationwideCheckout();
+    config(['battlefront.delivery.regional_estimates.fees.visayas' => null]);
+
+    $this->actingAs($customer)->get(route('checkout.index', ['cart_item_ids' => $data['cart_item_ids']]))
+        ->assertOk()->assertInertia(fn ($page) => $page
+        ->has('deliveryQuotes', 0)
+        ->where('pickupQuote.delivery_fee', '0.00')
+        ->where('pickupQuote.total', '200.00'));
+    if ($legacyAddress) {
+        $data = [
+            'cart_item_ids' => $data['cart_item_ids'], 'recipient_name' => 'Customer', 'contact_number' => '09171234567',
+            'fulfillment_method' => 'delivery', 'payment_method' => 'cod', 'delivery_destination' => 'Sagay City',
+            'delivery_address' => 'Legacy delivery address',
+        ];
+    }
+    if ($mobile) {
+        $this->withToken($customer->createToken('Phone')->plainTextToken);
+    }
+    $this->postJson($mobile ? '/api/v1/orders' : route('orders.store'), $data)->assertUnprocessable()
+        ->assertJsonValidationErrors('delivery_destination');
+
+    $this->assertDatabaseCount('orders', 0);
+    expect($inventory->refresh()->quantity)->toBe(10);
+    $this->assertDatabaseCount('cart_items', 1);
+})->with([false, true])->with([false, true]);
+
 test('local lookup endpoints return matching bounded web and mobile results', function () {
     $customer = User::factory()->customer()->create();
     $params = ['level' => 'barangays', 'parent_code' => '1804523000'];
@@ -113,11 +142,14 @@ test('zones choose city then province then region and explicit exclusions fail c
     $rules = app(DeliveryRules::class);
     $zone = ['base_fee' => '10.00', 'transit_min_days' => 1, 'transit_max_days' => 3, 'payment_methods' => ['gcash']];
     config(['battlefront.delivery.zones.regions.1800000000' => $zone]);
-    expect($rules->zone('1804523000')['base_fee'])->toBe('80.00');
+    expect($rules->zone('1804523000')['base_fee'])->toBe('150.00');
+    expect($rules->zone('1804523000')['payment_methods'])->toBe(['gcash', 'maya', 'cod']);
     config(['battlefront.delivery.zones.cities' => []]);
     config(['battlefront.delivery.zones.provinces.1804500000' => [...$zone, 'base_fee' => '20.00']]);
-    expect($rules->zone('1804523000')['base_fee'])->toBe('20.00');
-    expect($rules->zone('1830200000')['base_fee'])->toBe('10.00');
+    expect($rules->zone('1804523000')['base_fee'])->toBe('150.00');
+    expect($rules->zone('1830200000')['base_fee'])->toBe('150.00');
+    expect($rules->zone('1804523000')['rule_id'])->toBe('provinces:1804500000');
+    expect($rules->zone('1830200000')['rule_id'])->toBe('regions:1800000000');
     config(['battlefront.delivery.zones.cities.1804523000' => ['enabled' => false]]);
     expect(fn () => $rules->zone('1804523000'))->toThrow(DomainException::class, 'Delivery is unavailable');
     config(['battlefront.delivery.zones.cities.1804523000' => ['base_fee' => '0.00']]);
@@ -130,8 +162,8 @@ test('quotes share configured and regional estimates without inventing carrier d
     $web = $this->actingAs($customer)->getJson(route('checkout.delivery-quote.show', $query))->assertOk();
     $api = $this->withToken($customer->createToken('Phone')->plainTextToken)->getJson('/api/v1/checkout/delivery-quote?'.http_build_query($query))->assertOk();
     expect($api->json('data'))->toBe($web->json('data'));
-    $api->assertJsonPath('data.quote.delivery_fee', '175.00')
-        ->assertJsonPath('data.quote.total', '375.00')
+    $api->assertJsonPath('data.quote.delivery_fee', '245.00')
+        ->assertJsonPath('data.quote.total', '445.00')
         ->assertJsonPath('data.quote.zone.rule_id', 'cities:1804523000')
         ->assertJsonPath('data.quote.zone.rules_version', config('battlefront.delivery.rules_version'))
         ->assertJsonPath('data.quote.zone.city_code', '1804523000')
@@ -223,9 +255,9 @@ test('wallets and COD snapshot accepted fees and assumptions without trusting cl
     $response = $this->post($channel === 'web' ? route('orders.store') : '/api/v1/orders', $data);
     $channel === 'web' ? $response->assertSessionHasNoErrors()->assertRedirect() : $response->assertSuccessful();
     $order = Order::sole();
-    expect($order->delivery_fee)->toBe('175.00');
+    expect($order->delivery_fee)->toBe('245.00');
     expect($order->product_subtotal)->toBe('200.00');
-    expect($order->total_amount)->toBe('375.00');
+    expect($order->total_amount)->toBe('445.00');
     expect($order->delivery_destination)->toBe('Sagay City');
     expect($order->delivery_quote_metadata['city_code'])->toBe('1804523000');
     expect($order->delivery_quote_metadata['payment_assumption'])->toBe($method === 'cod'
@@ -233,7 +265,7 @@ test('wallets and COD snapshot accepted fees and assumptions without trusting cl
         : 'Online payment through PayMongo Hosted Checkout. Provider fees are absorbed by Battlefront.');
     expect($inventory->refresh()->quantity)->toBe(8);
     config(['battlefront.delivery.zones.cities' => [], 'battlefront.delivery.profiles.fragile.surcharge' => '999.00']);
-    expect($order->fresh()->delivery_fee)->toBe('175.00');
+    expect($order->fresh()->delivery_fee)->toBe('245.00');
     expect(fn () => $order->update(['delivery_quote_metadata' => []]))->toThrow(DomainException::class);
 })->with(['gcash', 'maya', 'cod'])->with(['web', 'api']);
 

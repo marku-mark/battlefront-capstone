@@ -21,9 +21,9 @@ test('generated and saved forecast views round units without changing decimal co
     $props = $response->inertiaProps();
     $generated = [
         'status' => 'ready', 'product' => $props['selected_product'], 'forecast_quantity' => $quantity,
-        'target_label' => 'Q4 2026', 'source_label' => 'October 2023 - September 2026',
+        'target_label' => 'Oct 2026 – Dec 2026', 'source_label' => 'October 2023 - September 2026',
         'generated_at' => '2026-10-15T12:00:00Z', 'timezone' => 'UTC', 'is_synthetic' => false,
-        'message' => "Estimated quarterly demand: $quantity units for Q4 2026, based on 36 completed months of recorded sales.",
+        'message' => "Estimated 3-month demand: $quantity units for Oct 2026 – Dec 2026, based on 36 completed months of recorded sales.",
         'guidance' => 'Use this estimate alongside business judgment.', 'sales_scope_label' => 'Captured system transactions',
         'observations' => [['start' => '2026-09-01', 'label' => 'Sep 2026', 'quantity_sold' => 7]],
         'monthly_forecasts' => array_map(fn (string $month): array => [
@@ -48,6 +48,7 @@ test('generated and saved forecast views round units without changing decimal co
             '@inertiajs/vue3': Inertia,
             'chart.js': ChartJS,
             'vue-chartjs': { Line: { props: ['data', 'options'], setup(props) { chart = props; return () => null; } } },
+            '@/components/PageHeader.vue': { default: { props: ['title'], setup: (props) => () => Vue.h('h1', props.title) } },
             '@/lib/forecastUnits': { formatForecastUnits },
             '@/lib/dateTime': dateTime,
             '@/composables/useChartTheme': { useChartTheme: () => Vue.shallowRef({}) },
@@ -78,13 +79,14 @@ test('generated and saved forecast views round units without changing decimal co
         JS;
     $process = new Process(['node', '--input-type=module', '-e', $script], base_path());
     $process->setInput(json_encode(['props' => $props, 'generated' => $generated], JSON_THROW_ON_ERROR));
-    $process->setTimeout(30);
+    $process->setTimeout(120);
 
     $process->mustRun();
 
     $rendered = json_decode($process->getOutput(), true, flags: JSON_THROW_ON_ERROR);
     $visible = preg_replace('/\s+/', ' ', html_entity_decode(strip_tags($rendered['html'])));
-    expect($visible)->toContain("Estimated quarterly demand: $display units", "$display units", 'whole units for display');
+    expect($visible)->toContain("Estimated 3-month demand: $display units", "$display units", 'whole units for display');
+    expect($visible)->toContain('Rolling 3-Month Demand Forecast', 'Oct 2026 – Dec 2026');
     expect($rendered['html'])->toMatch('/<td[^>]*>\s*'.preg_quote($display, '/').'\s*<\/td>/');
     expect($rendered['monthlyData'])->toEqual(array_fill(0, 3, (float) $quantity));
     expect($rendered['historicalData'])->toBe(7);

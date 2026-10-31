@@ -10,6 +10,7 @@ use App\Models\Order;
 use App\Models\User;
 
 test('returns only minimal customer-facing status fields for an owned order reference', function () {
+    config(['app.timezone' => 'UTC', 'battlefront.timezone' => 'Asia/Manila']);
     $customer = User::factory()->customer()->create();
     $order = Order::factory()->delivery()->paidWithGCash()->for($customer)->create([
         'status' => OrderStatus::Processing,
@@ -23,7 +24,7 @@ test('returns only minimal customer-facing status fields for an owned order refe
     expect($context)->toBe([
         'orders' => [[
             'reference' => sprintf('BF-%06d', $order->id),
-            'created_at' => '2026-09-20T10:00:00+00:00',
+            'created_at' => 'September 20, 2026 at 6:00 PM (UTC+08:00)',
             'status' => [
                 'value' => 'processing',
                 'label' => 'Processing',
@@ -62,6 +63,7 @@ test('normalizes shorthand and padded references to the owned canonical order re
 ]);
 
 test('includes current payment method and status only for a specific owned payment inquiry', function () {
+    config(['app.timezone' => 'UTC', 'battlefront.timezone' => 'Asia/Manila']);
     $customer = User::factory()->customer()->create();
     $order = Order::factory()->delivery()->paidWithGCash()->for($customer)->create([
         'payment_status' => PaymentStatus::Verified,
@@ -75,7 +77,7 @@ test('includes current payment method and status only for a specific owned payme
     expect($context)->toBe([
         'orders' => [[
             'reference' => $order->reference,
-            'created_at' => '2026-09-20T10:00:00+00:00',
+            'created_at' => 'September 20, 2026 at 6:00 PM (UTC+08:00)',
             'status' => [
                 'value' => 'pending',
                 'label' => 'Pending',

@@ -164,7 +164,7 @@ test('administrators advance the full manual lifecycle and complete one sale wit
     expect($order->shipment->tracking_reference)->toBe('ACTUAL-LBC-REFERENCE');
     expect($stock->refresh()->quantity)->toBe(5);
     expect($order->sale)->amount->toBe('100.00');
-    expect($order->total_amount)->toBe('350.00');
+    expect($order->total_amount)->toBe('250.00');
     $this->assertDatabaseCount('sales', 1);
     $this->patch(route('administration.orders.shipment.status.update', $order), ['status' => 'delivered'])->assertSessionHasErrors('status');
     $this->patch(route('administration.orders.status.update', $order), ['status' => 'completed'])->assertSessionHasErrors('status');
@@ -468,7 +468,7 @@ test('shipment progression ignores submitted carrier timestamps ETA and order st
             'estimated_delivery_start' => '2000-01-01', 'order_status' => 'completed', 'delivery_fee' => '0.00',
         ])->assertSessionHasNoErrors();
 
-    expect($order->refresh())->status->toBe(OrderStatus::Processing)->delivery_fee->toBe('250.00');
+    expect($order->refresh())->status->toBe(OrderStatus::Processing)->delivery_fee->toBe('150.00');
     expect($order->shipment)->carrier->toBe('lbc')->status->toBe(ShipmentStatus::Preparing);
     expect($order->shipment->preparing_at->toDateString())->toBe(now()->toDateString());
     $this->assertDatabaseCount('sales', 0);

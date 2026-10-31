@@ -42,7 +42,7 @@ test('stock requests accept blank notes and audit the selected reason', function
         'administration_role_id' => DB::table('administration_roles')->where('code', 'staff')->value('id'),
     ]);
     $case = operationalNotesRequest($kind, $actor);
-    $beforeStock = $case['product']->inventory?->getAttributes();
+    $beforeStock = $case['product']->fresh()->inventory?->getAttributes();
 
     $this->actingAs($actor)->{$case['method']}($case['url'], [
         ...$case['payload'], 'quantity' => $code === 'theft_loss' ? 8 : 12, 'reason_code' => $code, ...$notes,

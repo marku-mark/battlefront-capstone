@@ -55,7 +55,7 @@ test('hosted payment consumer journey purchases selected catalog items and prese
         ->assertOk()->assertJsonCount(2, 'data.cart.items')->assertJsonPath('data.cart.total', '38.66');
     $quote = collect($preview->json('data.delivery_quotes'))->firstWhere('destination', 'Sagay City');
     expect($quote)->shipping_profile->toBe('fragile')->handling_surcharge->toBe('50.00')
-        ->delivery_fee->toBe('220.00')->total->toBe('258.66')->preparation_days->toBe(2)
+        ->delivery_fee->toBe('290.00')->total->toBe('328.66')->preparation_days->toBe(2)
         ->estimated_delivery_start->toBe('2026-10-10')->estimated_delivery_end->toBe('2026-10-11');
 
     $payload = [
@@ -69,8 +69,8 @@ test('hosted payment consumer journey purchases selected catalog items and prese
         'total' => '0.01', 'delivery_fee' => '0.00', 'shipping_profile' => 'bulky',
     ];
     $placed = $this->post('/api/v1/orders', $payload)->assertSuccessful()
-        ->assertJsonPath('data.product_subtotal', '38.66')->assertJsonPath('data.delivery_fee', '220.00')
-        ->assertJsonPath('data.total', '258.66')->assertJsonPath('data.fulfillment.delivery_destination', 'Sagay City')
+        ->assertJsonPath('data.product_subtotal', '38.66')->assertJsonPath('data.delivery_fee', '290.00')
+        ->assertJsonPath('data.total', '328.66')->assertJsonPath('data.fulfillment.delivery_destination', 'Sagay City')
         ->assertJsonPath('data.fulfillment.delivery_address', 'Submitted street and barangay')
         ->assertJsonPath('data.payment.method.value', 'online')->assertJsonPath('data.payment.proof_submitted', false)
         ->assertJsonPath('data.payment.status.value', 'pending')
@@ -79,7 +79,7 @@ test('hosted payment consumer journey purchases selected catalog items and prese
         ->assertJsonMissingPath('data.payment_proof_path');
     $order = Order::sole();
     expect($order->payment_proof_path)->toBeNull();
-    expect($order)->product_subtotal->toBe('38.66')->delivery_fee->toBe('220.00')->total_amount->toBe('258.66');
+    expect($order)->product_subtotal->toBe('38.66')->delivery_fee->toBe('290.00')->total_amount->toBe('328.66');
     expect($order->shipment)->preparation_days->toBe(2)->eta_min_days->toBe(2)->eta_max_days->toBe(3);
     expect($order->items->pluck('product_id')->all())->toBe([$products[0]->id, $products[1]->id]);
     expect($products[0]->inventory->refresh()->quantity)->toBe(3);
@@ -88,10 +88,10 @@ test('hosted payment consumer journey purchases selected catalog items and prese
         ->assertJsonPath('data.items.0.id', $ids[2])->assertJsonPath('data.items.0.quantity', 1);
     $this->getJson('/api/v1/orders/'.$order->id)->assertOk()
         ->assertJsonPath('data.id', $order->id)
-        ->assertJsonPath('data.total', '258.66')
+        ->assertJsonPath('data.total', '328.66')
         ->assertJsonPath('data.payment.status.value', 'pending');
     $this->getJson('/api/v1/orders')->assertOk()->assertJsonPath('data.0.id', $order->id)
-        ->assertJsonPath('data.0.total', '258.66')->assertJsonPath('meta.per_page', 10);
+        ->assertJsonPath('data.0.total', '328.66')->assertJsonPath('meta.per_page', 10);
 
     $this->post('/api/v1/orders', $payload)
         ->assertUnprocessable()->assertJsonValidationErrors('cart');
@@ -105,7 +105,7 @@ test('hosted payment consumer journey purchases selected catalog items and prese
     $this->travel(1)->days();
     $this->getJson('/api/v1/orders/'.$order->id)->assertOk()
         ->assertJsonPath('data.id', $order->id)
-        ->assertJsonPath('data.total', '258.66')
+        ->assertJsonPath('data.total', '328.66')
         ->assertJsonPath('data.payment.can_retry_hosted', false);
 })->with(['gcash', 'maya']);
 
@@ -206,8 +206,8 @@ test('placed delivery milestones share read state and owned deep links while log
         ->assertJsonPath('data.shipment.tracking_reference', 'SYNTHETIC-TEST-REFERENCE')
         ->assertJsonPath('data.shipment.eta.estimated_delivery_start', '2026-10-09')
         ->assertJsonPath('data.shipment.eta.estimated_delivery_end', '2026-10-10')
-        ->assertJsonPath('data.product_subtotal', '18.66')->assertJsonPath('data.delivery_fee', '125.00')
-        ->assertJsonPath('data.total', '143.66');
+        ->assertJsonPath('data.product_subtotal', '18.66')->assertJsonPath('data.delivery_fee', '195.00')
+        ->assertJsonPath('data.total', '213.66');
     expect($stock->refresh()->quantity)->toBe(3);
     expect($order->refresh()->sale->amount)->toBe('18.66');
     $this->assertDatabaseCount('sales', 1);

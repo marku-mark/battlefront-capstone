@@ -38,7 +38,7 @@ test('consumes prepared imported product history without another query or changi
             expect($result['status'])->toBe('ok');
             expect($result['product_id'])->toBe($history['product_id']);
             expect($result['source_period'])->toBe($history['source_period']);
-            expect($result['target_quarter'])->toBe($history['target_quarter']);
+            expect($result['target_period'])->toBe($history['target_period']);
             expect(array_column($result['monthly_forecasts'], 'start'))->toBe(['2026-10-01', '2026-11-01', '2026-12-01']);
             expect($result['source_kind'])->toBe('synthetic_development');
             expect($result['sales_scope'])->toBe('development_fixture_transactions');

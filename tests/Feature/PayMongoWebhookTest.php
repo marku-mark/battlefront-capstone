@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\PayMongo\RecordPayMongoWebhook;
 use App\Enums\FulfillmentMethod;
 use App\Enums\PaymentMethod;
 use App\Events\OrderNotificationOccurred;
@@ -17,6 +18,7 @@ use App\Services\PayMongo\RecordPayMongoPayment;
 use App\Services\PayMongo\RetryDirectOnlineBanking;
 use App\Services\PayMongo\StartDirectOnlineBanking;
 use App\Services\PayMongo\StartHostedCheckout;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
@@ -65,7 +67,23 @@ test('a valid test webhook is durably recorded and queued once', function () {
         'resource_id' => 'cs_test_session',
         'status' => 'received',
     ]);
-    Bus::assertDispatched(ProcessPayMongoWebhook::class);
+    $this->call('POST', '/api/paymongo/webhook', [], [], [], [
+        'HTTP_PAYMONGO_SIGNATURE' => "t={$timestamp},te={$signature},li=",
+        'CONTENT_TYPE' => 'application/json',
+    ], $payload)->assertOk()->assertExactJson(['received' => true]);
+    $this->assertDatabaseCount('paymongo_webhook_inbox', 1);
+    Bus::assertDispatchedTimes(ProcessPayMongoWebhook::class, 1);
+});
+
+test('webhook recording propagates unrelated persistence failures without queuing work', function () {
+    Bus::fake([ProcessPayMongoWebhook::class]);
+
+    expect(fn () => app(RecordPayMongoWebhook::class)->execute([
+        'mode' => 'test', 'event_id' => 'evt_test_invalid', 'event_type' => null,
+    ]))->toThrow(QueryException::class);
+
+    $this->assertDatabaseCount('paymongo_webhook_inbox', 0);
+    Bus::assertNotDispatched(ProcessPayMongoWebhook::class);
 });
 
 test('a signed direct bank payment webhook confirms payment without completing fulfillment', function () {

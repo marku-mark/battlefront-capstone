@@ -50,7 +50,7 @@ const initialResult = page.flash?.forecast_result ?? null;
 const result = ref(initialResult);
 const resultMessage = computed(() =>
     result.value?.status === 'ready'
-        ? `Estimated quarterly demand: ${formatForecastUnits(result.value.forecast_quantity)} units for ${result.value.target_label}, based on 36 completed months of recorded sales.`
+        ? `Estimated 3-month demand: ${formatForecastUnits(result.value.forecast_quantity)} units for ${result.value.target_label}, based on 36 completed months of recorded sales.`
         : result.value?.message,
 );
 const isCheckingHistory = ref(false);
@@ -219,10 +219,10 @@ const chartOptions = computed(() => ({
 
 <template>
     <div class="flex flex-1 flex-col gap-6 p-4 lg:p-6">
-        <Head title="Forecasting" />
+        <Head title="Rolling 3-Month Demand Forecast" />
         <PageHeader
-            title="Forecasting"
-            description="Estimate quarterly demand for stock planning."
+            title="Rolling 3-Month Demand Forecast"
+            description="Estimate demand for the current month and the following two full months."
         />
 
         <div class="grid gap-6 xl:grid-cols-2">
@@ -381,9 +381,7 @@ const chartOptions = computed(() => ({
                             </dd>
                         </div>
                         <div>
-                            <dt class="text-muted-foreground">
-                                Target quarter
-                            </dt>
+                            <dt class="text-muted-foreground">Target period</dt>
                             <dd class="mt-1 font-medium">
                                 {{ readiness.target_label }}
                             </dd>
@@ -397,8 +395,9 @@ const chartOptions = computed(() => ({
                     </p>
                     <p class="text-muted-foreground text-xs">
                         Additive Holt–Winters uses 36 completed months to
-                        estimate the full target quarter; current-quarter sales
-                        are excluded. Dates use {{ readiness.timezone }}.
+                        estimate three full months, including the current month.
+                        All target-month sales are excluded from training. Dates
+                        use {{ readiness.timezone }}.
                     </p>
                 </div>
                 <form
@@ -427,8 +426,8 @@ const chartOptions = computed(() => ({
                     </Button>
                 </form>
                 <p class="text-muted-foreground mt-4 text-xs">
-                    Generating again replaces this product?s saved forecast for
-                    the same method and quarter.
+                    Generating again replaces the saved forecast for this
+                    product, method, and exact period.
                 </p>
             </section>
         </div>
@@ -465,7 +464,7 @@ const chartOptions = computed(() => ({
                     </div>
                     <div>
                         <dt class="text-muted-foreground text-xs">
-                            Estimated quarterly demand
+                            Estimated 3-month demand
                         </dt>
                         <dd class="mt-1 text-2xl font-semibold tabular-nums">
                             {{ formatForecastUnits(result.forecast_quantity) }}
@@ -474,7 +473,7 @@ const chartOptions = computed(() => ({
                     </div>
                     <div>
                         <dt class="text-muted-foreground text-xs">
-                            Target quarter
+                            Target period
                         </dt>
                         <dd class="mt-1 font-medium">
                             {{ result.target_label }}
@@ -523,14 +522,14 @@ const chartOptions = computed(() => ({
                 </dl>
                 <p class="text-muted-foreground mt-3 text-xs">
                     Estimates are rounded to whole units for display. Rounded
-                    monthly estimates may not add up to the quarterly estimate.
+                    monthly estimates may not add up to the 3-month estimate.
                 </p>
                 <div class="mt-6 h-80 min-w-0">
                     <Line
                         :data="chartData"
                         :options="chartOptions"
                         role="img"
-                        aria-label="Completed monthly sales and three target-quarter monthly demand estimates. Historical values are available in the table below."
+                        aria-label="Completed monthly sales and three target-period monthly demand estimates. Historical values are available in the table below."
                     />
                 </div>
                 <details class="mt-4">

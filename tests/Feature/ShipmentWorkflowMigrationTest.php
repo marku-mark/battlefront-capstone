@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Schema;
 
 test('workflow migration upgrades existing shipments and normalizes cancelled orders without invented dates', function () {
     config(['battlefront.delivery.destinations.Sagay City.transit_min_days' => 1]);
+    config(['battlefront.delivery.regional_estimates.fees.visayas' => '80.00']);
     $activeOrder = Order::factory()->withDeliverySnapshot()->create();
     $cancelledOrder = Order::factory()->withDeliverySnapshot()->create(['status' => OrderStatus::Cancelled]);
     $active = Shipment::factory()->for($activeOrder)->create();
@@ -17,6 +18,7 @@ test('workflow migration upgrades existing shipments and normalizes cancelled or
     $migration = require database_path('migrations/2026_10_08_042940_extend_shipments_for_manual_workflow.php');
     $migration->down();
 
+    config(['battlefront.delivery.regional_estimates.fees.visayas' => '150.00']);
     $migration->up();
 
     expect($active->refresh())->status->toBe(ShipmentStatus::AwaitingPreparation)->preparing_at->toBeNull()->eta_anchor_date->toBeNull();
