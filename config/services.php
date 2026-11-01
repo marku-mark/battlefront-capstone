@@ -1,6 +1,31 @@
 <?php
 
 return [
+    'qdrant' => [
+        'url' => env('QDRANT_URL'),
+        'api_key' => env('QDRANT_API_KEY'),
+        'collection' => env('QDRANT_COLLECTION', 'battlefront_products'),
+        'timeout_seconds' => env('QDRANT_TIMEOUT_SECONDS', 10),
+    ],
+    'neo4j' => [
+        'uri' => env('NEO4J_URI'),
+        'username' => env('NEO4J_USERNAME', 'neo4j'),
+        'password' => env('NEO4J_PASSWORD'),
+        'database' => env('NEO4J_DATABASE', 'neo4j'),
+    ],
+    /*
+     * Preparation only: these roles do not activate a three-stage pipeline.
+     * The existing AI SDK continues to use GEMINI_API_KEY independently.
+     * Keys may share project quotas; never rotate them to bypass limits.
+     */
+    'gemini' => [
+        // Future scope/intent screening in English, Tagalog, Bisaya and Hiligaynon.
+        'scope' => ['api_key' => env('GEMINI_SCOPE_API_KEY')],
+        // Future catalog-grounded replies with relevant history and retrieval context.
+        'response' => ['api_key' => env('GEMINI_RESPONSE_API_KEY')],
+        // Future grounding/compatibility checks returning accept, revise or reject.
+        'validation' => ['api_key' => env('GEMINI_VALIDATION_API_KEY')],
+    ],
     'paymongo' => [
         'enabled' => env('PAYMONGO_ENABLED', false),
         'mode' => env('PAYMONGO_MODE', 'test'),

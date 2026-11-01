@@ -367,3 +367,21 @@ Rules:
 - Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
 - After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
 - A committed graphify-out/graph.json is rewritten whole on every build, so a large diff to it in a pull request is expected. Do not flag it as churn or suggest skipping the graph rebuild or its hooks.
+
+## AI integration preparation and coordination
+
+The five project-scoped custom agents in `.codex/agents/` are preparation roles. When AI integration planning benefits from delegation, use the relevant existing role and return findings to the primary agent; do not invent automatic routing. Standalone TOML discovery is supported by installed Codex CLI 0.166.0; no per-role config.toml registry is required. Models and permissions inherit from the parent.
+
+- `ai-integration-architect`: Coordinate future AI architecture and review data flow, performance, security and scalability. Skills: battlefront-system-analysis, battlefront-rag-pipeline.
+- `qdrant-specialist`: Plan semantic search, embeddings, multilingual retrieval, indexing, synchronization and free-tier capacity. Skills: qdrant-cloud-integration.
+- `neo4j-specialist`: Plan product graphs, Cypher and evidence-backed hardware compatibility. Skills: neo4j-aura-integration.
+- `gemini-orchestration-specialist`: Plan classification, generation, validation, memory, quotas, latency, failures and cost. Skills: gemini-multi-api-orchestration.
+- `ai-security-quality-specialist`: Review credentials, injection, hallucination, privacy, fallback behavior and evaluation. Skills: ai-security-and-secrets, battlefront-chatbot-evaluation.
+
+Use `battlefront-system-analysis` before proposals (it reuses `battlefront-system-audit`), `battlefront-rag-pipeline` for cross-service flow, and `battlefront-chatbot-evaluation` plus `ai-security-and-secrets` for acceptance and safety review. Read the selected `.agents/skills/<name>/SKILL.md`; preserve existing domain skills rather than replacing them.
+
+Scan current code and versions, applicable rules and approved scope first. MySQL remains the source of truth for products, inventory and customer data. Qdrant and Neo4j are proposed derived retrieval stores, never authorities for live price, stock or access control. Restrict product answers to the Battlefront catalog. Plan evaluated support for English, Tagalog, Cebuano/Bisaya, Hiligaynon and other relevant Visayan languages; do not equate distinct languages or claim unverified fluency.
+
+Preserve existing deterministic FAQs, web/mobile authorization, ChatbotAiAdapter, conversation expiry and identity binding. Current rules allow at most one Gemini call per turn and do not authorize exact-part chatbot compatibility advice. Three-stage orchestration, persistent memory and expanded compatibility responses require explicit approval and reconciliation with approved project scope. Separate Gemini keys must never bypass shared quotas.
+
+This preparation does not authorize application changes, dependencies, migrations, embeddings, RAG, provider calls, cloud mutations or credential changes. Obtain explicit developer approval before major integration implementation. Never expose API credentials or customer data in instructions, logs or model context. Existing Qdrant/Neo4j/Gemini configuration references are not evidence of operational integrations.
