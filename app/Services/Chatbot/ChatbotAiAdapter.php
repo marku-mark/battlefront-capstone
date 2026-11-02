@@ -5,6 +5,7 @@ namespace App\Services\Chatbot;
 use App\Ai\Agents\ChatbotEvidenceAgent;
 use App\Ai\Agents\ChatbotIntentAgent;
 use App\Ai\Agents\ChatbotResponseAgent;
+use App\Ai\Agents\ChatbotUnderstandingAgent;
 use App\Ai\Agents\ChatbotValidationAgent;
 use GuzzleHttp\Exception\ConnectTimeoutException;
 use GuzzleHttp\Exception\NetworkException;
@@ -27,6 +28,51 @@ use Throwable;
 
 class ChatbotAiAdapter
 {
+    /** @param array<string, mixed> $publicState
+     * @return array<string, mixed>|null */
+    public function understand(string $message, array $publicState): ?array
+    {
+        if (config('ai_integration.offline') || app(ChatbotOrchestrationService::class)->containsSensitiveInput($message)) {
+            return null;
+        }
+        $prompt = $this->preparePrompt(mb_substr($message, 0, 1000), $publicState);
+        $budget = app(ChatbotProviderBudget::class);
+        if (! $budget->reserve($prompt)) {
+            return null;
+        }
+        $started = hrtime(true);
+        try {
+            $response = (new ChatbotUnderstandingAgent)->prompt($prompt, provider: $this->roleProvider('scope'), model: (string) config('ai_integration.gemini.model'), timeout: min(4, $budget->remainingSeconds()));
+            $this->logUsage('scope', $response);
+            if (! $response instanceof StructuredAgentResponse) {
+                return null;
+            }
+            $data = $response->structured;
+            $validator = Validator::make($data, [
+                'outcome' => ['required', Rule::in(['supported', 'clarify', 'unsupported'])],
+                'intent' => ['required', Rule::in(ChatbotUnderstandingAgent::INTENTS)],
+                'language' => ['required', Rule::in(['en', 'tl', 'ceb', 'hil', 'und'])],
+                'category_key' => ['required', Rule::in(ChatbotUnderstandingAgent::CATEGORIES)],
+                'search_query' => ['present', 'string', 'max:250'],
+                'product_mentions' => ['present', 'array', 'max:6'], 'product_mentions.*' => ['string', 'max:200'],
+                'attributes' => ['present', 'array', 'max:4'], 'attributes.*' => [Rule::in(['price', 'stock', 'specifications', 'comparison'])],
+                'maximum_php' => ['present', 'nullable', 'numeric', 'min:0', 'max:9999999999'],
+                'excluded_brands' => ['present', 'array', 'max:6'], 'excluded_brands.*' => ['string', 'max:80'],
+                'brand' => ['present', 'string', 'max:80'], 'capacity' => ['present', 'string', 'max:40'], 'use_case' => ['present', 'string', 'max:100'],
+                'reference' => ['required', Rule::in(['new', 'previous'])], 'position' => ['required', 'integer', 'min:0', 'max:6'],
+                'clarification' => ['required', Rule::in(['none', 'cpu_meaning', 'missing_reference', 'mixed_topics', 'missing_details'])],
+            ]);
+
+            return $validator->fails() || count($data) !== 15 ? null : $validator->validated();
+        } catch (Throwable $exception) {
+            $details = $this->failureDetails($exception);
+            $budget->recordFailure();
+            $this->logAttempt($started, 4, $details['failure'], $details['status'], $exception::class);
+
+            return null;
+        }
+    }
+
     public function beginTurn(): void
     {
         app(ChatbotProviderBudget::class)->reset();
@@ -53,20 +99,26 @@ class ChatbotAiAdapter
             }
         }
         $intent = $this->publicProductIntent($message, $context, $language);
-        $message = app(PublicChatbotQuery::class)->minimize($message);
+        if (isset($context['interpreted_intent'])) {
+            $intent = [...$intent, ...$context['interpreted_intent'], 'language' => $language];
+        }
+        $message = config('ai_integration.model_led') ? mb_substr($message, 0, 1000) : app(PublicChatbotQuery::class)->minimize($message);
         $message = $message !== '' ? $message : 'product information';
         $prompt = $this->preparePrompt($message, ['evidence' => $evidence, 'intent' => $intent]);
         $budget = app(ChatbotProviderBudget::class);
-        if (! $budget->reserve($prompt)) {
+        if ((config('ai_integration.adaptive') || config('ai_integration.model_led')) ? ! $budget->reserveGrounded($prompt) : ! $budget->reserve($prompt)) {
             return ['successful' => false, 'text' => null, 'failure' => 'budget_exhausted'];
         }
         $started = hrtime(true);
-        $responseTimeout = max(1, min(60, (int) config('ai_integration.gemini.response_timeout_seconds', 30), $budget->remainingSeconds()));
+        $reviewAllowance = (config('ai_integration.adaptive') || config('ai_integration.model_led')) ? (int) config('ai_integration.gemini.validation_timeout_seconds', 5) : 0;
+        $responseTimeout = max(1, min(60, (int) config('ai_integration.gemini.response_timeout_seconds', 9), $budget->remainingSeconds() - $reviewAllowance));
         try {
+            $stageStarted = hrtime(true);
             $response = (new ChatbotEvidenceAgent)->prompt($prompt,
                 provider: $this->roleProvider('response'),
                 model: (string) config('ai_integration.gemini.model'), timeout: $responseTimeout);
             $this->logUsage('response', $response);
+            Log::info('Chatbot stage completed.', ['role' => 'response', 'duration_ms' => (int) ((hrtime(true) - $stageStarted) / 1_000_000)]);
             $natural = $response instanceof StructuredAgentResponse && array_key_exists('answer', $response->structured);
             $text = $response instanceof StructuredAgentResponse
                 ? ($natural ? $renderer->draft($evidence, $response->structured, $intent) : $renderer->render($renderer->evidence($context), $response->structured)) : null;
@@ -75,13 +127,15 @@ class ChatbotAiAdapter
             }
             if ($natural || config('ai_integration.gemini.validation_enabled')) {
                 $review = $this->preparePrompt($message, ['evidence' => $evidence, 'intent' => $intent, 'answer' => $text]);
-                if (! $budget->reserve($review)) {
+                if ($budget->remainingSeconds() === 0 || ! $budget->reserve($review)) {
                     return $failure;
                 }
+                $stageStarted = hrtime(true);
                 $verdict = (new ChatbotValidationAgent)->prompt($review,
                     provider: $this->roleProvider('validation'),
                     model: (string) config('ai_integration.gemini.model'), timeout: max(1, min(60, (int) config('ai_integration.gemini.validation_timeout_seconds', 20), $budget->remainingSeconds())));
                 $this->logUsage('validation', $verdict);
+                Log::info('Chatbot stage completed.', ['role' => 'validation', 'duration_ms' => (int) ((hrtime(true) - $stageStarted) / 1_000_000)]);
                 if (! $verdict instanceof StructuredAgentResponse || $verdict->structured !== ['verdict' => 'approve']) {
                     return $failure;
                 }
@@ -193,7 +247,7 @@ class ChatbotAiAdapter
                 return null;
             }
             $response = config('ai_integration.enabled')
-                ? $agent->prompt($prompt, provider: $this->roleProvider('scope'), model: (string) config('ai_integration.gemini.model'), timeout: min($agent->timeout(), app(ChatbotProviderBudget::class)->remainingSeconds()))
+                ? $agent->prompt($prompt, provider: $this->roleProvider('scope'), model: (string) config('ai_integration.gemini.model'), timeout: min($agent->timeout(), config('ai_integration.adaptive') ? 4 : $agent->timeout(), app(ChatbotProviderBudget::class)->remainingSeconds()))
                 : $agent->prompt($prompt);
             if (config('ai_integration.enabled')) {
                 $this->logUsage('scope', $response);

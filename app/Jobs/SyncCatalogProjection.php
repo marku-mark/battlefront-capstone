@@ -26,6 +26,7 @@ class SyncCatalogProjection implements ShouldQueue
     public function __construct(public int $productId)
     {
         $this->afterCommit();
+        $this->onQueue('chatbot-indexing');
     }
 
     /** @return list<int> */
@@ -52,16 +53,21 @@ class SyncCatalogProjection implements ShouldQueue
             }
             $product = Product::query()->customerEligible()->find($this->productId);
             $document = $product ? $builder->build($product) : null;
-            if (config('ai_integration.qdrant.enabled') && $projection->qdrant_revision < $projection->revision) {
-                if ($document) {
-                    $qdrant->upsert($this->productId, $embeddings->embed($document['text'], true), ['product_id' => $this->productId, 'revision' => $projection->revision, 'category_id' => $document['category_id'], 'brand' => $document['brand'], 'component_type' => $document['component_type'], 'source_hash' => $document['hash']]);
-                } else {
-                    $qdrant->delete($this->productId);
+            $vectorFailure = null;
+            try {
+                if (config('ai_integration.qdrant.enabled') && $projection->qdrant_revision < $projection->revision) {
+                    if ($document) {
+                        $qdrant->upsert($this->productId, $embeddings->embed($document['text'], true), ['product_id' => $this->productId, 'revision' => $projection->revision, 'category_id' => $document['category_id'], 'brand' => $document['brand'], 'component_type' => $document['component_type'], 'source_hash' => $document['hash']]);
+                    } else {
+                        $qdrant->delete($this->productId);
+                    }
+                    $projection->qdrant_revision = $projection->revision;
+                    if (! $this->acknowledge($projection, 'qdrant_revision', $document['hash'] ?? null)) {
+                        return;
+                    }
                 }
-                $projection->qdrant_revision = $projection->revision;
-                if (! $this->acknowledge($projection, 'qdrant_revision', $document['hash'] ?? null)) {
-                    return;
-                }
+            } catch (Throwable $exception) {
+                $vectorFailure = $exception;
             }
             if (config('ai_integration.neo4j.enabled') && $projection->neo4j_revision < $projection->revision) {
                 $graph->project($this->productId, $projection->revision, $document);
@@ -69,6 +75,9 @@ class SyncCatalogProjection implements ShouldQueue
                 if (! $this->acknowledge($projection, 'neo4j_revision', $document['hash'] ?? null)) {
                     return;
                 }
+            }
+            if ($vectorFailure !== null) {
+                throw $vectorFailure;
             }
             CatalogProjection::query()->whereKey($projection->id)->where('revision', $projection->revision)->update([
                 'qdrant_revision' => $projection->qdrant_revision,

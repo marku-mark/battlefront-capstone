@@ -110,7 +110,7 @@ class ChatbotCatalogAdvice
     {
         $products = Product::query()->customerEligible()
             ->whereRaw('INSTR(LOWER(?), LOWER(name)) > 0', [$message])
-            ->with(['componentProfile.revisions', 'inventory', 'category', 'tags'])->orderBy('id')->limit(9)->get();
+            ->with(['componentProfile.currentApprovedRevision', 'inventory', 'category', 'tags'])->orderBy('id')->limit(9)->get();
         if (preg_match('/\b(?:earlier|previous|mentioned|that|it|those|before|kanina|ganiha|kagina)\b/iu', $message) === 1) {
             $explicitTypes = $products->map(fn ($product) => $product->componentProfile?->component_type)->filter()->all();
             $ids = [];
@@ -120,7 +120,7 @@ class ChatbotCatalogAdvice
                 }
             }
             $products = $products->merge(Product::query()->customerEligible()->whereIn('id', array_slice($ids, 0, 8))
-                ->with(['componentProfile.revisions', 'inventory', 'category', 'tags'])->limit(8)->get());
+                ->with(['componentProfile.currentApprovedRevision', 'inventory', 'category', 'tags'])->limit(8)->get());
         }
         if ($products->count() < 2 || $products->count() > 8) {
             return ['message' => 'Please provide the exact catalog names of the parts to compare. I need at least two identified parts and cannot infer a model from a product family.', 'context' => []];
@@ -137,7 +137,7 @@ class ChatbotCatalogAdvice
             if ($profile === null) {
                 return ['message' => 'A selected part has no verified component profile. Compatibility is unknown until its exact specifications are reviewed.', 'context' => []];
             }
-            $revision = $profile->revisions->firstWhere('revision', $profile->current_revision);
+            $revision = $profile->currentApprovedRevision;
             $approved = $profile->review_status === 'approved' && $revision?->review_status === 'approved';
             $components[] = [
                 'key' => (string) $product->id, 'product_id' => $product->id,

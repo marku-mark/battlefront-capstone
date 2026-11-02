@@ -7,6 +7,7 @@ use App\Models\Product;
 use App\Services\Chatbot\Retrieval\CatalogDocumentBuilder;
 use App\Services\Chatbot\Retrieval\Neo4jClient;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 class GraphCatalogCandidates
@@ -18,6 +19,7 @@ class GraphCatalogCandidates
      */
     public function ids(int $seedId): array
     {
+        $started = hrtime(true);
         if (config('ai_integration.offline') || ! config('ai_integration.enabled') || ! config('ai_integration.neo4j.enabled')) {
             return [];
         }
@@ -25,14 +27,14 @@ class GraphCatalogCandidates
             if (Cache::has('chatbot:graph:open')) {
                 return [];
             }
-            $seed = Product::query()->customerEligible()->with(['category', 'componentProfile.revisions'])->find($seedId);
+            $seed = Product::query()->customerEligible()->with(['category', 'componentProfile.currentApprovedRevision'])->find($seedId);
             $seedProjection = CatalogProjection::query()->where('product_id', $seedId)->first();
             if ($seed === null || $seedProjection === null || ! $this->current($seed, $seedProjection)) {
                 return [];
             }
             $rows = array_slice($this->graph->candidates([$seedId], $seedProjection->revision), 0, 20);
             $products = Product::query()->customerAvailable()->whereIn('id', array_column($rows, 'product_id'))
-                ->where('id', '!=', $seedId)->with(['category', 'componentProfile.revisions'])->get()->keyBy('id');
+                ->where('id', '!=', $seedId)->with(['category', 'tags', 'componentProfile.currentApprovedRevision'])->get()->keyBy('id');
             $projections = CatalogProjection::query()->whereIn('product_id', $products->modelKeys())->get()->keyBy('product_id');
             $ids = [];
             foreach ($rows as $row) {
@@ -45,8 +47,11 @@ class GraphCatalogCandidates
                 }
             }
 
+            Log::info('Chatbot retrieval completed.', ['provider' => 'neo4j', 'duration_ms' => (int) ((hrtime(true) - $started) / 1_000_000), 'candidates' => count($rows), 'accepted' => count($ids), 'status' => $ids === [] ? 'no_current_match' : 'matched']);
+
             return array_slice(array_values(array_unique($ids)), 0, 6);
         } catch (Throwable) {
+            Log::warning('Chatbot retrieval failed.', ['provider' => 'neo4j', 'duration_ms' => (int) ((hrtime(true) - $started) / 1_000_000), 'status' => 'unavailable']);
             try {
                 Cache::put('chatbot:graph:open', true, 60);
             } catch (Throwable) {

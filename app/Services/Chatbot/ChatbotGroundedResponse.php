@@ -9,6 +9,15 @@ class ChatbotGroundedResponse
     public function conversationalEvidence(array $context): array
     {
         $evidence = $this->evidence($context);
+        foreach (array_slice($context['branches'] ?? [], 0, 6) as $index => $branch) {
+            $evidence['branch:'.$index] = 'Published branch information: '.json_encode($branch, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        }
+        foreach (array_slice($context['knowledge'] ?? [], 0, 1) as $index => $faq) {
+            $evidence['faq:'.$index] = 'Approved answer: '.($faq['response_template'] ?? '');
+        }
+        if (is_string($context['guidance'] ?? null) && $context['guidance'] !== '') {
+            $evidence['policy:guidance'] = 'Authoritative application guidance: '.$context['guidance'];
+        }
         foreach (array_slice($context['products'] ?? [], 0, 6) as $index => $product) {
             $id = 'product:'.($product['id'] ?? $index);
             if (! isset($evidence[$id])) {
@@ -23,6 +32,9 @@ class ChatbotGroundedResponse
                 $evidence[$id] .= ' Approved current specifications: '.json_encode($product['approved_specifications'], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR).'.';
             } elseif (array_key_exists('specification_review_status', $product)) {
                 $evidence[$id] .= ' Verified technical specifications are unavailable; do not infer performance or compatibility from the name or description.';
+            }
+            if (preg_match('/\b(?:barebone|barebones)\b/iu', $product['name']) === 1) {
+                $evidence[$id] .= ' Barebones system: included parts do not establish a complete ready-to-use computer; confirm missing components with staff.';
             }
         }
 
@@ -40,6 +52,13 @@ class ChatbotGroundedResponse
         }
         $references = $this->render($evidence, ['evidence_ids' => $selection['evidence_ids']]);
         $answer = trim($selection['answer']);
+        if (preg_match('/\b(?:complete|ready[- ]to[- ]use|fully assembled)\b/iu', $answer) === 1) {
+            foreach ($selection['evidence_ids'] as $id) {
+                if (is_string($id) && preg_match('/\b(?:barebone|barebones)\b/iu', $evidence[$id] ?? '') === 1) {
+                    return null;
+                }
+            }
+        }
         if ($references === null || preg_match('~<[^>]+>|https?://~iu', $answer)
             || (! isset($evidence['compatibility:summary']) && preg_match('/\b(?:compatible|compatibility confirmed|will fit|will work|fully supported)\b/iu', $answer))) {
             return null;

@@ -3,6 +3,16 @@
 use App\Services\Chatbot\ChatbotProviderBudget;
 use Illuminate\Support\Facades\Cache;
 
+it('rejects embeddings when the interactive deadline has expired', function () {
+    config(['ai_integration.gemini.deadline_seconds' => 0]);
+    $budget = new ChatbotProviderBudget;
+    $budget->reset();
+
+    expect($budget->remainingSeconds())->toBe(0)
+        ->and($budget->reserve('response'))->toBeFalse()
+        ->and($budget->reserveEmbedding('public catalog'))->toBeFalse();
+});
+
 it('keeps indexing and conversational model budgets independent', function () {
     config(['ai_integration.gemini.requests_per_minute' => 1, 'ai_integration.embedding.requests_per_minute' => 1]);
     expect((new ChatbotProviderBudget)->reserve('response'))->toBeTrue();

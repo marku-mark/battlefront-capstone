@@ -46,7 +46,7 @@ class ChatbotLanguage
         '\b(?:anong oras|ano oras|ano nga oras|unsang orasa) (?:kamo |mo |kayo )?(?:magbukas|bukas|mag abri|abri|moabli|abli)\b' => 'opening hours',
         '\b(?:anong oras|ano nga oras|unsang orasa) (?:kamo |mo |kayo )?(?:magsara|mag sara|mosira|sirado)\b' => 'closing hours',
         '\b(?:ano|unsa) (?:ang )?(?:inyo|inyong) (?:contact|numero|number)\b' => 'contact number',
-        '\b(?:may ara (?:pa )?(?:kamo|kamo sang)|may stock pa|may stock ba|naa (?:pa )?moy|naa pa ba|meron (?:pa )?ba (?:kayong|kayo)|mayroon ba kayong)\b' => 'available',
+        '\b(?:may ara (?:pa )?(?:kamo|kamo sang)|may stock pa|may stock ba|naa (?:pa )?moy|naa pa ba|(?:meron|mayroon) (?:(?:pa|rin|din) )?ba (?:kayong|kayo))\b' => 'available',
         '\b(?:may ara pa|ara pa|naa pa)\b' => 'available',
         '\b(?:ano (?:ang )?(?:mga )?(?:baligya|produkto) (?:ninyo|niyo)|unsa inyong (?:baligya|mga produkto)|anong (?:mga )?products (?:meron|mayroon) kayo)\b' => 'what products do you have',
         '\b(?:tagpila|magkano|pila)(?: (?:ang|po|sang|ka))?\b' => 'price',
@@ -66,6 +66,7 @@ class ChatbotLanguage
     {
         $message = $this->withoutClarificationPrefix($this->withoutLanguageRequest($message));
         $message = preg_replace('/\b(?:pls|plz|please|kindly|hello|hi|po)\b[,:]?/iu', ' ', $message) ?? $message;
+        $message = Str::squish($message);
         $message = preg_replace_callback('/\b(?:prcie|prce|stok|availble|avalable|laptp|keybord|moniter|paymnt|delivry|oder)\b/iu', fn (array $match): string => [
             'prcie' => 'price', 'prce' => 'price', 'stok' => 'stock', 'availble' => 'available', 'avalable' => 'available',
             'laptp' => 'laptop', 'keybord' => 'keyboard', 'moniter' => 'monitor', 'paymnt' => 'payment', 'delivry' => 'delivery', 'oder' => 'order',

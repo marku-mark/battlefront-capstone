@@ -44,7 +44,7 @@ test('catalog evidence includes only scalar specifications from the currently ap
 })->with([['approved', 'approved'], ['draft', 'approved'], ['approved', 'draft']]);
 
 test('broad discovery merges semantic candidates with successful lexical results', function (string $query, ?string $semanticMessage) {
-    config(['ai_integration.enabled' => true, 'ai_integration.qdrant.enabled' => true,
+    config(['ai_integration.enabled' => true, 'ai_integration.qdrant.enabled' => true, 'ai_integration.qdrant.score_threshold' => 0.6,
         'ai_integration.qdrant.url' => 'https://vectors.example.test', 'ai_integration.qdrant.collection' => 'catalog',
         'ai_integration.qdrant.key' => 'fake', 'ai_integration.embedding.key' => 'fake']);
     $lexical = Product::factory()->available()->create(['name' => 'Gaming Monitor A']);
@@ -55,7 +55,7 @@ test('broad discovery merges semantic candidates with successful lexical results
     Http::preventStrayRequests();
     Http::fake([
         'https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent' => Http::response(['embedding' => ['values' => array_fill(0, 768, 1)]]),
-        'https://vectors.example.test/collections/catalog/points/query' => Http::response(['result' => ['points' => [['id' => $semantic->id, 'score' => .95, 'payload' => ['revision' => 1]]]]]),
+        'https://vectors.example.test/collections/catalog/points/query' => Http::response(['result' => ['points' => [['id' => $semantic->id, 'score' => .65, 'payload' => ['revision' => 1]]]]]),
     ]);
     $context = app(ResolveProductContext::class)->execute($query, $semanticMessage);
     expect(array_column($context['products'], 'id'))->toBe([$lexical->id, $semantic->id]);

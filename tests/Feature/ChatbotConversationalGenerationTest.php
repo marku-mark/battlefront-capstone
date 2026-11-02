@@ -10,6 +10,7 @@ use App\Services\Chatbot\ChatbotAiAdapter;
 use Illuminate\Support\Facades\Http;
 
 test('multiple catalog matches receive a reviewed conversational comparison', function () {
+    config(['ai_integration.gemini.deadline_seconds' => 60]);
     config(['ai_integration.enabled' => true, 'ai_integration.gemini.max_calls' => 2, 'ai_integration.gemini.tokens_per_minute' => 20000, 'ai_integration.gemini.response_timeout_seconds' => 28, 'ai_integration.gemini.validation_timeout_seconds' => 18]);
     $category = Category::factory()->create(['name' => 'Storage']);
     $first = Product::factory()->for($category)->create(['name' => 'Atlas SSD', 'price' => 2000, 'discount_price' => null]);

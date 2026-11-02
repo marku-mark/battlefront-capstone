@@ -63,6 +63,12 @@ class ChatbotConversation
     {
         $subject = $contextScope.':'.($customer?->getKey() ?? 'guest');
         $state = $this->tokens->decode($token, $subject);
+        $modelLed = app(ModelLedChatbot::class);
+        if ($modelLed->eligible($message) && ! ($this->language->explicit($message) !== null && trim($this->language->withoutLanguageRequest($message), ' .?!') === '')) {
+            $result = $modelLed->respond($message, $state, $customer);
+
+            return ['message' => $result['message'], 'source' => $result['source'], 'context_token' => $this->tokens->encode($result['state'], $subject), 'presentation' => $result['presentation']];
+        }
         $message = Str::squish($message);
         $languageMessage = $message;
         if (preg_match('/^(?:please )?(?:explain (?:that|it)(?: more)? simply|say (?:that|it) again|rephrase(?: that)?|simplify(?: that)?)[.!?]*$/iu', $message) === 1) {

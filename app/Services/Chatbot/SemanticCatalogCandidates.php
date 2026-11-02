@@ -3,11 +3,14 @@
 namespace App\Services\Chatbot;
 
 use App\Models\CatalogProjection;
+use App\Models\Category;
 use App\Models\Product;
+use App\Repositories\Catalog\CatalogSearchIntent;
 use App\Services\Chatbot\Retrieval\CatalogDocumentBuilder;
 use App\Services\Chatbot\Retrieval\GeminiEmbeddingClient;
 use App\Services\Chatbot\Retrieval\QdrantClient;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
 class SemanticCatalogCandidates
 {
@@ -20,6 +23,7 @@ class SemanticCatalogCandidates
     /** @return list<int> */
     public function ids(string $query): array
     {
+        $started = hrtime(true);
         if (config('ai_integration.offline') || ! config('ai_integration.enabled') || ! config('ai_integration.qdrant.enabled')
             || strlen($query) > 1000 || str_contains($query, '@')
             || preg_match('/\b(?:order|password|secret|address|phone|token|api key)\b/iu', $query)) {
@@ -33,14 +37,23 @@ class SemanticCatalogCandidates
             if (Cache::has('chatbot:retrieval:open')) {
                 return [];
             }
-            $vector = Cache::remember('chatbot:embedding:'.hash('sha256', json_encode([
-                config('ai_integration.embedding.model'), config('ai_integration.embedding.dimensions'), $query,
-            ], JSON_THROW_ON_ERROR)), 300, fn (): array => $this->embeddings->embed($query));
-            $rows = $this->vectors->search($vector);
+            $filters = [];
+            $intent = app(CatalogSearchIntent::class)->resolve(app(ChatbotLanguage::class)->canonical($query));
+            if (isset($intent['category'])) {
+                $categoryId = Category::query()->where('name', $intent['category'])->value('id');
+                if ($categoryId !== null) {
+                    $filters['category_id'] = (int) $categoryId;
+                }
+            }
+            $key = 'chatbot:catalog:candidates:v2:'.hash('sha256', json_encode([
+                config('ai_integration.embedding.model'), config('ai_integration.embedding.dimensions'),
+                config('ai_integration.qdrant.collection'), $query, $filters,
+            ], JSON_THROW_ON_ERROR));
+            $rows = Cache::remember($key, 60, fn (): array => $this->vectors->search($this->embeddings->embed($query), filters: $filters));
             $ids = [];
             $rows = array_slice($rows, 0, 20);
             $products = Product::query()->customerAvailable()->whereIn('id', array_column($rows, 'product_id'))
-                ->with(['category', 'componentProfile.revisions'])->get()->keyBy('id');
+                ->with(['category', 'tags', 'componentProfile.currentApprovedRevision'])->get()->keyBy('id');
             $projections = CatalogProjection::query()->whereIn('product_id', array_column($rows, 'product_id'))->get()->keyBy('product_id');
             foreach ($rows as $row) {
                 $product = $products->get($row['product_id']);
@@ -53,8 +66,11 @@ class SemanticCatalogCandidates
                 }
             }
 
+            Log::info('Chatbot retrieval completed.', ['provider' => 'qdrant', 'duration_ms' => (int) ((hrtime(true) - $started) / 1_000_000), 'candidates' => count($rows), 'accepted' => count($ids), 'status' => $ids === [] ? 'no_current_match' : 'matched']);
+
             return array_slice(array_values(array_unique($ids)), 0, 6);
         } catch (\Throwable) {
+            Log::warning('Chatbot retrieval failed.', ['provider' => 'qdrant', 'duration_ms' => (int) ((hrtime(true) - $started) / 1_000_000), 'status' => 'unavailable']);
             try {
                 Cache::put('chatbot:retrieval:open', true, 60);
             } catch (\Throwable) {

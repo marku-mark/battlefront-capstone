@@ -2,6 +2,7 @@
 
 namespace App\Services\Chatbot\Retrieval;
 
+use App\Services\Chatbot\ChatbotProviderBudget;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
@@ -29,11 +30,12 @@ class QdrantClient
     }
 
     /** @param list<float> $vector
+     * @param array<string, mixed> $filters
      * @return list<array{product_id:int,revision:int,score:float}> */
-    public function search(array $vector, int $limit = 10): array
+    public function search(array $vector, int $limit = 10, array $filters = []): array
     {
         $rows = [];
-        foreach ($this->searchDocuments($vector, $limit) as $point) {
+        foreach ($this->searchDocuments($vector, $limit, $filters) as $point) {
             if (is_numeric($point['payload']['revision'] ?? null)) {
                 $rows[] = ['product_id' => (int) $point['id'], 'revision' => (int) $point['payload']['revision'], 'score' => (float) $point['score']];
             }
@@ -43,10 +45,20 @@ class QdrantClient
     }
 
     /** @param list<float> $vector
+     * @param array<string, mixed> $filters
      * @return list<array{id: int, payload: array<string, mixed>, score: float}> */
-    public function searchDocuments(array $vector, int $limit = 10): array
+    public function searchDocuments(array $vector, int $limit = 10, array $filters = []): array
     {
-        $data = $this->request('post', '/points/query', ['query' => $vector, 'limit' => max(1, min(20, $limit)), 'with_payload' => true]);
+        $must = [];
+        foreach (['category_id', 'brand', 'component_type'] as $field) {
+            if (isset($filters[$field]) && (is_string($filters[$field]) || is_int($filters[$field]))) {
+                $must[] = ['key' => $field, 'match' => ['value' => $filters[$field]]];
+            }
+        }
+        $data = $this->request('post', '/points/query', [
+            'query' => $vector, 'limit' => max(1, min(20, $limit)), 'with_payload' => true,
+            ...($must !== [] ? ['filter' => ['must' => $must]] : []),
+        ]);
         $documents = [];
         foreach (array_slice($data['result']['points'] ?? [], 0, 20) as $point) {
             if (! is_array($point) || ! is_array($point['payload'] ?? null) || ! is_numeric($point['score'] ?? null)) {
@@ -92,7 +104,11 @@ class QdrantClient
             throw new RuntimeException('Qdrant unavailable.');
         }
         try {
-            $response = Http::acceptJson()->withHeaders(['api-key' => $key])->connectTimeout(2)->timeout(5)->withoutRedirecting()->send(strtoupper($method), $url.'/collections/'.$collection.$path, $method === 'get' ? [] : ['json' => $body]);
+            $timeout = $path === '/points/query' ? app(ChatbotProviderBudget::class)->retrievalTimeout() : 5;
+            if ($timeout === 0) {
+                throw new RuntimeException('Retrieval deadline exceeded.');
+            }
+            $response = Http::acceptJson()->withHeaders(['api-key' => $key])->connectTimeout(min(2, $timeout))->timeout($timeout)->withoutRedirecting()->send(strtoupper($method), $url.'/collections/'.$collection.$path, $method === 'get' ? [] : ['json' => $body]);
             if ($allowMissing && $response->status() === 404) {
                 return [];
             }

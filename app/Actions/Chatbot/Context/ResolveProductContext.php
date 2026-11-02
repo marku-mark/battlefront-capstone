@@ -7,6 +7,7 @@ use App\Models\Tag;
 use App\Repositories\Catalog\CatalogSearchIntent;
 use App\Repositories\Catalog\ProductCatalogRepository;
 use App\Services\Chatbot\ChatbotLanguage;
+use App\Services\Chatbot\ChatbotProviderBudget;
 use App\Services\Chatbot\SemanticCatalogCandidates;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Str;
@@ -16,6 +17,7 @@ class ResolveProductContext
     /** @var list<string> */
     private const QUERY_WORDS = [
         'and', 'also', 'plus', 'still', 'about', 'much', 'thanks', 'thank',
+        'rin', 'din',
         'ang', 'sang', 'sa', 'ng', 'mga', 'ba', 'bala', 'gid', 'bi', 'palihog', 'nga', 'pud', 'sad', 'naman', 'lang', 'na', 'man', 'pa', 'po', 'kamo', 'kayo', 'ninyo', 'niyo', 'inyong', 'inyo', 'ko', 'nako', 'it', 'there', 'inquiry', 'pila', 'magkano', 'tagpila', 'may', 'ara', 'naa', 'moy', 'meron', 'mayroon', 'kayong',
         'a',
         'an',
@@ -92,7 +94,7 @@ class ResolveProductContext
         if (config('ai_integration.enabled') && preg_match('/^\s*(?:what products (?:do you have|are available)|what do you (?:sell|have)|browse (?:the )?catalog)\s*[?.!]*$/iu', $message) === 1) {
             $products = Product::query()->customerAvailable()->with(['category', 'inventory', 'tags'])
                 ->orderBy('price')->orderBy('id')->limit(6)->get();
-            $products->loadMissing('componentProfile.revisions');
+            $products->loadMissing('componentProfile.currentApprovedRevision');
 
             return ['resolution' => $products->isEmpty() ? 'not_found' : 'matched', 'products' => array_values($products->map(fn (Product $product): array => $this->mapProduct($product))->all())];
         }
@@ -111,7 +113,7 @@ class ResolveProductContext
             }
             if ($matches->isNotEmpty()) {
                 if (config('ai_integration.enabled')) {
-                    $matches->loadMissing('componentProfile.revisions');
+                    $matches->loadMissing('componentProfile.currentApprovedRevision');
                 }
 
                 return ['resolution' => 'matched', 'search_query' => $search, 'products' => array_values($matches->map(fn (Product $product): array => ['id' => $product->id, ...$this->mapProduct($product)])->all())];
@@ -166,7 +168,7 @@ class ResolveProductContext
         }
 
         if (config('ai_integration.enabled')) {
-            $products->loadMissing('componentProfile.revisions');
+            $products->loadMissing('componentProfile.currentApprovedRevision');
         }
 
         return [
@@ -184,7 +186,7 @@ class ResolveProductContext
         $product = Product::query()->customerEligible()
             ->with(['category', 'inventory', 'tags'])->find($productId);
         if (config('ai_integration.enabled')) {
-            $product?->loadMissing('componentProfile.revisions');
+            $product?->loadMissing('componentProfile.currentApprovedRevision');
         }
 
         return ['resolution' => $product === null ? 'not_found' : 'matched', 'products' => $product === null ? [] : [$this->mapProduct($product)]];
@@ -256,10 +258,10 @@ class ResolveProductContext
     {
         $normalized = $this->normalizedText($message);
 
-        return Product::query()->customerEligible()->with(['category', 'inventory', 'tags'])
+        return app(ChatbotProviderBudget::class)->memoize('named-products:'.hash('sha256', $message), fn (): Collection => Product::query()->customerEligible()->with(['category', 'inventory', 'tags'])
             ->whereRaw('INSTR(LOWER(?), LOWER(name)) > 0', [$message])
             ->orderBy('name')->orderBy('id')->limit(6)->get()
-            ->filter(fn (Product $product): bool => $this->messageNamesProduct($normalized, $product));
+            ->filter(fn (Product $product): bool => $this->messageNamesProduct($normalized, $product)));
     }
 
     public function hasSearchTerms(string $message): bool
@@ -388,7 +390,7 @@ class ResolveProductContext
         if (config('ai_integration.enabled')) {
             $profile = $product->componentProfile;
             $revision = $profile?->review_status === 'approved'
-                ? $profile->revisions->first(fn ($revision): bool => $revision->revision === $profile->current_revision && $revision->review_status === 'approved')
+                ? $profile->currentApprovedRevision
                 : null;
             $context['specification_review_status'] = $revision === null ? 'unreviewed' : 'approved';
             $context['approved_specifications'] = $revision === null ? [] : array_filter($revision->specifications,

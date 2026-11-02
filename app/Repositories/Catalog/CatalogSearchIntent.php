@@ -22,7 +22,7 @@ class CatalogSearchIntent
         'Audio Equipment' => ['audio', 'audio equipment'],
         'Cables & Adapters' => ['cables', 'cables and adapters', 'cables & adapters'],
         'Printer' => ['printer', 'printers', 'printing machine', 'printing machines', 'print machine', 'printer machine', 'printing'],
-        'Laptops & Desktops' => ['computers', 'computer', 'pcs'],
+        'Laptops & Desktops' => ['computers', 'computer', 'pc', 'pcs'],
         'Bundles & Packages' => ['bundle', 'bundles', 'package', 'packages', 'computer package', 'computer set', 'pc bundle'],
         'CCTV & Security' => ['cctv', 'security', 'surveillance', 'security camera', 'security cameras', 'cctv camera'],
         'Cleaning & Maintenance Supplies' => ['cleaning', 'cleaning supplies', 'maintenance supplies'],

@@ -16,6 +16,7 @@ use App\Enums\ChatbotQueryCategory;
 use App\Models\Branch;
 use App\Models\User;
 use Closure;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class ChatbotOrchestrationService
@@ -62,6 +63,7 @@ class ChatbotOrchestrationService
     public function respond(string $message, ?User $customer = null, ?Closure $remember = null, ?int $productId = null, ?string $language = null, array $componentReferences = []): array
     {
         $resolvedContext = [];
+        $started = hrtime(true);
         $capture = function (ChatbotQueryCategory $category, array $context) use (&$resolvedContext, $remember): void {
             $resolvedContext = $context;
             $remember?->__invoke($category, $context);
@@ -69,6 +71,12 @@ class ChatbotOrchestrationService
         try {
             $result = $this->respondInLanguage($message, $customer, $capture, $productId, $language, $componentReferences);
         } finally {
+            app(ChatbotProviderBudget::class)->recordTurn((int) ((hrtime(true) - $started) / 1_000_000), $result['source'] ?? 'failed');
+            Log::info('Chatbot turn completed.', [
+                'duration_ms' => (int) ((hrtime(true) - $started) / 1_000_000),
+                'source' => $result['source'] ?? 'failed',
+                'usage' => app(ChatbotProviderBudget::class)->usage(),
+            ]);
             if (config('ai_integration.enabled')) {
                 app(ChatbotProviderBudget::class)->releaseTurn();
             }
@@ -113,7 +121,7 @@ class ChatbotOrchestrationService
         $advice = app(ChatbotCatalogAdvice::class);
         if ($advice->supports($normalizedMessage)
             && ! preg_match('/\b(?:ignore|instructions|system prompt|password|api key|execute|sql|cypher)\b/iu', $normalizedMessage)) {
-            if (config('ai_integration.enabled') && (int) config('ai_integration.gemini.max_calls', 1) >= 3) {
+            if (! config('ai_integration.adaptive') && config('ai_integration.enabled') && (int) config('ai_integration.gemini.max_calls', 1) >= 3) {
                 $scope = $this->chatbotAiAdapter->classify($normalizedMessage);
                 if ($scope === null || $scope['outcome'] !== 'supported' || ! in_array($scope['intent'], ['catalog_recommendation', 'component_compatibility'], true)) {
                     return $this->fallback(ChatbotQueryCategory::Product, 'Which component are you choosing, what will you use it for, and what is your budget in PHP?');
@@ -126,7 +134,7 @@ class ChatbotOrchestrationService
 
             if (config('ai_integration.enabled')
                 && ($answer['context']['products'] ?? []) !== []) {
-                $draft = $this->chatbotAiAdapter->grounded($normalizedMessage, $answer['context'], $language, scopeChecked: isset($scope));
+                $draft = $this->chatbotAiAdapter->grounded($normalizedMessage, $answer['context'], $language, scopeChecked: isset($scope) || (bool) config('ai_integration.adaptive'));
                 if ($draft['successful']) {
                     return ['category' => ChatbotQueryCategory::Product, 'message' => $draft['text'], 'source' => 'gemini'];
                 }
@@ -199,7 +207,7 @@ class ChatbotOrchestrationService
             return $this->fallback($category, 'Browse the Products catalog to see available products and filter by category or brand. Please provide a product name or model if you would like its current price or Sagay availability.');
         }
 
-        if (config('ai_integration.enabled') && (int) config('ai_integration.gemini.max_calls', 1) >= 3
+        if (! config('ai_integration.adaptive') && config('ai_integration.enabled') && (int) config('ai_integration.gemini.max_calls', 1) >= 3
             && $category === ChatbotQueryCategory::Product && ! $classifiedByAi && ! $this->resolveProductContext->isShortSearch($normalizedMessage)
             && ! $this->resolveProductContext->isCatalogSearch($normalizedMessage)) {
             $scope = $this->chatbotAiAdapter->classify($normalizedMessage);
@@ -272,8 +280,15 @@ class ChatbotOrchestrationService
             );
         }
 
+        if (config('ai_integration.adaptive') && $category === ChatbotQueryCategory::Product
+            && count($context['products'] ?? []) === 1
+            && preg_match('/\b(?:price|stock|availability|specs|specifications|details)\b/iu', $this->language->canonical($normalizedMessage)) === 1
+            && preg_match('/\b(?:compare|recommend|suggest|compatible|compatibility|versus|vs)\b/iu', $this->language->canonical($normalizedMessage)) !== 1) {
+            return $this->fallback($category, $this->renderChatbotFallback->execute($category, $intentMessage, $context) ?? self::FAQ_INFORMATION_UNAVAILABLE, $context);
+        }
+
         $result = config('ai_integration.enabled')
-            ? $this->chatbotAiAdapter->grounded($normalizedMessage, $context, $language, scopeChecked: $classifiedByAi)
+            ? $this->chatbotAiAdapter->grounded($normalizedMessage, $context, $language, scopeChecked: $classifiedByAi || (bool) config('ai_integration.adaptive'))
             : ($language === 'en'
             ? $this->chatbotAiAdapter->generate($normalizedMessage, $context)
             : $this->chatbotAiAdapter->generate($normalizedMessage, $context, $language));

@@ -10,10 +10,10 @@ class CatalogDocumentBuilder
      * @return array<string,mixed> */
     public function build(Product $product): array
     {
-        $product->loadMissing(['category', 'tags', 'componentProfile.revisions']);
+        $product->loadMissing(['category', 'tags', 'componentProfile.currentApprovedRevision']);
         $profile = $product->componentProfile;
         $revision = $profile?->review_status === 'approved'
-            ? $profile->revisions->where('revision', $profile->current_revision)->where('review_status', 'approved')->first()
+            ? $profile->currentApprovedRevision
             : null;
         $data = [
             'schema_version' => 1,

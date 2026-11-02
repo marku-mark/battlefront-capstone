@@ -2,6 +2,8 @@
 
 return [
     'offline' => false,
+    'model_led' => env('CHATBOT_MODEL_LED_ENABLED', false),
+    'adaptive' => env('CHATBOT_ADAPTIVE_PIPELINE', false),
     'enabled' => env('CHATBOT_AI_INTEGRATION_ENABLED', false),
     'sync_enabled' => env('CHATBOT_AI_SYNC_ENABLED', false),
     'advice_enabled' => env('CHATBOT_CATALOG_ADVICE_ENABLED', false),
@@ -20,9 +22,9 @@ return [
         'validation_enabled' => env('GEMINI_VALIDATION_ENABLED', true),
         'max_calls' => (int) env('CHATBOT_MAX_GEMINI_CALLS', 3),
         'max_concurrent_turns' => (int) env('CHATBOT_MAX_CONCURRENT_TURNS', 2),
-        'deadline_seconds' => (int) env('CHATBOT_TURN_DEADLINE_SECONDS', 60),
-        'response_timeout_seconds' => (int) env('CHATBOT_RESPONSE_TIMEOUT_SECONDS', 30),
-        'validation_timeout_seconds' => (int) env('CHATBOT_VALIDATION_TIMEOUT_SECONDS', 20),
+        'deadline_seconds' => (int) env('CHATBOT_TURN_DEADLINE_SECONDS', 25),
+        'response_timeout_seconds' => (int) env('CHATBOT_RESPONSE_TIMEOUT_SECONDS', 9),
+        'validation_timeout_seconds' => (int) env('CHATBOT_VALIDATION_TIMEOUT_SECONDS', 5),
         'project_budget_key' => env('GEMINI_PROJECT_BUDGET_KEY', 'battlefront'),
         'requests_per_minute' => (int) env('GEMINI_REQUESTS_PER_MINUTE', 15),
         'requests_per_day' => (int) env('GEMINI_REQUESTS_PER_DAY', 500),
@@ -36,7 +38,7 @@ return [
         'key' => env('QDRANT_API_KEY'),
         'collection' => env('QDRANT_COLLECTION', 'battlefront_products_gem001_768_v1'),
         'limit' => 10,
-        'score_threshold' => (float) env('QDRANT_SCORE_THRESHOLD', 0.7),
+        'score_threshold' => (float) env('QDRANT_SCORE_THRESHOLD', 0.6),
     ],
     'faq' => [
         'enabled' => env('CHATBOT_SEMANTIC_FAQ_ENABLED', false),

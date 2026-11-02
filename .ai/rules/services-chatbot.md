@@ -23,3 +23,9 @@ The approved multilingual refinement permits Gemini intent classification before
 
 ## Approved three-stage multilingual chatbot refinement
 The developer approved implementing the multilingual three-stage plan on 2026-11-02, superseding the older one-call limit and English-only fallback restriction. Enabled public AI turns use scope, grounded generation and review within one shared three-call budget; deterministic FAQs/private support remain zero-call. Explicit language preferences persist within identity-bound 15-minute context; English, Cebuano/Bisaya, Tagalog and Hiligaynon remain distinct. Preserve MySQL live facts, PHP compatibility verdicts and exact amounts; localized wording requires fluent-speaker review, and cloud activation/live evaluation remains separately controlled.
+
+## Adaptive public chatbot performance policy
+The developer approved adaptive Gemini stages: deterministic single-product facts skip Gemini, clear public catalog reasoning may skip scope, and free-form drafts still require review. CHATBOT_ADAPTIVE_PIPELINE gates these choices; retain legacy behavior when disabled. Reserve review capacity before adaptive generation, refund unused reservations, and keep MySQL/current approved specifications and PHP compatibility authoritative. Projection workers must consume chatbot-indexing; live cloud performance evaluation remains a separate release gate.
+
+## Model-led public chatbot remains grounded
+When CHATBOT_MODEL_LED_ENABLED and CHATBOT_AI_INTEGRATION_ENABLED are on, eligible public turns use one bounded understanding call, MySQL/approved context, grounded generation and review within a shared three-call budget. Never send private order data to the interpreter or treat model output as catalog authority. Preserve deterministic private-order authorization, PHP compatibility verdicts, current stock/price, and fallback on provider or review failure. Live activation and fluent-speaker evaluation remain separate release gates.

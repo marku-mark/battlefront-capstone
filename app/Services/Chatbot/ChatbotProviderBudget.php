@@ -16,6 +16,16 @@ class ChatbotProviderBudget
 
     private int $calls = 0;
 
+    private int $prepaidCalls = 0;
+
+    private ?float $retrievalStarted = null;
+
+    /** @var array<string, mixed> */
+    private array $memo = [];
+
+    /** @var list<array{lock: string, minute: string, day: string, tokens: int}> */
+    private array $reservations = [];
+
     private ?float $started = null;
 
     private ?Lock $lease = null;
@@ -28,6 +38,9 @@ class ChatbotProviderBudget
     {
         $this->releaseTurn();
         $this->calls = 0;
+        $this->prepaidCalls = 0;
+        $this->retrievalStarted = null;
+        $this->memo = [];
         $this->inputTokens = 0;
         $this->outputTokens = 0;
         $this->started = microtime(true);
@@ -37,6 +50,10 @@ class ChatbotProviderBudget
     {
         $this->inputTokens += max(0, $inputTokens);
         $this->outputTokens += max(0, $outputTokens);
+        $reservation = array_shift($this->reservations);
+        if ($reservation !== null && $inputTokens + $outputTokens > 0) {
+            $this->adjustReservation($reservation, $inputTokens + $outputTokens - $reservation['tokens'], false);
+        }
     }
 
     /** @return array{calls: int, input_tokens: int, output_tokens: int} */
@@ -48,6 +65,18 @@ class ChatbotProviderBudget
     public function reserve(string $input): bool
     {
         $this->started ??= microtime(true);
+        if ($this->remainingSeconds() === 0) {
+            return false;
+        }
+        if ($this->prepaidCalls > 0) {
+            if (strlen($input) > (int) config('ai_integration.gemini.max_input_bytes', 12000)) {
+                return false;
+            }
+            $this->prepaidCalls--;
+            $this->calls++;
+
+            return true;
+        }
         try {
             if (Cache::has($this->circuitKey().':open')) {
                 return false;
@@ -68,6 +97,32 @@ class ChatbotProviderBudget
             return false;
         }
         $this->calls++;
+
+        return true;
+    }
+
+    public function reserveGrounded(string $input): bool
+    {
+        $this->started ??= microtime(true);
+        try {
+            if (Cache::has($this->circuitKey().':open')) {
+                return false;
+            }
+        } catch (\Throwable) {
+            return false;
+        }
+        if ($this->calls + 2 > max(1, min(3, (int) config('ai_integration.gemini.max_calls', 3)))
+            || $this->remainingSeconds() <= (int) config('ai_integration.gemini.validation_timeout_seconds', 5)
+            || ! $this->acquireTurn()) {
+            return false;
+        }
+        if (! $this->reserveProject($input, requests: 2)) {
+            $this->releaseTurn();
+
+            return false;
+        }
+        $this->calls++;
+        $this->prepaidCalls++;
 
         return true;
     }
@@ -95,11 +150,41 @@ class ChatbotProviderBudget
 
     public function releaseTurn(): void
     {
+        while ($this->prepaidCalls > 0) {
+            $reservation = array_pop($this->reservations);
+            if ($reservation !== null) {
+                $this->adjustReservation($reservation, -$reservation['tokens'], true);
+            }
+            $this->prepaidCalls--;
+        }
+        $this->reservations = [];
         try {
             $this->lease?->release();
         } catch (\Throwable) {
         }
         $this->lease = null;
+    }
+
+    /** @param array{lock: string, minute: string, day: string, tokens: int} $reservation */
+    private function adjustReservation(array $reservation, int $tokens, bool $unused): void
+    {
+        try {
+            Cache::lock($reservation['lock'], 3)->get(function () use ($reservation, $tokens, $unused): void {
+                $key = $reservation['minute'].':tokens';
+                if (Cache::has($key)) {
+                    Cache::put($key, max(0, (int) Cache::get($key) + $tokens), 120);
+                }
+                if ($unused) {
+                    foreach ([$reservation['minute'], $reservation['day']] as $period) {
+                        $key = $period.':requests';
+                        if (Cache::has($key)) {
+                            Cache::put($key, max(0, (int) Cache::get($key) - 1), $period === $reservation['day'] ? 172800 : 120);
+                        }
+                    }
+                }
+            });
+        } catch (\Throwable) {
+        }
     }
 
     public function recordFailure(): void
@@ -129,15 +214,57 @@ class ChatbotProviderBudget
 
     public function remainingSeconds(): int
     {
-        return max(1, (int) floor((int) config('ai_integration.gemini.deadline_seconds', 25) - (microtime(true) - ($this->started ?? microtime(true)))));
+        return max(0, (int) floor((int) config('ai_integration.gemini.deadline_seconds', 25) - (microtime(true) - ($this->started ?? microtime(true)))));
+    }
+
+    public function retrievalTimeout(): int
+    {
+        if ($this->started === null) {
+            return 5;
+        }
+        $this->retrievalStarted ??= microtime(true);
+
+        return min($this->remainingSeconds(), max(0, (int) floor(5 - (microtime(true) - $this->retrievalStarted))));
+    }
+
+    public function memoize(string $key, \Closure $resolve): mixed
+    {
+        if (! array_key_exists($key, $this->memo)) {
+            $this->memo[$key] = $resolve();
+        }
+
+        return $this->memo[$key];
+    }
+
+    public function recordTurn(int $durationMs, string $source): void
+    {
+        try {
+            $prefix = 'chatbot:metrics:'.now()->format('Ymd').':';
+            $bucket = match (true) {
+                $durationMs <= 1000 => 'le_1000',
+                $durationMs <= 5000 => 'le_5000',
+                $durationMs <= 15000 => 'le_15000',
+                $durationMs <= 25000 => 'le_25000',
+                default => 'over_25000',
+            };
+            foreach (['turns', $bucket, in_array($source, ['gemini', 'fallback'], true) ? $source : 'failed'] as $metric) {
+                Cache::add($prefix.$metric, 0, 172800);
+                Cache::increment($prefix.$metric);
+            }
+        } catch (\Throwable) {
+        }
     }
 
     public function reserveEmbedding(string $input): bool
     {
+        if ($this->started !== null && $this->remainingSeconds() === 0) {
+            return false;
+        }
+
         return $this->reserveProject($input, true);
     }
 
-    private function reserveProject(string $input, bool $embedding = false): bool
+    private function reserveProject(string $input, bool $embedding = false, int $requests = 1): bool
     {
         $this->retryAfter = 60;
         if (strlen($input) > (int) config('ai_integration.gemini.max_input_bytes', 12000)) {
@@ -147,7 +274,7 @@ class ChatbotProviderBudget
         $area = $embedding ? 'embedding' : 'gemini';
         $prefix = $legacyPrefix.':model:'.hash('sha256', (string) config('ai_integration.'.$area.'.model'));
         try {
-            return Cache::lock($legacyPrefix.':lock', 3)->get(function () use ($prefix, $legacyPrefix, $area, $embedding, $input): bool {
+            return Cache::lock($legacyPrefix.':lock', 3)->get(function () use ($prefix, $legacyPrefix, $area, $embedding, $input, $requests): bool {
                 $minute = $prefix.':'.now()->format('YmdHi');
                 $day = $prefix.':'.now()->setTimezone('America/Los_Angeles')->format('Ymd');
                 $legacyDay = $legacyPrefix.':'.now()->setTimezone('America/Los_Angeles')->format('Ymd');
@@ -155,23 +282,29 @@ class ChatbotProviderBudget
                 Cache::add($day.':requests', (int) Cache::get($legacyDay.':requests', 0), 172800);
                 Cache::add($minute.':requests', (int) Cache::get($legacyMinute.':requests', 0), 120);
                 Cache::add($minute.':tokens', (int) Cache::get($legacyMinute.':tokens', 0), 120);
-                $requests = (int) Cache::get($minute.':requests', 0);
+                $usedRequests = (int) Cache::get($minute.':requests', 0);
                 $daily = (int) Cache::get($day.':requests', 0);
                 $tokens = (int) Cache::get($minute.':tokens', 0);
                 $reservation = $embedding ? strlen($input) + 512 : strlen($input) + 2048 + (int) config('ai_integration.gemini.max_output_tokens', 512);
-                if ($daily >= (int) config('ai_integration.'.$area.'.requests_per_day')) {
+                $reservation *= $requests;
+                if ($daily + $requests > (int) config('ai_integration.'.$area.'.requests_per_day')) {
                     $pacific = now()->setTimezone('America/Los_Angeles');
                     $this->retryAfter = max(60, (int) ceil($pacific->diffInSeconds($pacific->copy()->addDay()->startOfDay())) + 5);
 
                     return false;
                 }
-                if ($requests >= (int) config('ai_integration.'.$area.'.requests_per_minute')
+                if ($usedRequests + $requests > (int) config('ai_integration.'.$area.'.requests_per_minute')
                     || $tokens + $reservation > (int) config('ai_integration.'.$area.'.tokens_per_minute')) {
                     return false;
                 }
-                Cache::put($minute.':requests', $requests + 1, 120);
+                Cache::put($minute.':requests', $usedRequests + $requests, 120);
                 Cache::put($minute.':tokens', $tokens + $reservation, 120);
-                Cache::put($day.':requests', $daily + 1, 172800);
+                Cache::put($day.':requests', $daily + $requests, 172800);
+                if (! $embedding) {
+                    for ($index = 0; $index < $requests; $index++) {
+                        $this->reservations[] = ['lock' => $legacyPrefix.':lock', 'minute' => $minute, 'day' => $day, 'tokens' => intdiv($reservation, $requests)];
+                    }
+                }
 
                 return true;
             }) === true;

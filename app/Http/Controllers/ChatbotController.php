@@ -19,7 +19,7 @@ class ChatbotController extends Controller
 
         return response()->json([
             'message' => $result['message'],
-            ...isset($result['presentation']) ? ['presentation' => $result['presentation']] : [],
+            'presentation' => $result['presentation'],
             'source' => $result['source'],
             'context_token' => $result['context_token'],
             'language' => $result['language'],

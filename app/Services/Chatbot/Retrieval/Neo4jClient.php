@@ -2,6 +2,7 @@
 
 namespace App\Services\Chatbot\Retrieval;
 
+use App\Services\Chatbot\ChatbotProviderBudget;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
@@ -17,7 +18,7 @@ class Neo4jClient
      * @return list<array{product_id:int,revision:int}> */
     public function candidates(array $ids, ?int $seedRevision = null): array
     {
-        $data = $this->query('MATCH (seed:BattlefrontProduct)-[:HAS_FACT]->(fact:BattlefrontFact)<-[:HAS_FACT]-(p:BattlefrontProduct) WHERE seed.mysql_id IN $ids AND seed.visible = true AND ($seedRevision IS NULL OR seed.revision = $seedRevision) AND p.visible = true RETURN DISTINCT p.mysql_id, p.revision LIMIT 20', ['ids' => array_slice(array_values(array_filter($ids, fn ($id): bool => $id > 0)), 0, 20), 'seedRevision' => $seedRevision], true);
+        $data = $this->query('MATCH (seed:BattlefrontProduct)-[:HAS_FACT]->(fact:BattlefrontFact)<-[:HAS_FACT]-(p:BattlefrontProduct) WHERE seed.mysql_id IN $ids AND seed.visible = true AND ($seedRevision IS NULL OR seed.revision = $seedRevision) AND p.visible = true AND p.mysql_id <> seed.mysql_id AND p.component_type = seed.component_type WITH p, count(DISTINCT fact) AS relevance RETURN p.mysql_id, p.revision ORDER BY relevance DESC, p.mysql_id LIMIT 20', ['ids' => array_slice(array_values(array_filter($ids, fn ($id): bool => $id > 0)), 0, 20), 'seedRevision' => $seedRevision], true);
         $result = [];
         foreach ($data['data']['values'] ?? [] as $row) {
             if (is_numeric($row[0] ?? null) && is_numeric($row[1] ?? null)) {
@@ -51,7 +52,11 @@ class Neo4jClient
             throw new RuntimeException('Graph unavailable.');
         }
         try {
-            $response = Http::acceptJson()->withBasicAuth((string) config('ai_integration.neo4j.username'), (string) config('ai_integration.neo4j.password'))->connectTimeout(2)->timeout(5)->withoutRedirecting()->post($url.'/db/'.$database.'/query/v2', ['statement' => $statement, 'parameters' => $parameters === [] ? (object) [] : $parameters, 'accessMode' => $read ? 'Read' : 'Write']);
+            $timeout = $read ? app(ChatbotProviderBudget::class)->retrievalTimeout() : 5;
+            if ($timeout === 0) {
+                throw new RuntimeException('Retrieval deadline exceeded.');
+            }
+            $response = Http::acceptJson()->withBasicAuth((string) config('ai_integration.neo4j.username'), (string) config('ai_integration.neo4j.password'))->connectTimeout(min(2, $timeout))->timeout($timeout)->withoutRedirecting()->post($url.'/db/'.$database.'/query/v2', ['statement' => $statement, 'parameters' => $parameters === [] ? (object) [] : $parameters, 'accessMode' => $read ? 'Read' : 'Write']);
             if (! $response->successful() || ! is_array($response->json()) || $response->json('errors')) {
                 throw new RuntimeException('Graph unavailable.');
             }

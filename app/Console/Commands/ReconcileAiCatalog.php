@@ -24,7 +24,7 @@ class ReconcileAiCatalog extends Command
 
             return self::FAILURE;
         }
-        Product::withTrashed()->with(['category', 'tags', 'componentProfile.revisions'])->chunkById(100, function ($products) use ($recorder, $builder): void {
+        Product::withTrashed()->with(['category', 'tags', 'componentProfile.currentApprovedRevision'])->chunkById(100, function ($products) use ($recorder, $builder): void {
             $projections = CatalogProjection::query()->whereIn('product_id', $products->modelKeys())->get()->keyBy('product_id');
             foreach ($products as $product) {
                 $projection = $projections->get($product->id);
