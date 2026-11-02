@@ -37,9 +37,12 @@ After reviewing the target connection, `db:seed` alone creates missing accounts
 while preserving existing ones.
 
 Seeding never updates an existing account's name, password, verification state,
-activation, or role. In particular, an existing IT account remains IT and an
-existing Owner remains Owner. An existing Customer using `admin@example.com` is
-not promoted. Use explicit provisioning below if no usable Owner exists.
+activation, or role. In particular, it preserves an existing legacy IT assignment
+without granting that account administration access; the IT role is retired and
+must be resolved explicitly before the guarded retirement migration can finish.
+An existing Owner remains Owner, and an existing Customer using
+`admin@example.com` is not promoted. Use explicit provisioning below if no usable
+Owner exists.
 
 ## Fresh installation without an Owner
 
@@ -116,10 +119,13 @@ Owner retains business administration, Team management, permission management, a
 
 Fortify two-factor authentication is disabled. The retained `must_change_password`
 flag does not enforce a first-login password-change gate; the Security settings
-clear it when a password is changed. Active Administrators with a supported role
-can immediately use that role's permissions. These refinements do not introduce
-mandatory password-change, email-verification, or 2FA enrollment flows. Operators
-remain responsible for selecting and safeguarding privileged credentials.
+clear it when a password is changed. Administrators need a supported role and
+verified email before using administration. New accounts created through Team
+Management complete email OTP inline before insertion and are created verified;
+an unverified administrator provisioned outside that flow uses the existing
+credential-confirmed OTP step before login. No mandatory password-change or 2FA
+enrollment flow is introduced. Operators remain responsible for selecting and
+safeguarding privileged credentials.
 
 ## Retiring legacy IT assignments
 

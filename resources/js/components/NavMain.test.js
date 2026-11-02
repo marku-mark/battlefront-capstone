@@ -586,7 +586,7 @@ test('Manager and Owner navigation retains permitted management links without pu
     );
 });
 
-test('IT navigation keeps technical functions without Stores or product modules', async () => {
+test('permission-based administration navigation keeps granted links without business modules', async () => {
     const harness = navigationHarness({
         administrator: true,
         capabilities: { viewOrders: false, manageUsers: true, viewAudit: true },

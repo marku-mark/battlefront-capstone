@@ -77,7 +77,7 @@ test('supervisors retain claimed orders in the shared queue until completion or 
             ->where('workQueueCounts', []));
 })->with(['manager', 'owner'])->with(['completed', 'cancelled']);
 
-test('technical administrators see no business work without business permissions', function () {
+test('legacy IT assignments cannot access the business work queue', function () {
     $it = User::factory()->administrator()->create([
         'administration_role_id' => legacyItRoleId(),
     ]);

@@ -32,6 +32,7 @@ function setup(post) {
         return { question, previewResult, previewError, checkQuestion };
     })()`,
         {
+            reactive,
             ref,
             watch,
             defineProps: () => props,

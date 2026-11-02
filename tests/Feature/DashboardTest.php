@@ -552,7 +552,7 @@ test('administrators with no module permissions can still open their assigned da
     'Manager' => ['manager', 'Dashboard/Administration'],
 ]);
 
-test('IT dashboard never supplies business data even when explicitly requested', function () {
+test('legacy IT assignments never receive dashboard data, even when explicitly requested', function () {
     $it = User::factory()->administrator()->create([
         'administration_role_id' => legacyItRoleId(),
     ]);

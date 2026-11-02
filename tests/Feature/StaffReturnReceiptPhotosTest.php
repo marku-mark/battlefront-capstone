@@ -82,7 +82,7 @@ test('Staff receives either request path with product photos and exactly one qua
     }
 })->with([true, false]);
 
-test('Manager Owner IT and customers cannot record new physical return receipt', function (string $role, bool $requestPath) {
+test('Manager Owner legacy IT assignments and customers cannot record new physical return receipt', function (string $role, bool $requestPath) {
     [$order, $item, $stock, $request] = photoReceiptPurchase();
     $actor = $role === 'customer' ? $order->user : photoReceiptEmployee($role);
     $url = $requestPath ? route('administration.customer-return-requests.receive', $request) : route('administration.customer-returns.store');

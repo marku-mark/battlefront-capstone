@@ -282,7 +282,7 @@ test('assignment immediately allows the new handler to process without claiming'
     expect(Inventory::sole()->quantity)->toBe(7);
 })->with(['manager', 'owner']);
 
-test('IT cannot claim assign or process even when recorded as the handler', function () {
+test('legacy IT assignments cannot claim assign or process even when recorded as the handler', function () {
     [$order, $route, $method, $payload] = orderHandlerOperation('process');
     $it = orderHandlerActor('it');
     $target = orderHandlerActor('staff');

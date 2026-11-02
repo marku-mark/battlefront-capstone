@@ -315,7 +315,7 @@ test('historical manager or owner payments retain their independent review rules
     $this->assertDatabaseHas('customer_refund_payment_reviews', ['customer_refund_payment_id' => $payment, 'decision' => 'verified']);
 })->with(['manager', 'owner']);
 
-test('IT and customers cannot confirm nonmonetary fulfillment', function (string $role) {
+test('legacy IT assignments and customers cannot confirm nonmonetary fulfillment', function (string $role) {
     [$id, $order, $item, $stock, $receiver, $reviewer] = refinementReceived();
     app(HandleCustomerReturn::class)->decide($id, $reviewer, true, 'return_to_customer', '0.00', 'Repair agreed with customer', resolution: ['type' => 'repair', 'summary' => 'Repair and hand back original item']);
     $actor = $role === 'customer' ? $order->user : refinementEmployee('it');

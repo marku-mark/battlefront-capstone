@@ -4,7 +4,9 @@
 `local` or `testing` only. Their reserved emails are
 `demo.customer01@example.test` through `demo.customer30@example.test`; all use
 the shared password `customer123`. These are demonstration identities, not client
-records. Use the normal sign-in form; email verification remains disabled.
+records. The trusted development seeder pre-verifies these accounts, so they use
+the normal sign-in form without OTP. Public customer registration still requires
+the application's email OTP flow before authenticated access.
 
 To add the accounts without resetting existing data:
 

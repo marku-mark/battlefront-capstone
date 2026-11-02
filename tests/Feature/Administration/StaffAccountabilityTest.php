@@ -252,7 +252,7 @@ test('handler report preserves genuine historical attribution after access chang
             ->delete();
     } else {
         $handler->update(match ($change) {
-            'IT role' => ['administration_role_id' => legacyItRoleId()],
+            'legacy IT assignment' => ['administration_role_id' => legacyItRoleId()],
             'customer role' => ['role' => 'customer', 'administration_role_id' => null],
             'unassigned role' => ['administration_role_id' => null],
             'inactive account' => ['is_active' => false],
@@ -267,7 +267,7 @@ test('handler report preserves genuine historical attribution after access chang
         ->where('selected_handler_name', $handler->name)->where('transactions.total', 1)
         ->where('transactions.data.0.order_id', $order->id)->where('transactions.data.0.gross_sales', '200'));
     expect($sale->fresh()->getRawOriginal())->toBe($originalSale);
-})->with(['revoked processing permission', 'IT role', 'customer role', 'unassigned role', 'inactive account']);
+})->with(['revoked processing permission', 'legacy IT assignment', 'customer role', 'unassigned role', 'inactive account']);
 
 test('handler report keeps staff on My sales even with a customized team reporting grant', function () {
     $staff = User::factory()->administrator()->create([
@@ -299,7 +299,7 @@ test('handler report requires team permission to select other handlers', functio
     $this->get(route('administration.reports.staff', ['handler_id' => $other->id]))->assertForbidden();
 });
 
-test('handler report excludes ordinary IT handlers and keeps IT viewers outside sales reporting', function () {
+test('handler report excludes legacy IT assignments from sales reporting', function () {
     $viewer = User::factory()->administrator()->create();
     $it = User::factory()->administrator()->create([
         'administration_role_id' => legacyItRoleId(),

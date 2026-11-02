@@ -315,7 +315,7 @@ test('the named team request limiter returns JSON retry guidance without sending
     Mail::assertNothingSent();
 });
 
-test('a role change after verification cannot grant IT permission to create an owner', function () {
+test('a role change after verification cannot grant legacy IT access to create an owner', function () {
     Mail::fake();
     $actor = User::factory()->administrator()->create();
     $this->actingAs($actor)->postJson(route('administration.team.email-verification.store'), ['email' => 'new.staff@example.test'])->assertOk();

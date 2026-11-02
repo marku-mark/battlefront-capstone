@@ -127,7 +127,7 @@ test('direct theft adjustments retain the explanatory notes', function () {
     $this->assertDatabaseHas('audit_logs', ['actor_id' => $actor->id, 'reason' => 'Two units missing after shelf inspection']);
 });
 
-test('staff confirmation fields cannot bypass approval and IT cannot submit stock changes', function (string $role, string $operation) {
+test('staff confirmation fields cannot bypass approval and legacy IT assignments cannot submit stock changes', function (string $role, string $operation) {
     $actor = directInventoryActor($role);
     $product = $operation === 'opening' ? Product::factory()->create() : Product::factory()->available()->create();
     $inventory = $product->inventory;
@@ -153,7 +153,7 @@ test('staff confirmation fields cannot bypass approval and IT cannot submit stoc
     $this->assertDatabaseCount('inventory_movements', 0);
 })->with(['staff', 'it'])->with(['opening', 'update', 'count']);
 
-test('the direct action independently rejects staff and IT', function (string $role) {
+test('the direct action independently rejects staff and legacy IT assignments', function (string $role) {
     $actor = directInventoryActor($role);
     $inventory = Inventory::factory()->create(['quantity' => 10]);
     expect(fn () => app(ApplyInventoryAdjustment::class)->execute($inventory->product, $actor, 12, 'count_error', expectedQuantity: 10))

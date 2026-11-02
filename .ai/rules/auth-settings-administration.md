@@ -5,15 +5,15 @@ paths:
 
 # Auth Settings Administration
 
-## Keep email verification optional and disabled
+## Keep Fortify's default email-link verification disabled
 
-The former EXT-5 mandatory email-verification requirement is superseded. Do not implement MustVerifyEmail, enable Fortify email verification, register verification UI/routes, or apply verified middleware unless the developer explicitly re-enables the feature with a reliable queued mail provider. Keep users.email_verified_at for future re-enablement, and preserve auth plus role authorization boundaries.
+Do not enable Fortify's default email-link verification or its MustVerifyEmail workflow. The application has separate custom OTP flows for public customer registration, unverified administrator login, and inline Team account creation; preserve those flows and the authentication/role boundaries. Keep the email-verification column and custom OTP routes in place.
 
 ## Require email OTP before web and mobile authentication
 
-The developer-approved mandatory email OTP requirement supersedes the earlier disabled/optional verification decision and queued-provider condition. New customers and real administrators must verify with the shared hashed six-digit OTP (5-minute expiry, 5 attempts, 60-second resend cooldown) before login; Fortify registration must never sign in, and API registration/verification must never issue Sanctum tokens. Keep default link verification disabled, reject stale unverified sessions/tokens, and preserve credential-confirmed recovery and deferred guest shopping continuation. Only explicitly trusted demo seeders pre-verify accounts. Use configured synchronous SMTP; never inspect secrets or send real email during implementation/tests without separate authorization.
+The developer-approved mandatory email OTP requirement applies to every unverified account before authenticated access. Public customers verify after registration and receive no session or API token from registration/verification. Owner-created Team administrators verify inline before insertion and are saved verified, so they do not need a second OTP at first login; unverified administrators provisioned outside Team use credential-confirmed OTP during login. Keep default Fortify link verification disabled, reject stale unverified sessions/tokens, and preserve account-bound recovery and deferred guest shopping continuation. Only explicitly trusted demo seeders pre-verify accounts. Use configured synchronous SMTP; never inspect secrets or send real email during implementation/tests without separate authorization.
 
-## Automatically sign in only customers verified in their original web registration session
+## Superseded: original-session customer OTP sign-in
 
 The approved web registration refinement supersedes the separate-login step only for a new public customer who completes OTP verification in the original registration context with unchanged account/email/password. Consume server-only account/context/credential binding, sign in through the normal web guard without remember-me, rotate the session, and reuse Fortify LoginResponse plus guest cart/recommendation continuation. Registration itself remains unauthenticated; credential-recovery starts clear this eligibility. Existing-account recovery, administrators, and mobile verification continue to require their separate normal login; never issue mobile tokens from verification.
 
@@ -23,4 +23,4 @@ Use the named registration limiter (5 attempts/minute/IP) for both Fortify web a
 
 ## Extend customer OTP automatic sign-in to credential-confirmed web login
 
-The approved refinement supersedes the original-registration-only eligibility rule: active web customers may automatically sign in after OTP both from public registration and from a valid email/password login, including a new browser session. Replace and consume a server-only account/email/context/password-fingerprint binding; preserve the submitted login remember choice, with no remember-me at registration. Reuse Fortify LoginResponse and existing cart/intended redirects; guest recommendation transfer still requires its original account-bound registration continuation. Administrator and mobile verification retain a separate login; verification never issues Sanctum tokens.
+The approved refinement supersedes the original-registration-only eligibility rule: active web customers may automatically sign in after OTP both from public registration and from a valid email/password login, including a new browser session. Replace and consume a server-only account/email/context/password-fingerprint binding; preserve the submitted login remember choice, with no remember-me at registration. Reuse Fortify LoginResponse and existing cart/intended redirects; guest recommendation transfer still requires its original account-bound registration continuation. Unverified administrators still complete the normal credential-confirmed login flow after OTP; Team-created administrators are already verified. Mobile customers log in after OTP, and verification never issues Sanctum tokens.

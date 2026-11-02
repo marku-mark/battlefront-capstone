@@ -2,7 +2,7 @@
 
 ## Project Title
 
-**Chatbot AI integration amendment (developer-reported, 2026-11-01):** the developer authorized implementation of `docs/ai-integration/IMPLEMENTATION_PLAN.md` and confirmed an adviser-approved amendment permitting catalog-grounded chatbot recommendations and exact-part compatibility advice. This supersedes the earlier chatbot recommendation/compatibility exclusion for this implementation. MySQL and reviewed specification revisions remain authoritative; the existing deterministic PC Builder engine determines compatibility. The formal manuscript has not been edited by this task. Cloud activation, account entitlements, provider privacy review and measured multilingual evaluation remain release gates; local implementation is feature-gated.
+**Chatbot AI integration amendment (developer-reported, 2026-11-01):** the developer authorized implementation of `docs/ai-integration/IMPLEMENTATION_PLAN.md` and confirmed an adviser-approved amendment permitting catalog-grounded chatbot recommendations and exact-part compatibility advice. The approved implementation also includes optional encrypted, identity-bound local conversation history, disabled by default and never sent upstream. These approvals supersede earlier chatbot recommendation, compatibility, memory, and one-call exclusions only within this feature-gated implementation. MySQL and reviewed specification revisions remain authoritative; the existing deterministic PC Builder engine determines compatibility. The formal manuscript has not been edited by this task. Production rollout, account entitlements, provider privacy review and measured multilingual evaluation remain release gates.
 
 **Integrated Web and Mobile Business Management System with Product Recommendation, Predictive Analytics, and Integrated Chatbot for Battlefront Computer Trading**
 
@@ -244,7 +244,7 @@ The chatbot agent is configured for **Google Gemini 3.5 Flash-Lite** (`gemini-3.
 
 Laravel communicates with Gemini through the **Laravel AI SDK**, behind `ChatbotAiAdapter`. The configured timeout defaults to 20 seconds and accepts 5–30 seconds. Provider failures use the shared safe fallback; there is no automatic retry or alternate provider.
 
-Gemini is used for generating the final natural-language chatbot response after the application has already categorized the inquiry and retrieved relevant system data.
+The default configuration keeps provider integration, model-led understanding, and adaptive orchestration disabled. In the legacy route, the application screens, categorizes, and resolves authoritative context before eligible generation. When the approved model-led path is enabled, a screened public catalog inquiry may use bounded intent understanding before retrieval; grounded generation and review still use current MySQL and approved specification evidence within the shared three-call ceiling. Deterministic FAQ and private-order support remain zero-call in the new path. All provider calls use ChatbotAiAdapter.
 
 Gemini is not the authoritative source for:
 
@@ -252,9 +252,9 @@ Gemini is not the authoritative source for:
 - product prices;
 - order status;
 - branch information;
-- product recommendations.
+- recommendation ranking and compatibility verdicts.
 
-System/database data remains authoritative for those facts.
+MySQL remains authoritative for live stock, prices, orders, branches, and approved specification revisions. Qdrant and Neo4j are rebuildable candidate projections; the PHP CompatibilityEngine owns compatibility verdicts. The approved chatbot can explain current catalog recommendations and exact-part compatibility using that evidence, but generated text cannot create or override facts.
 
 ---
 
@@ -330,8 +330,8 @@ The product-only monthly Holt–Winters forecasting controller/service/requests/
 ## Authorization Boundaries
 
 - Public registration creates customers; request input cannot grant administrator privileges.
-- Team Management requires email verification before creating an administrator. An authorized Owner or IT administrator sends an OTP from the Add team member form, and the recipient personally enters it there. No user record exists until final creation. A hashed, session-bound temporary challenge uses the existing configured mailer, five-minute codes, five attempts, and a sixty-second resend cooldown. Successful verification grants a ten-minute, single-use proof for the exact email; creation rechecks authority and creates the verified account without switching the creator's session. Changing the email invalidates the proof. Owner/IT role-assignment boundaries, existing account recovery, trusted seeders and CLI provisioning remain unchanged. Temporary state uses the existing cache; no invitations or additional database tables are introduced.
-- Fortify handles web session authentication. Email ownership verification is mandatory before login: registration creates an unverified customer, sends a six-digit email OTP through the configured Laravel mailer, and grants no authenticated session or mobile token. The shared OTP flow uses five-minute codes, five attempts per issued code, a sixty-second resend cooldown, hashed storage, and account/IP rate limits. Successful verification sets `email_verified_at`. Web customers completing verification in their registration session or after supplying valid login credentials are then signed in automatically and follow the existing cart/intended-page/dashboard redirect. Eligibility is bound to the account, email, OTP context, and unchanged password; login retains the submitted remember-me choice, while registration does not enable it. Returning through login replaces the pending authentication binding, including when the original registration session was lost. Guest recommendation continuation remains restricted to the original account-bound registration session. Administrator verification and mobile verification retain the separate login step. Fortify's default email-link workflow remains disabled.
+- Team Management requires email verification before creating an administrator. Only an authorized Owner sends an OTP from the Add team member form, and the recipient personally enters it there; legacy IT assignments have no Team access. No user record exists until final creation. A hashed, session-bound temporary challenge uses the existing configured mailer, five-minute codes, five attempts, and a sixty-second resend cooldown. Successful verification grants a ten-minute, single-use proof for the exact email; creation rechecks authority and creates the verified account without switching the creator's session. Changing the email invalidates the proof. Preserve Owner role-assignment boundaries, existing account recovery, trusted seeders and CLI provisioning. Temporary state uses the existing cache; no invitations or additional database tables are introduced.
+- Fortify handles web session authentication. Email ownership verification is mandatory before authenticated access: public registration creates an unverified customer, sends a six-digit email OTP through the configured Laravel mailer, and grants no authenticated session or mobile token. The shared OTP flow uses five-minute codes, five attempts per issued code, a sixty-second resend cooldown, hashed storage, and account/IP rate limits. Successful verification sets `email_verified_at`. Web customers completing verification in their registration session or after supplying valid login credentials are then signed in automatically and follow the existing cart/intended-page/dashboard redirect. Eligibility is bound to the account, email, OTP context, and unchanged password; login retains the submitted remember-me choice, while registration does not enable it. Returning through login replaces the pending authentication binding, including when the original registration session was lost. Guest recommendation continuation remains restricted to the original account-bound registration session. Unverified administrators provisioned outside Team verify after valid credentials; Team-created administrators verify inline before insertion and are already verified at login. Mobile customers verify first and then log in. Fortify's default email-link workflow remains disabled.
 - Administrator web routes require authentication and `access-administration`. Customer cart, checkout, and order routes require the customer role and enforce resource ownership.
 - Guests can browse products/branches and use browser recommendations personalized from temporary search and product-view history, plus the storefront chatbot. The mobile guest recommendation feed remains popular/featured. Administrators cannot use customer commerce, recommendations, or the storefront chatbot.
 - The mobile API is customer-facing only. Protected operations require Sanctum bearer authentication, verified email ownership, and the customer gate; browser sessions do not authenticate these API calls. Registration and valid credentials for an unverified customer return a restricted OTP verification context rather than a token. Existing unverified tokens are rejected. Tokens issued after verified login expire after 30 days, and logout revokes only the presented token.
@@ -614,7 +614,7 @@ Do not delete historical forecasts. The database retains both legacy method iden
 
 # 10. Chatbot Module
 
-**Customer-support refinement (30 October 2026):** The existing shared web/mobile pipeline now gives configuration-backed PayMongo/manual-payment guidance, separates COD collection from remittance, and explains regional shipping estimates and gateway-safe cancellation. Application rules remain authoritative over managed FAQs. Five approved PC Builder usage FAQs cover getting started, selecting components, saved/shared builds, templates, and where to view compatibility results; they do not authorize hardware advice or recommendations. The development FAQ seeder now contains nine presets, preserving administrator edits and inactive entries on rerun. Missing/inactive help returns unavailable information rather than another builder topic. The web panel offers six quick-question topics with return/refund and PC Builder submenus. Leaf questions submit through the existing endpoint, preserve the composer draft, and start fresh topic context without clearing the transcript. Personal statuses still require an owned BF reference; the chatbot performs no commerce or payment actions. No automatic seeding or manuscript amendment is part of this refinement.
+**Customer-support refinement (30 October 2026):** The existing shared web/mobile pipeline now gives configuration-backed PayMongo/manual-payment guidance, separates COD collection from remittance, and explains regional shipping estimates and gateway-safe cancellation. Application rules remain authoritative over managed FAQs. Five approved PC Builder usage FAQs cover getting started, selecting components, saved/shared builds, templates, and where to view compatibility results. At that time, these FAQs did not authorize hardware advice or recommendations; the later 1 November amendment above approves feature-gated catalog-grounded recommendations and exact-part compatibility advice. The development FAQ seeder now contains nine presets, preserving administrator edits and inactive entries on rerun. Missing/inactive help returns unavailable information rather than another builder topic. The web panel offers six quick-question topics with return/refund and PC Builder submenus. Leaf questions submit through the existing endpoint, preserve the composer draft, and start fresh topic context without clearing the transcript. Personal statuses still require an owned BF reference; the chatbot performs no commerce or payment actions. No automatic seeding or manuscript amendment is part of this refinement.
 
 The chatbot uses a **hybrid deterministic + generative architecture**.
 
@@ -654,7 +654,7 @@ The retrieved information is combined with the customer's query and provided as 
 Gemini produces the final natural-language response.
 
 ```text
-Categorization = deterministic
+Categorization = deterministic by default; optional model-led intent is feature-gated and follows privacy/scope screening
 Data retrieval = application/database controlled
 Final wording = generative when safe context/provider are available; otherwise grounded fallback
 ```
@@ -663,15 +663,15 @@ Unsupported inquiries use predefined fallback behavior.
 
 ## Implemented Privacy and Scope Controls
 
-- Normalize and route deterministically, clarify ambiguous/multiple topics, and retrieve only the selected category's authoritative context before calling the AI adapter.
+- Apply deterministic privacy and scope gates before any provider call. The legacy route categorizes and retrieves context first; optional model-led intent understanding may precede retrieval only for eligible screened public catalog inquiries. Never send private order data to the intent model. Ground generation and review in freshly resolved authoritative facts.
 - Public product/store/FAQ inquiries work for guests. Personal order inquiries require a customer identity and recheck ownership; foreign/missing orders share a safe fallback. Only Sagay live inventory is available.
 - Product, price, inventory, order, and branch facts come from live application data. Active approved knowledge supplies FAQ content and must not override live facts. Sensitive input and absent/unsupported context are handled before a provider call.
 - Provider timeout/failure/empty output uses existing resolver facts and approved fallback wording without inventing business facts. No automatic retries or alternate AI provider are enabled.
-- Follow-ups use an encrypted 15-minute context token holding references/clarification state, not a persistent chat transcript. Web context is session/user-bound; mobile customer context is account/bearer-token-bound. Guest API context continues public topics only and supplies no identity. Reset current-chat memory on New chat or identity/token changes, and requery live facts each turn.
+- Follow-ups use an encrypted 15-minute context token holding references/clarification state. The web client separately retains a bounded transcript in tab-scoped session storage for 15 minutes. Optional `CHATBOT_MEMORY_ENABLED` stores encrypted, identity-bound local history for at most seven days; it is disabled by default, never sent upstream, and excludes private order conversations. Web context is session/user-bound; mobile customer context is account/bearer-token-bound. Guest API context continues public topics only and supplies no identity. Reset current-chat memory on New chat or identity/token changes, and requery live facts each turn.
 - Rate limits are five guest questions per minute by IP and ten customer questions per minute by customer identity; the API also has its global limiter.
-- Open-domain chat, complex complaint resolution, compatibility advice, and chatbot-driven recommendations are outside scope. Do not invent warranty/refund/repair or other business policies absent approved context.
+- Open-domain chat and complex complaint resolution remain outside scope. The approved feature-gated chatbot may provide catalog-grounded recommendations and exact-part compatibility advice; the PHP CompatibilityEngine owns compatibility verdicts. Do not invent warranty/refund/repair or other business policies absent approved context.
 
-The chatbot does not perform the Product Recommendation Module's recommendation logic.
+Conversational catalog suggestions are separate from the behavioral Product Recommendation Module and do not replace its recommendation logic.
 
 ---
 
@@ -734,7 +734,7 @@ EXT-6 is Done. Its recorded baseline decisions remain useful historical context,
 - keep branch email reference data in application configuration; the current schema has no `branches.email` column.
 - keep deactivated categories, products, and chatbot knowledge in the database for historical and administrative reference, allow administrators to reactivate them, and prohibit physical deletion when historically referenced;
 - exclude inactive products from the customer catalog, cart eligibility, and recommendation results; exclude inactive categories and their products from customer browsing; and exclude inactive chatbot knowledge from chatbot retrieval;
-- keep recommendations behavioral and rule-based using retained searches/views/dwell, cart context and completed purchases; preserve current active catalog/Sagay stock eligibility and exclude explicit PC-part compatibility/configurator behavior.
+- keep the Product Recommendation Module behavioral and rule-based using retained searches/views/dwell, cart context and completed purchases; preserve current active catalog/Sagay stock eligibility and exclude explicit PC-part compatibility/configurator behavior from that module.
 
 Subsequent implemented schema/commerce decisions include:
 

@@ -92,7 +92,7 @@ test('Owner can inspect Owner permission changes while other roles retain restri
             ] : []));
 })->with(['Owner' => ['owner', true], 'Manager' => ['manager', false]]);
 
-test('IT never receives restricted business details even for events performed by IT', function (string $action, string $subjectType) {
+test('legacy IT assignments cannot receive restricted business audit details, including historic IT events', function (string $action, string $subjectType) {
     $it = User::factory()->administrator()->create([
         'administration_role_id' => legacyItRoleId(),
     ]);
@@ -147,7 +147,7 @@ test('Owner account details preserve recursive credential and private path redac
             ->missing('entries.data.0.changes'));
 });
 
-test('IT audit access does not permit permission changes or exports', function () {
+test('legacy IT assignments cannot access audit details or exports', function () {
     $it = User::factory()->administrator()->create([
         'administration_role_id' => legacyItRoleId(),
     ]);

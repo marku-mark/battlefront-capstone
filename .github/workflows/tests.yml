@@ -59,8 +59,8 @@ jobs:
 
     env:
       APP_ENV: testing
-      DB_CONNECTION: sqlite
-      DB_DATABASE: ':memory:'
+      DB_CONNECTION: mysql
+      DB_DATABASE: battlefront_test
       DB_HOST: 127.0.0.1
       DB_PORT: 3306
       DB_USERNAME: root
@@ -79,9 +79,6 @@ jobs:
           extensions: bcmath, gd, pdo_mysql
           tools: composer:v2
           coverage: none
-
-      - name: Prepare SQLite database
-        run: touch database/database.sqlite
 
       - name: Install PHP dependencies
         run: composer install --no-interaction --prefer-dist

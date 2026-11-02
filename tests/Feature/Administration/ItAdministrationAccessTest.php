@@ -23,7 +23,7 @@ test('retired IT administrators cannot manage accounts or review audits', functi
     expect($manager->fresh()->administrationRoleCode())->toBe('manager');
 });
 
-test('IT administrators cannot create or alter owner and IT accounts', function () {
+test('legacy IT assignments cannot create or alter administration accounts', function () {
     $it = User::factory()->administrator()->create([
         'administration_role_id' => legacyItRoleId(),
     ]);

@@ -3,6 +3,7 @@
 use App\Ai\Agents\ChatbotIntentAgent;
 use App\Ai\Agents\ChatbotResponseAgent;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -21,12 +22,15 @@ use Tests\TestCase;
 pest()->extend(TestCase::class)
     ->use(RefreshDatabase::class)
     ->beforeEach(function () {
+        Cache::store('array')->flush();
         config()->set('inertia.ssr.enabled', false);
         // Chatbot verification must never consume the configured Gemini quota.
         config()->set('ai.providers.gemini.key', 'testing-only');
         config()->set([
             'ai_integration.enabled' => false,
             'ai_integration.offline' => false,
+            'ai_integration.model_led' => false,
+            'ai_integration.adaptive' => false,
             'ai_integration.faq.enabled' => false,
             'ai_integration.localization_enabled' => false,
             'ai_integration.sync_enabled' => false,

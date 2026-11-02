@@ -248,7 +248,7 @@ test('withdrawn requests and invalid conditions cannot be physically received', 
     expect($inventory->refresh()->quarantined_quantity)->toBe(0);
 });
 
-test('IT and customers cannot receive customer requests', function (string $role) {
+test('legacy IT assignments and customers cannot receive customer requests', function (string $role) {
     [$order, $item] = returnRequestPurchase();
     $record = app(HandleCustomerReturnRequest::class)->submit($order->user, $order->id, returnRequestPayload($item));
     $actor = $role === 'customer' ? $order->user : returnRequestEmployee($role);

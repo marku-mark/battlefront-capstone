@@ -249,7 +249,7 @@ test('saving default permissions rejects a stale role version without overwritin
     $this->assertDatabaseCount('audit_logs', 1);
 });
 
-test('default permissions do not make Owner or IT permissions editable', function (string $role) {
+test('default permissions do not make Owner or legacy IT permissions editable', function (string $role) {
     $owner = User::factory()->administrator()->create();
     $before = DB::table('administration_role_permissions')->get()->toArray();
 
