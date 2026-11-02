@@ -97,10 +97,18 @@ class ResolveProductContext
             return ['resolution' => $products->isEmpty() ? 'not_found' : 'matched', 'products' => array_values($products->map(fn (Product $product): array => $this->mapProduct($product))->all())];
         }
         $catalogQuery = $this->catalogSearchQuery($message);
-        $useCatalogIntent = $catalogQuery !== null && $this->namedProducts($message)->isEmpty();
-        if ($this->isShortSearch($message) || $useCatalogIntent) {
+        $useCatalogIntent = $catalogQuery !== null && ! $this->namesProduct($message);
+        $catalogFallback = null;
+        $requiresReasoning = $this->requiresReasoning($semanticMessage ?? $message);
+        $reasoningProducts = $requiresReasoning && $useCatalogIntent
+            ? $this->products->chatbotSearch($catalogQuery, useProvider: false) : null;
+        if (! $requiresReasoning && ($this->isShortSearch($message) || $useCatalogIntent)) {
             $search = $useCatalogIntent ? $catalogQuery : $message;
-            $matches = $this->products->chatbotSearch($search);
+            $useProvider = config('scout.driver') === 'algolia';
+            $matches = $this->products->chatbotSearch($search, useProvider: $useProvider);
+            if ($useProvider && $matches->isEmpty()) {
+                $matches = $this->products->chatbotSearch($search, useProvider: false);
+            }
             if ($matches->isNotEmpty()) {
                 if (config('ai_integration.enabled')) {
                     $matches->loadMissing('componentProfile.revisions');
@@ -109,7 +117,7 @@ class ResolveProductContext
                 return ['resolution' => 'matched', 'search_query' => $search, 'products' => array_values($matches->map(fn (Product $product): array => ['id' => $product->id, ...$this->mapProduct($product)])->all())];
             }
             if (! $this->namedProducts($message)->contains(fn (Product $product): bool => ($product->inventory->quantity ?? 0) === 0)) {
-                return ['resolution' => 'not_found', 'products' => []];
+                $catalogFallback = $useCatalogIntent ? $search : null;
             }
         }
         $terms = $this->meaningfulTerms($message);
@@ -119,8 +127,8 @@ class ResolveProductContext
         }
 
         $normalizedMessage = $this->normalizedText($message);
-        $namedProducts = $this->namedProducts($message);
-        if ($namedProducts->isEmpty()) {
+        $namedProducts = $catalogFallback === null ? $this->namedProducts($message) : (new Product)->newCollection();
+        if ($catalogFallback === null && $namedProducts->isEmpty()) {
             $literalTerms = $this->meaningfulTerms($message, canonical: false);
             $candidates = $this->products->contextMatches($literalTerms);
             if ($terms !== $literalTerms) {
@@ -129,21 +137,22 @@ class ResolveProductContext
             $namedProducts = $candidates
                 ->filter(fn (Product $product): bool => $this->messageNamesProduct($normalizedMessage, $product));
         }
-        $products = $namedProducts->isNotEmpty()
+        $products = $catalogFallback !== null ? (new Product)->newCollection() : ($namedProducts->isNotEmpty()
             ? $namedProducts
-            : $this->products->contextMatches($terms, availableOnly: true, includeDescription: false);
+            : $this->products->contextMatches($terms, availableOnly: true, includeDescription: false));
 
-        if ($products->isEmpty() && count($terms) > 1) {
+        if ($catalogFallback === null && $products->isEmpty() && count($terms) > 1) {
             $products = $this->products->contextMatches($terms, availableOnly: true);
+        }
+        if ($reasoningProducts !== null && $namedProducts->isEmpty()) {
+            $products = $reasoningProducts;
         }
 
         $semanticDiscovery = $namedProducts->isEmpty()
             && preg_match('/\b(?:for|gaming|office|editing|streaming|affordable|budget|cheap|barato|work|recommend|suggest)\b/iu', $semanticMessage ?? $message) === 1;
         if (($products->isEmpty() || $semanticDiscovery) && config('ai_integration.enabled') && config('ai_integration.qdrant.enabled')) {
             $ids = app(SemanticCatalogCandidates::class)->ids($semanticMessage ?? $message);
-            $semanticProducts = Product::query()->customerAvailable()->with(['category', 'inventory', 'tags'])
-                ->whereIn('id', $ids)->limit(6)->get()
-                ->sortBy(fn (Product $product): int => (int) array_search($product->id, $ids, true));
+            $semanticProducts = $this->products->chatbotSemanticMatches($ids, $catalogFallback ?? ($reasoningProducts !== null ? $catalogQuery : null));
             $scores = [];
             foreach ([$products->values(), $semanticProducts->values()] as $ranking) {
                 foreach ($ranking as $rank => $candidate) {
@@ -162,6 +171,7 @@ class ResolveProductContext
 
         return [
             'resolution' => $products->isEmpty() ? 'not_found' : 'matched',
+            ...($catalogFallback !== null && $products->isNotEmpty() ? ['search_query' => $catalogFallback] : []),
             'products' => array_values($products
                 ->map(fn (Product $product): array => $this->mapProduct($product))
                 ->all()),
@@ -184,14 +194,19 @@ class ResolveProductContext
     {
         $words = preg_split('/\s+/u', trim($message), -1, PREG_SPLIT_NO_EMPTY) ?: [];
 
-        return config('scout.driver') === 'algolia' && count($words) >= 1 && count($words) <= 5 && $this->meaningfulTerms($message) !== []
+        return ! $this->requiresReasoning($message) && config('scout.driver') === 'algolia' && count($words) >= 1 && count($words) <= 5 && $this->meaningfulTerms($message) !== []
             && array_intersect(array_map(fn (string $word): string => mb_strtolower(trim($word, '?.!,')), $words), self::QUERY_WORDS) === []
             && ! preg_match('/\b(?:price|cost|stock|available|specs|details|where|how|order|refund|payment|delivery)\b/iu', $message);
     }
 
     public function isCatalogSearch(string $message): bool
     {
-        return $this->catalogSearchQuery($message) !== null && $this->namedProducts($message)->isEmpty();
+        return ! $this->requiresReasoning($message) && $this->catalogSearchQuery($message) !== null && ! $this->namesProduct($message);
+    }
+
+    private function requiresReasoning(string $message): bool
+    {
+        return preg_match('/\b(?:compare|comparison|difference|versus|vs|compatible|compatibility|recommend|suggest|budget|affordable|for (?:gaming|office|school|editing|streaming|work))\b/iu', (new ChatbotLanguage)->canonical($message)) === 1;
     }
 
     public function namesProduct(string $message): bool
@@ -205,7 +220,10 @@ class ResolveProductContext
     public function matchesCatalogTerms(string $message): bool
     {
         $catalogQuery = $this->catalogSearchQuery($message);
-        if (($this->isShortSearch($message) || $catalogQuery !== null) && $this->products->chatbotSearch($catalogQuery ?? $message)->isNotEmpty()) {
+        if ($catalogQuery !== null) {
+            return true;
+        }
+        if ($this->isShortSearch($message) && $this->products->chatbotSearch($message)->isNotEmpty()) {
             return true;
         }
         $candidates = $this->products->contextMatches($this->meaningfulTerms($message), limit: 6, includeDescription: false);
@@ -217,9 +235,6 @@ class ResolveProductContext
 
     private function catalogSearchQuery(string $message): ?string
     {
-        if (config('scout.driver') !== 'algolia') {
-            return null;
-        }
         $language = new ChatbotLanguage;
         $ignored = array_values(array_diff([...self::QUERY_WORDS, 'specs', 'specifications', 'details', 'description'], ['for', 'with', 'a', 'an']));
         $pattern = '/\b(?:'.implode('|', array_map(fn (string $word): string => preg_quote($word, '/'), $ignored)).')\b/iu';
@@ -230,10 +245,10 @@ class ResolveProductContext
         $intent = $resolver->resolve($query);
         $literalIntent = $resolver->resolve($literal);
         if ($literalIntent !== null && ($intent === null || $literalIntent['category'] !== $intent['category'])) {
-            return $literal;
+            return $this->products->hasChatbotCategory($literal) ? $literal : null;
         }
 
-        return $intent !== null ? $query : null;
+        return $intent !== null && $this->products->hasChatbotCategory($query) ? $query : null;
     }
 
     /** @return Collection<int, Product> */

@@ -209,6 +209,6 @@ class ChatbotLanguage
     public function classifierCandidate(string $message): bool
     {
         return ! $this->blocked($message)
-            && preg_match('/\b(?:battlefront|your shop|inyong shop|inyo nga shop|purchase|bought|parcel|checkout|tindahan|products?|catalog|gpu|cpu|motherboard|ram|ssd|payment|delivery|pickup|refund|order|monitor|keyboard|mouse|headset|processor|storage|laptop|desktop|warranty|repair|account|compare|price|stock|budget)\b/iu', $this->canonical($message)) === 1;
+            && preg_match('/\b(?:battlefront|your shop|inyong shop|inyo nga shop|purchase|bought|parcel|checkout|tindahan|products?|catalog|gpu|cpu|motherboard|ram|ssd|payment|delivery|pickup|refund|order|monitor|keyboard|mouse|headset|processor|storage|laptop|desktop|warranty|repair|account|compare|price|stock|budget|portable|gaming|office|school|editing|streaming|workstation)\b/iu', $this->canonical($message)) === 1;
     }
 }

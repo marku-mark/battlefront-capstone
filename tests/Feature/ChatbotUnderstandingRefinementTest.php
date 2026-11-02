@@ -38,7 +38,7 @@ test('CPU inquiries resolve processors and preserve accessory and model names', 
     ChatbotResponseAgent::fake(fn () => throw new AiException)->preventStrayPrompts();
     $result = app(ChatbotConversation::class)->respond('price of CPU', null, null, 'processor-alias');
     expect($result['message'])->toContain('AMD Ryzen 5 5600', 'PHP 5,000.00')
-        ->and($result['presentation']['actions'][0]['id'])->toBe($product->id);
+        ->and($result['presentation']['products'][0]['id'])->toBe($product->id);
 });
 
 test('related price and stock requests return both current facts and a grounded link', function () {

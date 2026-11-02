@@ -71,16 +71,41 @@ class ProductCatalogRepository
     }
 
     /** @return EloquentCollection<int, Product> */
-    public function chatbotSearch(string $search): EloquentCollection
+    public function chatbotSearch(string $search, bool $useProvider = true): EloquentCollection
     {
         $intent = app(CatalogSearchIntent::class)->resolve($search);
-        $query = $this->catalogQuery(['q' => $search], $intent)->customerAvailable()
+        $query = $this->catalogQuery(['q' => $search], $intent, $useProvider)->customerAvailable()
             ->with('inventory:id,product_id,quantity,reorder_level');
         if ($intent !== null) {
             $this->prioritizePrimaryProducts($query, $intent, onlyPrimary: true);
         }
 
         return $query->orderByDesc('is_featured')->orderBy('name')->orderBy('id')->limit(3)->get();
+    }
+
+    public function hasChatbotCategory(string $search): bool
+    {
+        $intent = app(CatalogSearchIntent::class)->resolve($search);
+
+        return $intent !== null && Category::query()->active()
+            ->whereRaw('LOWER(name) = ?', [mb_strtolower($intent['category'])])->exists();
+    }
+
+    /** Rehydrate semantic IDs through the same live intent and device constraints, without calling a search provider.
+     * @param  list<int>  $ids
+     * @return EloquentCollection<int, Product>
+     */
+    public function chatbotSemanticMatches(array $ids, ?string $search = null): EloquentCollection
+    {
+        $intent = $search === null ? null : app(CatalogSearchIntent::class)->resolve($search);
+        $query = $this->catalogQuery($search === null ? [] : ['q' => $search], $intent, useProvider: false)
+            ->customerAvailable()->whereIn('products.id', array_slice($ids, 0, 6))
+            ->with('inventory:id,product_id,quantity,reorder_level');
+        if ($intent !== null) {
+            $this->prioritizePrimaryProducts($query, $intent, onlyPrimary: true);
+        }
+
+        return $query->limit(6)->get()->sortBy(fn (Product $product): int => (int) array_search($product->id, $ids, true))->values();
     }
 
     public function findEligibleOrFail(int $productId): Product
@@ -385,7 +410,7 @@ class ProductCatalogRepository
      * @param  array{category: string, query: string}|null  $intent
      * @return Builder<Product>
      */
-    private function catalogQuery(array $filters = [], ?array $intent = null): Builder
+    private function catalogQuery(array $filters = [], ?array $intent = null, bool $useProvider = true): Builder
     {
         return Product::query()
             ->customerEligible()
@@ -399,7 +424,7 @@ class ProductCatalogRepository
                 'tags:id,name',
             ])
             ->withExists('lowStockInventory as is_low_stock')
-            ->when($filters['q'] ?? null, function (Builder $query, string $search) use ($intent): void {
+            ->when($filters['q'] ?? null, function (Builder $query, string $search) use ($intent, $useProvider): void {
                 $quoted = app(CatalogSearchIntent::class)->quotedSearch($search);
                 $search = $quoted['query'] ?? app(CatalogSearchIntent::class)->normalizeQuery($search);
                 if ($intent !== null) {
@@ -410,7 +435,7 @@ class ProductCatalogRepository
                     }
                 }
 
-                $ids = trim($search) === '' ? null : app(CatalogSearch::class)->matchingIds($search);
+                $ids = ! $useProvider || trim($search) === '' ? null : app(CatalogSearch::class)->matchingIds($search);
 
                 if ($ids !== null) {
                     $query->whereKey($ids);

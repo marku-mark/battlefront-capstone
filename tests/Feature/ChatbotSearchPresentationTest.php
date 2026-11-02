@@ -7,6 +7,7 @@ use App\Models\Product;
 use App\Repositories\Catalog\CatalogSearch;
 use App\Services\Chatbot\ChatbotConversation;
 use App\Services\Chatbot\PublicChatbotQuery;
+use App\Services\Chatbot\SemanticCatalogCandidates;
 
 beforeEach(function () {
     Product::disableSearchSyncing();
@@ -26,10 +27,10 @@ test('short searches return live catalog facts for provider candidates', functio
         ->and($result['products'][0]['price'])->toBe('2500.00');
 })->with(['Kingston', 'Kingston drive', 'Kingston gaming drive', 'Kingston gaming solid drive', 'Kingston gaming solid state drive']);
 
-test('successful empty provider results stay empty', function () {
-    Product::factory()->available()->create(['name' => 'Kingston Drive']);
+test('empty indexed results fall back to current database products in the chatbot', function () {
+    $product = Product::factory()->available()->create(['name' => 'Kingston Drive']);
     $this->mock(CatalogSearch::class)->shouldReceive('matchingIds')->andReturn([]);
-    expect(app(ResolveProductContext::class)->execute('Kingston')['products'])->toBe([]);
+    expect(app(ResolveProductContext::class)->execute('Kingston')['products'][0]['id'])->toBe($product->id);
 });
 
 test('database fallback provides readable cards without generation', function () {
@@ -147,4 +148,76 @@ test('AI-enabled printer discovery uses authoritative catalog intent without sco
 
 test('public classifier vocabulary includes shared catalog terms without customer identity text', function () {
     expect(app(PublicChatbotQuery::class)->minimize('printer ink UPS Maria Santos'))->toBe('printer ink ups');
+});
+
+test('category understanding and device filtering work without Algolia', function () {
+    config(['scout.driver' => 'collection']);
+    $category = Category::factory()->create(['name' => 'Printer']);
+    $printer = Product::factory()->for($category)->available()->create(['name' => 'PRINTER EPSON L3210']);
+    Product::factory()->for($category)->available()->create(['name' => 'INK EPSON T664', 'is_featured' => true]);
+    $this->mock(SemanticCatalogCandidates::class)->shouldNotReceive('ids');
+    $result = app(ResolveProductContext::class)->execute('What printers do you have?');
+    expect(array_column($result['products'], 'id'))->toBe([$printer->id]);
+});
+
+test('a usable indexed answer returns without invoking semantic retrieval', function () {
+    config(['ai_integration.enabled' => true, 'ai_integration.qdrant.enabled' => true]);
+    $product = Product::factory()->available()->create(['name' => 'Kingston Drive']);
+    $this->mock(CatalogSearch::class)->shouldReceive('matchingIds')->andReturn([$product->id]);
+    $this->mock(SemanticCatalogCandidates::class)->shouldNotReceive('ids');
+    expect(app(ResolveProductContext::class)->execute('Kingston')['products'][0]['id'])->toBe($product->id);
+});
+
+test('unresolved indexed and database searches can use enabled semantic retrieval', function () {
+    config(['ai_integration.enabled' => true, 'ai_integration.qdrant.enabled' => true]);
+    $product = Product::factory()->for(Category::factory()->create(['name' => 'Laptops & Desktops']))->available()->create(['name' => 'LAPTOP LENOVO IDEAPAD']);
+    $this->mock(CatalogSearch::class)->shouldReceive('matchingIds')->andReturn([]);
+    $this->mock(SemanticCatalogCandidates::class)->shouldReceive('ids')->once()->with('portable study companion')->andReturn([$product->id]);
+    $result = app(ResolveProductContext::class)->execute('portable study companion');
+    expect(array_column($result['products'], 'id'))->toBe([$product->id]);
+});
+
+test('semantic fallback preserves requested brand and device type rather than substituting ink', function () {
+    config(['ai_integration.enabled' => true, 'ai_integration.qdrant.enabled' => true]);
+    $category = Category::factory()->create(['name' => 'Printer']);
+    $ink = Product::factory()->for($category)->available()->create(['name' => 'INK EPSON T664']);
+    $wrongBrand = Product::factory()->for($category)->available()->create(['name' => 'PRINTER CANON G3010']);
+    $this->mock(CatalogSearch::class)->shouldReceive('matchingIds')->andReturn([]);
+    $this->mock(SemanticCatalogCandidates::class)->shouldReceive('ids')->once()->andReturn([$ink->id, $wrongBrand->id]);
+    expect(app(ResolveProductContext::class)->execute('Epson printer')['products'])->toBe([]);
+});
+
+test('web chatbot reaches semantic capabilities for a screened descriptive product request', function () {
+    config(['ai_integration.enabled' => true, 'ai_integration.qdrant.enabled' => true]);
+    $product = Product::factory()->available()->create(['name' => 'LAPTOP LENOVO IDEAPAD']);
+    ChatbotIntentAgent::fake([['outcome' => 'supported', 'category' => 'product', 'intent' => 'product_details', 'language' => 'en']])->preventStrayPrompts();
+    $this->mock(CatalogSearch::class)->shouldReceive('matchingIds')->andReturn([]);
+    $this->mock(SemanticCatalogCandidates::class)->shouldReceive('ids')->once()->andReturn([$product->id]);
+    $this->postJson(route('chatbot.store'), ['message' => 'portable study companion'])
+        ->assertOk()->assertJsonPath('presentation.actions.0.id', $product->id);
+});
+
+test('a recognized product category stays a product inquiry when only supplies exist', function () {
+    Product::factory()->for(Category::factory()->create(['name' => 'Printer']))->available()->create(['name' => 'INK EPSON T664']);
+    $this->postJson(route('chatbot.store'), ['message' => 'What printers do you have?'])
+        ->assertOk()->assertJsonPath('message', "I couldn't find a matching product in the current Battlefront catalog. Please try the product name, brand, category, or tag.");
+});
+
+test('comparisons resolve named products through chatbot context without indexed discovery', function () {
+    $first = Product::factory()->available()->create(['name' => 'Alpha']);
+    $second = Product::factory()->available()->create(['name' => 'Beta']);
+    $this->mock(CatalogSearch::class)->shouldNotReceive('matchingIds');
+    $result = app(ResolveProductContext::class)->execute('compare Alpha vs Beta');
+    expect(array_column($result['products'], 'id'))->toBe([$first->id, $second->id])
+        ->and($result)->not->toHaveKey('search_query');
+});
+
+test('recommendation retrieval uses chatbot facts while preserving the requested device type', function () {
+    $category = Category::factory()->create(['name' => 'Printer']);
+    $printer = Product::factory()->for($category)->available()->create(['name' => 'PRINTER EPSON L3210']);
+    Product::factory()->for($category)->available()->create(['name' => 'INK EPSON T664', 'is_featured' => true]);
+    $this->mock(CatalogSearch::class)->shouldNotReceive('matchingIds');
+    $result = app(ResolveProductContext::class)->execute('printer', semanticMessage: 'recommend a printer under PHP 10000');
+    expect(array_column($result['products'], 'id'))->toBe([$printer->id])
+        ->and($result)->not->toHaveKey('search_query');
 });
