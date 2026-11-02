@@ -126,10 +126,10 @@ class User extends Authenticatable
         if ($roleCode === 'staff' && ! in_array($permission, config('administration.staff_allowed_permissions', []), true)) {
             return false;
         }
-        if ($roleCode === 'it' && ! in_array($permission, ['users.manage', 'audit.view'], true)) {
+        if (! in_array($roleCode, ['owner', 'manager', 'staff'], true)) {
             return false;
         }
-        if ($permission === 'users.manage' && ! in_array($roleCode, ['owner', 'it'], true)) {
+        if ($permission === 'users.manage' && $roleCode !== 'owner') {
             return false;
         }
         if (in_array($permission, ['permissions.manage', 'audit.export'], true)

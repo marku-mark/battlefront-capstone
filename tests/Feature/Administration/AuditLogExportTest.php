@@ -5,12 +5,12 @@ use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia as Assert;
 
-test('IT can inspect account access changes independently of the event actor', function (string $actorRole, string $action, string $subjectType, bool $wasActive) {
-    $it = User::factory()->administrator()->create([
-        'administration_role_id' => DB::table('administration_roles')->where('code', 'it')->value('id'),
+test('Owner can inspect account access changes independently of the event actor', function (string $actorRole, string $action, string $subjectType, bool $wasActive) {
+    $ownerViewer = User::factory()->administrator()->create([
+        'administration_role_id' => DB::table('administration_roles')->where('code', 'owner')->value('id'),
     ]);
     $actor = $actorRole === 'system' ? null : User::factory()->administrator()->create([
-        'administration_role_id' => DB::table('administration_roles')->where('code', $actorRole)->value('id'),
+        'administration_role_id' => ($actorRole === 'it' ? DB::table('administration_roles')->where('code', 'owner')->value('id') : DB::table('administration_roles')->where('code', $actorRole)->value('id')),
     ]);
     $id = DB::table('audit_logs')->insertGetId([
         'actor_id' => $actor?->id,
@@ -26,7 +26,7 @@ test('IT can inspect account access changes independently of the event actor', f
     ]);
     $original = DB::table('audit_logs')->where('id', $id)->first();
 
-    $this->actingAs($it)->get(route('administration.reports.audit'))
+    $this->actingAs($ownerViewer)->get(route('administration.reports.audit'))
         ->assertInertia(fn (Assert $page) => $page
             ->where('entries.total', 1)
             ->where('entries.data.0.details_visible', true)
@@ -42,9 +42,9 @@ test('IT can inspect account access changes independently of the event actor', f
     'CLI assignment' => ['team.role.assigned_by_cli', 'user'],
 ])->with(['deactivation' => true, 'activation' => false]);
 
-test('IT can inspect recorded account creation details', function (string $action, string $subjectType) {
-    $it = User::factory()->administrator()->create([
-        'administration_role_id' => DB::table('administration_roles')->where('code', 'it')->value('id'),
+test('Owner can inspect recorded account creation details', function (string $action, string $subjectType) {
+    $ownerViewer = User::factory()->administrator()->create([
+        'administration_role_id' => DB::table('administration_roles')->where('code', 'owner')->value('id'),
     ]);
     DB::table('audit_logs')->insert([
         'actor_id' => null,
@@ -55,7 +55,7 @@ test('IT can inspect recorded account creation details', function (string $actio
         'created_at' => now(),
     ]);
 
-    $this->actingAs($it)->get(route('administration.reports.audit'))
+    $this->actingAs($ownerViewer)->get(route('administration.reports.audit'))
         ->assertInertia(fn (Assert $page) => $page
             ->where('entries.data.0.details_visible', true)
             ->where('entries.data.0.details', [['label' => 'Role', 'before' => null, 'after' => 'owner']]));
@@ -66,10 +66,10 @@ test('IT can inspect recorded account creation details', function (string $actio
     'seeded Owner' => ['team.owner.created_by_seeder', 'user'],
 ]);
 
-test('IT and Owner can inspect Owner permission changes while other roles retain restricted details', function (string $viewerRole, bool $visible) {
+test('Owner can inspect Owner permission changes while other roles retain restricted details', function (string $viewerRole, bool $visible) {
     $owner = User::factory()->administrator()->create();
     $viewer = User::factory()->administrator()->create([
-        'administration_role_id' => DB::table('administration_roles')->where('code', $viewerRole)->value('id'),
+        'administration_role_id' => ($viewerRole === 'it' ? legacyItRoleId() : DB::table('administration_roles')->where('code', $viewerRole)->value('id')),
     ]);
     DB::table('audit_logs')->insert([
         'actor_id' => $owner->id,
@@ -90,11 +90,11 @@ test('IT and Owner can inspect Owner permission changes while other roles retain
                 ['label' => '', 'before' => 'orders.view', 'after' => 'orders.view'],
                 ['label' => '1', 'before' => 'inventory.view', 'after' => 'reports.view'],
             ] : []));
-})->with(['IT' => ['it', true], 'Owner' => ['owner', true], 'Manager' => ['manager', false]]);
+})->with(['Owner' => ['owner', true], 'Manager' => ['manager', false]]);
 
 test('IT never receives restricted business details even for events performed by IT', function (string $action, string $subjectType) {
     $it = User::factory()->administrator()->create([
-        'administration_role_id' => DB::table('administration_roles')->where('code', 'it')->value('id'),
+        'administration_role_id' => legacyItRoleId(),
     ]);
     DB::table('audit_logs')->insert([
         'actor_id' => $it->id,
@@ -106,13 +106,7 @@ test('IT never receives restricted business details even for events performed by
         'created_at' => now(),
     ]);
 
-    $this->actingAs($it)->get(route('administration.reports.audit'))
-        ->assertInertia(fn (Assert $page) => $page
-            ->where('entries.data.0.details_visible', false)
-            ->where('entries.data.0.details', [])
-            ->where('entries.data.0.reason', null)
-            ->where('entries.data.0.subject_url', null)
-            ->missing('entries.data.0.changes'));
+    $this->actingAs($it)->get(route('administration.reports.audit'))->assertForbidden();
 })->with([
     'pricing and costs' => ['product.updated', 'product'],
     'inventory' => ['inventory.adjusted', 'inventory'],
@@ -127,9 +121,9 @@ test('IT never receives restricted business details even for events performed by
     'account action on business subject' => ['team.updated', 'product'],
 ]);
 
-test('IT account details preserve recursive credential and private path redaction', function () {
-    $it = User::factory()->administrator()->create([
-        'administration_role_id' => DB::table('administration_roles')->where('code', 'it')->value('id'),
+test('Owner account details preserve recursive credential and private path redaction', function () {
+    $ownerViewer = User::factory()->administrator()->create([
+        'administration_role_id' => DB::table('administration_roles')->where('code', 'owner')->value('id'),
     ]);
     $credentials = ['password' => 'password-value', 'remember_token' => 'token-value', 'two_factor_secret' => 'secret-value', 'private_path' => 'private/credential-file'];
     DB::table('audit_logs')->insert([
@@ -141,7 +135,7 @@ test('IT account details preserve recursive credential and private path redactio
         'created_at' => now(),
     ]);
 
-    $this->actingAs($it)->get(route('administration.reports.audit'))
+    $this->actingAs($ownerViewer)->get(route('administration.reports.audit'))
         ->assertInertia(fn (Assert $page) => $page
             ->where('entries.data.0.details', [
                 ['label' => 'Password', 'before' => '[redacted]', 'after' => '[redacted]'],
@@ -155,7 +149,7 @@ test('IT account details preserve recursive credential and private path redactio
 
 test('IT audit access does not permit permission changes or exports', function () {
     $it = User::factory()->administrator()->create([
-        'administration_role_id' => DB::table('administration_roles')->where('code', 'it')->value('id'),
+        'administration_role_id' => legacyItRoleId(),
     ]);
     $grants = DB::table('administration_role_permissions')->orderBy('administration_role_id')->orderBy('administration_permission_id')->get()->all();
 
@@ -164,7 +158,7 @@ test('IT audit access does not permit permission changes or exports', function (
     ])->assertForbidden();
     $this->get(route('administration.reports.audit.export'))->assertForbidden();
 
-    expect($it->can('audit.view'))->toBeTrue()
+    expect($it->can('audit.view'))->toBeFalse()
         ->and($it->can('permissions.manage'))->toBeFalse()
         ->and($it->can('audit.export'))->toBeFalse()
         ->and($it->can('products.manage'))->toBeFalse()
@@ -176,10 +170,10 @@ test('IT audit access does not permit permission changes or exports', function (
     $this->assertDatabaseCount('audit_logs', 0);
 });
 
-test('IT text search matches visible account details without matching hidden business values', function () {
+test('retired IT cannot search audit details while Owner retains access', function () {
     $owner = User::factory()->administrator()->create();
     $it = User::factory()->administrator()->create([
-        'administration_role_id' => DB::table('administration_roles')->where('code', 'it')->value('id'),
+        'administration_role_id' => legacyItRoleId(),
     ]);
     DB::table('audit_logs')->insert([
         ['actor_id' => $owner->id, 'action' => 'team.updated', 'subject_type' => 'administrator_account', 'subject_id' => 1,
@@ -188,14 +182,10 @@ test('IT text search matches visible account details without matching hidden bus
             'reason' => 'Hidden financial note', 'changes' => json_encode(['amount' => 'restricted-amount']), 'created_at' => now()],
     ]);
 
-    $this->actingAs($it)->get(route('administration.reports.audit', ['q' => 'manager']))
-        ->assertInertia(fn (Assert $page) => $page->where('filters.q', 'manager')->where('entries.total', 1));
-    $this->get(route('administration.reports.audit', ['q' => 'restricted-amount']))
-        ->assertInertia(fn (Assert $page) => $page->where('entries.total', 0));
-    $this->get(route('administration.reports.audit', ['q' => 'Hidden financial note']))
-        ->assertInertia(fn (Assert $page) => $page->where('entries.total', 0));
-    $this->get(route('administration.reports.audit', ['action' => 'order.updated']))
-        ->assertInertia(fn (Assert $page) => $page->where('entries.total', 1)->where('entries.data.0.details', []));
+    $this->actingAs($it)->get(route('administration.reports.audit', ['q' => 'manager']))->assertForbidden();
+    $this->get(route('administration.reports.audit', ['q' => 'restricted-amount']))->assertForbidden();
+    $this->get(route('administration.reports.audit', ['q' => 'Hidden financial note']))->assertForbidden();
+    $this->get(route('administration.reports.audit', ['action' => 'order.updated']))->assertForbidden();
     $this->actingAs($owner)->get(route('administration.reports.audit', ['q' => 'restricted-amount']))
         ->assertInertia(fn (Assert $page) => $page->where('entries.total', 1));
 });
@@ -228,7 +218,7 @@ test('audit export protects spreadsheet cells containing staff supplied text', f
 test('audit events show readable changes only to a role allowed to view the record', function () {
     $owner = User::factory()->administrator()->create();
     $it = User::factory()->administrator()->create([
-        'administration_role_id' => DB::table('administration_roles')->where('code', 'it')->value('id'),
+        'administration_role_id' => legacyItRoleId(),
     ]);
     DB::table('audit_logs')->insert([
         'actor_id' => $owner->id,
@@ -247,11 +237,7 @@ test('audit events show readable changes only to a role allowed to view the reco
             ->where('entries.data.0.details.0.after', '120')
             ->where('entries.data.0.details.1.after', '[redacted]')
             ->where('entries.data.0.reason', 'Price correction'));
-    $this->actingAs($it)->get(route('administration.reports.audit', ['action' => 'product.updated']))
-        ->assertInertia(fn (Assert $page) => $page->where('entries.data.0.details_visible', false)
-            ->where('entries.data.0.details', [])
-            ->where('entries.data.0.reason', null)
-            ->where('entries.data.0.subject_url', null));
+    $this->actingAs($it)->get(route('administration.reports.audit', ['action' => 'product.updated']))->assertForbidden();
 });
 
 test('product audit hides acquisition costs and cost change reasons without cost permission', function () {

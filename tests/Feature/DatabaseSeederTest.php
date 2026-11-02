@@ -12,7 +12,7 @@ test('new development accounts are seeded once with all administration roles and
     $customer = User::query()->where('email', 'test@example.com')->firstOrFail();
     expect($customer->hasVerifiedEmail())->toBeTrue()
         ->and($customer->role)->toBe(UserRole::Customer);
-    foreach (['admin' => 'owner', 'staff' => 'staff', 'manager' => 'manager', 'it' => 'it'] as $email => $role) {
+    foreach (['admin' => 'owner', 'staff' => 'staff', 'manager' => 'manager'] as $email => $role) {
         $administrator = User::query()->where('email', $email.'@example.com')->sole();
         expect($administrator->hasVerifiedEmail())->toBeTrue()
             ->and($administrator->role)->toBe(UserRole::Administrator)
@@ -23,8 +23,8 @@ test('new development accounts are seeded once with all administration roles and
     }
 
     $this->seed();
-    $this->assertDatabaseCount('users', 5);
-    $this->assertDatabaseCount('audit_logs', 4);
+    $this->assertDatabaseCount('users', 4);
+    $this->assertDatabaseCount('audit_logs', 3);
 });
 
 test('reseeding preserves existing accounts and deliberate access assignments', function (?string $role, string $email) {
@@ -42,7 +42,7 @@ test('reseeding preserves existing accounts and deliberate access assignments', 
         'email_verified_at' => null,
         'name' => 'Existing administrator',
         'password' => 'ChangedAdministratorPassword!1',
-        'administration_role_id' => $role === null ? null : DB::table('administration_roles')->where('code', $role)->value('id'),
+        'administration_role_id' => $role === null ? null : ($role === 'it' ? legacyItRoleId() : DB::table('administration_roles')->where('code', $role)->value('id')),
         'is_active' => false,
     ])->save();
     $beforeCustomer = $customer->refresh()->getAttributes();
@@ -52,8 +52,8 @@ test('reseeding preserves existing accounts and deliberate access assignments', 
 
     expect($customer->refresh()->getAttributes())->toBe($beforeCustomer)
         ->and($administrator->refresh()->getAttributes())->toBe($beforeAdministrator);
-})->with(['owner', 'it', 'manager', 'staff', null])
-    ->with(['admin@example.com', 'staff@example.com', 'manager@example.com', 'it@example.com']);
+})->with(['owner', 'manager', 'staff', null])
+    ->with(['admin@example.com', 'staff@example.com', 'manager@example.com']);
 
 test('development administration emails never promote an existing customer', function (string $email) {
     $customer = User::factory()->customer()->create(['email' => $email]);
@@ -63,7 +63,7 @@ test('development administration emails never promote an existing customer', fun
 
     expect($customer->refresh()->getAttributes())->toBe($before);
     $this->assertDatabaseMissing('audit_logs', ['subject_type' => 'user', 'subject_id' => $customer->id]);
-})->with(['admin@example.com', 'staff@example.com', 'manager@example.com', 'it@example.com']);
+})->with(['admin@example.com', 'staff@example.com', 'manager@example.com']);
 
 test('default initialization does not load historical sales development fixtures', function (string $environment) {
     $disk = Storage::fake('local');
@@ -72,7 +72,7 @@ test('default initialization does not load historical sales development fixtures
     $this->artisan('db:seed', ['--force' => true, '--no-interaction' => true])->assertSuccessful();
 
     $this->assertDatabaseMissing('users', ['email' => 'historical-sales@example.test']);
-    $this->assertDatabaseCount('users', in_array($environment, ['local', 'testing'], true) ? 5 : 0);
+    $this->assertDatabaseCount('users', in_array($environment, ['local', 'testing'], true) ? 4 : 0);
     expect(User::query()->where('email', 'like', 'demo.customer%@example.test')->exists())->toBeFalse();
     foreach (['products', 'categories', 'inventories', 'orders', 'order_items', 'sales'] as $table) {
         $this->assertDatabaseCount($table, 0);

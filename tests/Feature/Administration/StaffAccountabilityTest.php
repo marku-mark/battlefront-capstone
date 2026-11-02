@@ -200,7 +200,7 @@ test('handler report defaults to a team summary of eligible business roles', fun
         ]);
     }
     User::factory()->administrator()->create([
-        'administration_role_id' => DB::table('administration_roles')->where('code', 'it')->value('id'),
+        'administration_role_id' => legacyItRoleId(),
     ]);
     User::factory()->administrator()->create(['is_active' => false]);
     User::factory()->administrator()->create(['administration_role_id' => null]);
@@ -217,7 +217,7 @@ test('handler report defaults to a team summary of eligible business roles', fun
 
 test('handler report excludes current accounts without order processing permission or sales history', function (string $role) {
     $viewer = User::factory()->administrator()->create();
-    $roleId = DB::table('administration_roles')->where('code', $role)->value('id');
+    $roleId = ($role === 'it' ? legacyItRoleId() : DB::table('administration_roles')->where('code', $role)->value('id'));
     $handler = User::factory()->administrator()->create(['administration_role_id' => $roleId]);
     DB::table('administration_role_permissions')->where('administration_role_id', $roleId)
         ->where('administration_permission_id', DB::table('administration_permissions')->where('code', 'orders.process')->value('id'))
@@ -252,7 +252,7 @@ test('handler report preserves genuine historical attribution after access chang
             ->delete();
     } else {
         $handler->update(match ($change) {
-            'IT role' => ['administration_role_id' => DB::table('administration_roles')->where('code', 'it')->value('id')],
+            'IT role' => ['administration_role_id' => legacyItRoleId()],
             'customer role' => ['role' => 'customer', 'administration_role_id' => null],
             'unassigned role' => ['administration_role_id' => null],
             'inactive account' => ['is_active' => false],
@@ -302,7 +302,7 @@ test('handler report requires team permission to select other handlers', functio
 test('handler report excludes ordinary IT handlers and keeps IT viewers outside sales reporting', function () {
     $viewer = User::factory()->administrator()->create();
     $it = User::factory()->administrator()->create([
-        'administration_role_id' => DB::table('administration_roles')->where('code', 'it')->value('id'),
+        'administration_role_id' => legacyItRoleId(),
     ]);
 
     $this->actingAs($viewer)->get(route('administration.reports.staff', ['handler_id' => $it->id]))->assertNotFound();
@@ -321,7 +321,7 @@ test('order handlers need order permission but do not need two factor enrollment
         'administration_role_id' => DB::table('administration_roles')->where('code', 'staff')->value('id'),
     ]);
     $it = User::factory()->administrator()->create([
-        'administration_role_id' => DB::table('administration_roles')->where('code', 'it')->value('id'),
+        'administration_role_id' => legacyItRoleId(),
     ]);
     $order = Order::factory()->create(['handler_required' => true]);
 

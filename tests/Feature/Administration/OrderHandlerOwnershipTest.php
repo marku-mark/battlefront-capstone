@@ -20,7 +20,7 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 function orderHandlerActor(string $role): User
 {
     return User::factory()->administrator()->create([
-        'administration_role_id' => DB::table('administration_roles')->where('code', $role)->value('id'),
+        'administration_role_id' => ($role === 'it' ? legacyItRoleId() : DB::table('administration_roles')->where('code', $role)->value('id')),
     ]);
 }
 

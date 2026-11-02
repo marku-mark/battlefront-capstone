@@ -186,7 +186,7 @@ test(
             },
             permissions: [],
             grants: [],
-            availableRoles: ['staff', 'manager', 'owner', 'it'],
+            availableRoles: ['staff', 'manager', 'owner'],
             canManagePermissions: false,
             roleVersions: {},
             filters: {},

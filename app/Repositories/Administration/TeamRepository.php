@@ -58,6 +58,7 @@ class TeamRepository
         return DB::table('administration_role_permissions as grants')
             ->join('administration_roles as roles', 'roles.id', '=', 'grants.administration_role_id')
             ->join('administration_permissions as permissions', 'permissions.id', '=', 'grants.administration_permission_id')
+            ->whereIn('roles.code', ['owner', 'manager', 'staff'])
             ->get(['roles.code as role', 'permissions.code as permission']);
     }
 

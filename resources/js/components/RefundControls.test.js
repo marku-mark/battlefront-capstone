@@ -4,7 +4,7 @@ import test from 'node:test';
 import { compileScript, parse } from '@vue/compiler-sfc';
 import { renderToString } from '@vue/server-renderer';
 import * as Vue from 'vue';
-import { formatAgeDays, formatDateTime } from '../lib/dateTime.js';
+import { formatRelativeTime, formatDateTime } from '../lib/dateTime.js';
 
 const primitive = {
     render() {
@@ -187,10 +187,10 @@ function returnsPage(inlineTemplate = true, submissions = []) {
                 clearSearch() {},
             }),
         },
-        '@/lib/dateTime': { formatAgeDays, formatDateTime },
+        '@/lib/dateTime': { formatRelativeTime, formatDateTime },
     });
 }
-async function pageHtml(overrides = {}) {
+async function pageHtml(overrides = {}, customerRequests = []) {
     return renderToString(
         Vue.createSSRApp(returnsPage(), {
             returns: {
@@ -213,7 +213,7 @@ async function pageHtml(overrides = {}) {
                 ],
                 last_page: 1,
             },
-            customerRequests: { data: [], links: [] },
+            customerRequests: { data: customerRequests, links: [] },
             refundPayments: {},
             evidence: {},
             paymentEvidence: {},
@@ -366,8 +366,38 @@ test('compact refund summary keeps confirmed amounts separate from pending recor
     assert.match(html, /Only the return approver/);
 });
 
-test('new returns show a readable age without a customer resolution summary input', async () => {
+test('new returns show a precise relative age without a customer resolution summary input', async (t) => {
+    t.mock.timers.enable({
+        apis: ['Date'],
+        now: Date.parse('2026-10-23T06:32:00Z'),
+    });
+
     const html = await pageHtml({ age_days: 0, status: 'pending' });
-    assert.match(html, /Less than a day old/);
+
+    assert.match(html, /2 minutes ago/);
+    assert.match(html, /title="Oct 23, 2026, 2:30 PM"/);
     assert.doesNotMatch(html, /0 days old|name="resolution_summary"/);
+});
+
+test('pending return requests show relative submission time with the exact timestamp available', async (t) => {
+    t.mock.timers.enable({
+        apis: ['Date'],
+        now: Date.parse('2026-10-23T06:30:45Z'),
+    });
+
+    const html = await pageHtml({}, [
+        {
+            id: 2,
+            order_id: 1,
+            product_name: 'Returned hardware',
+            quantity: 1,
+            reason_label: 'Defective',
+            created_at: '2026-10-23T06:30:00Z',
+        },
+    ]);
+
+    assert.match(
+        html,
+        /Requested\s*<span title="Oct 23, 2026, 2:30 PM">45 seconds ago<\/span>/,
+    );
 });

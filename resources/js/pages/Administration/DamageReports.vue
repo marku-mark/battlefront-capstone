@@ -1,6 +1,6 @@
 <script setup>
 import OperationalExports from '@/components/administration/OperationalExports.vue';
-import { formatAgeDays } from '@/lib/dateTime';
+import { formatRelativeTime } from '@/lib/dateTime';
 import PageHeader from '@/components/PageHeader.vue';
 import { Form, Head, Link, usePage } from '@inertiajs/vue3';
 import DamageReportController from '@/actions/App/Http/Controllers/Administration/DamageReportController';
@@ -209,7 +209,7 @@ defineOptions({
                 <p class="text-sm">
                     Stock: {{ damageProgress(report) }} ·
                     {{ report.held_quantity }} units held ·
-                    {{ formatAgeDays(report.age_days) }}
+                    {{ formatRelativeTime(report.created_at) }}
                 </p>
                 <p
                     v-if="report.inspection_overdue"

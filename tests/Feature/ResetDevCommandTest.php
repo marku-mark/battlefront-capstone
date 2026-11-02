@@ -313,7 +313,7 @@ test('reset restores the complete real catalog with historical sales only when r
         } else {
             Storage::disk('local')->assertMissing($coveragePath);
         }
-        $this->assertDatabaseCount('users', 35);
+        $this->assertDatabaseCount('users', 34);
         expect(User::query()->where('email', 'like', 'demo.customer%@example.test')->count())->toBe(30);
         expect(User::query()->where('email', 'historical-sales@example.test')->exists())->toBeFalse();
         expect(Product::query()->where('is_catalog_imported', false)->count())->toBe(0);
@@ -339,9 +339,7 @@ test('reset restores the complete real catalog with historical sales only when r
         $staff = User::query()->where('email', 'staff@example.com')->sole();
         expect($manager->administrationRoleCode())->toBe('manager');
         expect($staff->administrationRoleCode())->toBe('staff');
-        $it = User::query()->where('email', 'it@example.com')->sole();
-        expect($it->administrationRoleCode())->toBe('it');
-        $this->actingAs($it)->get(route('administration.inventory.index'))->assertForbidden();
+        $this->assertDatabaseMissing('users', ['email' => 'it@example.com']);
         $dashboard = app(DashboardService::class)->administration($manager);
         expect($dashboard['kpis']['low_stock_products'])->toBe(3);
         expect($dashboard['kpis']['out_of_stock_products'])->toBe(1);
@@ -453,12 +451,12 @@ test('reset seeds thirty demonstration customers with either history option with
     expect($result)->toBe(0);
     expect(Artisan::output())->toContain('30 demonstration customer accounts seeded.', 'Development reset completed.')
         ->not->toContain('customer123');
-    $this->assertDatabaseCount('users', 35);
+    $this->assertDatabaseCount('users', 34);
     expect(User::query()->where('email', 'like', 'demo.customer%@example.test')->count())->toBe(30);
     expect(User::query()->where('email', 'historical-sales@example.test')->exists())->toBeFalse();
     $this->assertDatabaseHas('users', ['email' => 'admin@example.com', 'role' => 'administrator']);
     $this->assertDatabaseHas('users', ['email' => 'test@example.com', 'role' => 'customer']);
-    foreach (['admin' => 'owner', 'staff' => 'staff', 'manager' => 'manager', 'it' => 'it'] as $email => $role) {
+    foreach (['admin' => 'owner', 'staff' => 'staff', 'manager' => 'manager'] as $email => $role) {
         expect(User::query()->where('email', $email.'@example.com')->sole()->administrationRoleCode())->toBe($role);
     }
     expect(User::query()->where('email', 'like', 'demo.customer%@example.test')->whereHas('orders')->count())->toBe($withHistory ? 30 : 0);

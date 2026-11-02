@@ -18,13 +18,12 @@ php artisan db:seed --no-interaction
 With `APP_ENV=local` or `testing`, the default seeder creates these missing
 demonstration accounts, all with development-only password `password`:
 
-| Role             | Email                 |
-| ---------------- | --------------------- |
-| Owner            | `admin@example.com`   |
-| Manager          | `manager@example.com` |
-| Staff            | `staff@example.com`   |
-| IT Administrator | `it@example.com`      |
-| Customer         | `test@example.com`    |
+| Role     | Email                 |
+| -------- | --------------------- |
+| Owner    | `admin@example.com`   |
+| Manager  | `manager@example.com` |
+| Staff    | `staff@example.com`   |
+| Customer | `test@example.com`    |
 
 Change those passwords before sharing the environment. Production and staging
 create none of these demonstration accounts. New administration accounts use the
@@ -75,7 +74,7 @@ php artisan administration:assign-role trusted-admin@your-store.example owner --
 
 Replace the example email with the deliberately selected account. The account
 must already have the previous `administrator` base role; a Customer cannot be
-promoted by this command. The same command accepts `staff`, `manager`, and `it`
+promoted by this command. The same command accepts `staff` and `manager`
 for explicitly assigning existing Administrators. It retains identity, password,
 and activation status. It does not reactivate inactive accounts; those require a
 separately reviewed account-recovery action.
@@ -87,10 +86,7 @@ The audit actor is null for CLI operations, with an explicit reason and access
 changes; passwords are never included. Existing accounts must sign in again after
 their access changes.
 
-Owner retains business administration. IT retains fixed technical account
-management and audit viewing, cannot manage Owner/IT accounts, and cannot access
-business operations. Owner can configure Staff/Manager permissions; Owner and IT
-permissions remain fixed.
+Owner retains business administration, Team management, permission management, and audit export. Manager and Staff permissions remain unchanged.
 
 ## Operating safeguards
 
@@ -120,7 +116,15 @@ permissions remain fixed.
 
 Fortify two-factor authentication is disabled. The retained `must_change_password`
 flag does not enforce a first-login password-change gate; the Security settings
-clear it when a password is changed. Active Administrators with an assigned role
+clear it when a password is changed. Active Administrators with a supported role
 can immediately use that role's permissions. These refinements do not introduce
 mandatory password-change, email-verification, or 2FA enrollment flows. Operators
 remain responsible for selecting and safeguarding privileged credentials.
+
+## Retiring legacy IT assignments
+
+Only Owner, Manager, and Staff are supported. Deploy the application access denial before running the retirement migration. Legacy IT assignments cannot access administration even while the migration remains blocked.
+
+The retirement migration stops without changing data if any account still references the IT role, including inactive accounts. Review those accounts and obtain an explicit operator decision for each assignment before retrying. Deactivation alone does not remove the reference. Do not delete accounts, reset the database, or automatically promote or reassign them. An explicitly authorized reassignment can use the existing trusted-console command and its normal audit and access-revocation safeguards.
+
+Once no assignments remain, the migration removes only the retired role and its grants. Shared permissions and all audit history are retained. Retirement is forward-only and refuses rollback.

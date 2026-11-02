@@ -30,7 +30,6 @@ for (const [role, administrationRoleCode, label] of [
     ['administrator', 'owner', 'Owner'],
     ['administrator', 'manager', 'Manager'],
     ['administrator', 'staff', 'Staff'],
-    ['administrator', 'it', 'IT Administrator'],
     ['administrator', null, 'Administrator'],
 ]) {
     test(`profile displays the assigned ${label} role as read-only account information`, async () => {

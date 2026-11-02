@@ -17,7 +17,7 @@ use Inertia\Testing\AssertableInertia as Assert;
 
 function photoReceiptEmployee(string $role = 'staff'): User
 {
-    return User::factory()->administrator()->create(['administration_role_id' => DB::table('administration_roles')->where('code', $role)->value('id')]);
+    return User::factory()->administrator()->create(['administration_role_id' => ($role === 'it' ? legacyItRoleId() : DB::table('administration_roles')->where('code', $role)->value('id'))]);
 }
 
 /** @return array{Order, OrderItem, Inventory, CustomerReturnRequest} */

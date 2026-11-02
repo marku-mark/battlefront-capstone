@@ -79,13 +79,12 @@ test('supervisors retain claimed orders in the shared queue until completion or 
 
 test('technical administrators see no business work without business permissions', function () {
     $it = User::factory()->administrator()->create([
-        'administration_role_id' => DB::table('administration_roles')->where('code', 'it')->value('id'),
+        'administration_role_id' => legacyItRoleId(),
     ]);
     Order::factory()->create();
 
     $this->actingAs($it)->get(route('administration.work-queue.index'))
-        ->assertInertia(fn (Assert $page) => $page->where('entries.total', 0)
-            ->where('workQueueCounts', []));
+        ->assertForbidden();
 });
 
 test('sidebar counts use one aggregate query and remain independent of queue pagination', function () {

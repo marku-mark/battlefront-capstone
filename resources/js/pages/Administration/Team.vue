@@ -37,7 +37,7 @@ watch(
     (users) => {
         for (const user of users) {
             memberDrafts[user.id] ??= {
-                role: user.role,
+                role: props.availableRoles.includes(user.role) ? user.role : '',
                 is_active: user.is_active ? '1' : '0',
             };
         }
@@ -81,11 +81,7 @@ function isPermissionEligible(role, code) {
           );
 }
 const roleLabel = (role) =>
-    role === 'it'
-        ? 'IT Administrator'
-        : role
-          ? role.charAt(0).toUpperCase() + role.slice(1)
-          : 'Unassigned';
+    role ? role.charAt(0).toUpperCase() + role.slice(1) : 'Unassigned';
 const permissionLabels = {
     'orders.view': 'View orders',
     'orders.process': 'Update order status',
@@ -302,6 +298,13 @@ defineOptions({
                             v-model="memberDrafts[user.id].role"
                             class="border-input bg-background focus-visible:ring-ring min-h-11 max-w-full min-w-0 rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:outline-none"
                         >
+                            <option
+                                v-if="!availableRoles.includes(user.role)"
+                                value=""
+                                disabled
+                            >
+                                Select a supported role
+                            </option>
                             <option
                                 v-for="role in availableRoles"
                                 :key="role"

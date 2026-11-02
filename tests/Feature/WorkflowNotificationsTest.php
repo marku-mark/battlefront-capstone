@@ -32,7 +32,7 @@ use Illuminate\Validation\ValidationException;
 function workflowEmployee(string $role = 'manager', bool $active = true): User
 {
     return User::factory()->administrator()->create([
-        'administration_role_id' => DB::table('administration_roles')->where('code', $role)->value('id'),
+        'administration_role_id' => ($role === 'it' ? legacyItRoleId() : DB::table('administration_roles')->where('code', $role)->value('id')),
         'is_active' => $active,
     ]);
 }

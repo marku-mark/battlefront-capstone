@@ -185,7 +185,7 @@ test('owner role defaults match the full migrated permissions for each editable 
 
 test('default permissions remain separate from customized grants until the owner saves', function (string $role) {
     $owner = User::factory()->administrator()->create();
-    $roleId = DB::table('administration_roles')->where('code', $role)->value('id');
+    $roleId = ($role === 'it' ? legacyItRoleId() : DB::table('administration_roles')->where('code', $role)->value('id'));
     $defaults = config("administration.default_permissions.{$role}");
     $custom = $role === 'staff' ? ['inventory.view', 'orders.view'] : ['inventory.view', 'products.price'];
     $this->actingAs($owner)->put(route('administration.team.permissions.update', $role), [
@@ -263,19 +263,11 @@ test('default permissions do not make Owner or IT permissions editable', functio
 
 test('default permissions are available only to the owner', function (string $role) {
     $user = User::factory()->administrator()->create([
-        'administration_role_id' => DB::table('administration_roles')->where('code', $role)->value('id'),
+        'administration_role_id' => ($role === 'it' ? legacyItRoleId() : DB::table('administration_roles')->where('code', $role)->value('id')),
     ]);
 
     $response = $this->actingAs($user)->get(route('administration.team.index'));
-    if ($role === 'it') {
-        $response->assertInertia(fn (Assert $page) => $page
-            ->where('canManagePermissions', false)->where('defaultPermissions', [])
-            ->where('staffAllowedPermissions', [])
-            ->where('permissions', [])->where('grants', [])->where('roleVersions', [])
-            ->where('availableRoles', ['staff', 'manager']));
-    } else {
-        $response->assertForbidden();
-    }
+    $response->assertForbidden();
     $this->put(route('administration.team.permissions.update', 'staff'), [
         'permissions' => config('administration.default_permissions.staff'), 'edit_version' => 1,
     ])->assertForbidden();

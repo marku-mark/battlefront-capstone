@@ -66,7 +66,7 @@ class AppServiceProvider extends ServiceProvider
             'access-administration',
             fn (User $user): bool => $user->isAdministrator()
                 && $user->is_active
-                && $user->administration_role_id !== null,
+                && in_array($user->administrationRoleCode(), ['owner', 'manager', 'staff'], true),
         );
 
         foreach ([

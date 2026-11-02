@@ -145,8 +145,8 @@ class TeamAccessService
      */
     public function replacePermissions(User $actor, string $role, array $codes, int $editVersion): void
     {
-        if (in_array($role, ['owner', 'it'], true)) {
-            throw ValidationException::withMessages(['role' => 'Owner and IT permissions are fixed.']);
+        if ($role === 'owner') {
+            throw ValidationException::withMessages(['role' => 'Owner permissions are fixed.']);
         }
 
         DB::transaction(function () use ($actor, $role, $codes, $editVersion): void {
@@ -187,6 +187,10 @@ class TeamAccessService
      */
     private function roleId(string $code): int
     {
+        if (! in_array($code, ['owner', 'manager', 'staff'], true)) {
+            throw ValidationException::withMessages(['role' => 'Unknown administrator role.']);
+        }
+
         $id = DB::table('administration_roles')->where('code', $code)->value('id');
         if ($id === null) {
             throw ValidationException::withMessages(['role' => 'Unknown administrator role.']);
@@ -204,12 +208,6 @@ class TeamAccessService
     {
         if (! $actor->hasAdministrationPermission('users.manage')) {
             throw new AuthorizationException;
-        }
-
-        if ($actor->administrationRoleCode() === 'it'
-            && (($target !== null && ! in_array($target->administrationRoleCode(), ['staff', 'manager'], true))
-                || ! in_array($role, ['staff', 'manager'], true))) {
-            throw new AuthorizationException('IT administrators may manage staff and manager accounts only.');
         }
     }
 
@@ -268,7 +266,7 @@ class TeamAccessService
             'filters' => $filters,
             'canViewOrders' => $actor->can('orders.view'),
             'canAssignOrders' => $actor->can('orders.assign'),
-            'availableRoles' => $isOwner ? ['staff', 'manager', 'owner', 'it'] : ['staff', 'manager'],
+            'availableRoles' => $isOwner ? ['staff', 'manager', 'owner'] : ['staff', 'manager'],
             'canManagePermissions' => $actor->can('permissions.manage'),
             'defaultPermissions' => $actor->can('permissions.manage') ? config('administration.default_permissions') : [],
             'staffAllowedPermissions' => $actor->can('permissions.manage') ? config('administration.staff_allowed_permissions') : [],

@@ -81,7 +81,7 @@ test('customer history remains readable without permission to open order or retu
 
 test('staff and IT cannot read customer purchase history by default', function (string $role) {
     $actor = User::factory()->administrator()->create([
-        'administration_role_id' => DB::table('administration_roles')->where('code', $role)->value('id'),
+        'administration_role_id' => ($role === 'it' ? legacyItRoleId() : DB::table('administration_roles')->where('code', $role)->value('id')),
     ]);
 
     $this->actingAs($actor)->get(route('administration.customers.show', User::factory()->customer()->create()))->assertForbidden();

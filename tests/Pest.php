@@ -3,6 +3,7 @@
 use App\Ai\Agents\ChatbotIntentAgent;
 use App\Ai\Agents\ChatbotResponseAgent;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -92,4 +93,19 @@ function validPackageMeasurements(): array
         'package_height_cm' => '10.00',
         'package_measurement_source' => 'estimated',
     ];
+}
+
+/** Reconstruct a retained legacy assignment without changing fresh migration expectations. */
+function legacyItRoleId(): int
+{
+    $existing = DB::table('administration_roles')->where('code', 'it')->value('id');
+    if ($existing !== null) {
+        return (int) $existing;
+    }
+    $id = DB::table('administration_roles')->insertGetId(['code' => 'it', 'name' => 'IT Administrator', 'created_at' => now(), 'updated_at' => now()]);
+    foreach (['users.manage', 'audit.view'] as $code) {
+        DB::table('administration_role_permissions')->insert(['administration_role_id' => $id, 'administration_permission_id' => DB::table('administration_permissions')->where('code', $code)->value('id')]);
+    }
+
+    return $id;
 }

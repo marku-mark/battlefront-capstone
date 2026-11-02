@@ -17,7 +17,7 @@ dataset('branch management endpoints', [
 
 test('shared branch capability matches management authorization while the directory remains readable', function (string $role, bool $canManage) {
     $administrator = User::factory()->administrator()->create([
-        'administration_role_id' => DB::table('administration_roles')->where('code', $role)->value('id'),
+        'administration_role_id' => ($role === 'it' ? legacyItRoleId() : DB::table('administration_roles')->where('code', $role)->value('id')),
     ]);
 
     $this->actingAs($administrator)->get(route('branches.index'))->assertOk()
@@ -83,7 +83,7 @@ test('administrators can list all branches and view management forms and unpubli
 
 test('restricted administration roles cannot manage branches', function (string $role, string $method, string $action) {
     $administrator = User::factory()->administrator()->create([
-        'administration_role_id' => DB::table('administration_roles')->where('code', $role)->value('id'),
+        'administration_role_id' => ($role === 'it' ? legacyItRoleId() : DB::table('administration_roles')->where('code', $role)->value('id')),
     ]);
     $branch = Branch::factory()->unpublished()->create();
     $before = $branch->refresh()->toArray();

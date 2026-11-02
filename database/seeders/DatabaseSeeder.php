@@ -43,7 +43,6 @@ class DatabaseSeeder extends Seeder
             ['email' => 'admin@example.com', 'name' => 'Development Owner', 'role' => 'owner'],
             ['email' => 'staff@example.com', 'name' => 'Development Staff', 'role' => 'staff'],
             ['email' => 'manager@example.com', 'name' => 'Development Manager', 'role' => 'manager'],
-            ['email' => 'it@example.com', 'name' => 'Development IT Administrator', 'role' => 'it'],
         ] as $account) {
             DB::transaction(function () use ($account): void {
                 $administrator = User::query()->firstOrCreate(

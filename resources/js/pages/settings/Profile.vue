@@ -50,7 +50,6 @@ const accountRoleLabel = computed(() => {
             owner: 'Owner',
             manager: 'Manager',
             staff: 'Staff',
-            it: 'IT Administrator',
         }[props.administrationRoleCode] ?? 'Administrator'
     );
 });

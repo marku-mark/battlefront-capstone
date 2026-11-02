@@ -2,7 +2,6 @@
 
 namespace App\Repositories\Reporting;
 
-use App\Services\AuditLogPresenter;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
@@ -12,27 +11,22 @@ class AuditLogRepository
     /**
      * @param  array<string, mixed>  $filters
      */
-    public function query(array $filters, bool $canViewCosts = true, bool $accountDetailsOnly = false): Builder
+    public function query(array $filters, bool $canViewCosts = true): Builder
     {
         return DB::table('audit_logs')
             ->leftJoin('users', 'users.id', '=', 'audit_logs.actor_id')
             ->select('audit_logs.*', 'users.name as actor_name')
             ->addSelect(DB::raw("CASE WHEN audit_logs.actor_id IS NULL OR users.id IS NULL THEN 'system' WHEN users.role = 'administrator' THEN 'administrator' ELSE 'customer' END as actor_type"))
-            ->when($filters['q'] ?? null, function (Builder $query, string $search) use ($canViewCosts, $accountDetailsOnly): void {
-                $query->where(function (Builder $matches) use ($search, $canViewCosts, $accountDetailsOnly): void {
+            ->when($filters['q'] ?? null, function (Builder $query, string $search) use ($canViewCosts): void {
+                $query->where(function (Builder $matches) use ($search, $canViewCosts): void {
                     $matches->where('users.name', 'like', '%'.$search.'%')
                         ->orWhere('audit_logs.action', 'like', '%'.$search.'%')
                         ->orWhere('audit_logs.subject_type', 'like', '%'.$search.'%')
-                        ->orWhere(function (Builder $textMatches) use ($search, $canViewCosts, $accountDetailsOnly): void {
+                        ->orWhere(function (Builder $textMatches) use ($search, $canViewCosts): void {
                             $textMatches->where(function (Builder $textMatches) use ($search): void {
                                 $textMatches->where('audit_logs.reason', 'like', '%'.$search.'%')
                                     ->orWhere('audit_logs.changes', 'like', '%'.$search.'%');
                             });
-
-                            if ($accountDetailsOnly) {
-                                $textMatches->whereIn('audit_logs.subject_type', AuditLogPresenter::ACCOUNT_MANAGEMENT_SUBJECTS)
-                                    ->whereIn('audit_logs.action', AuditLogPresenter::ACCOUNT_MANAGEMENT_ACTIONS);
-                            }
 
                             if (! $canViewCosts) {
                                 $textMatches->where(function (Builder $visible): void {

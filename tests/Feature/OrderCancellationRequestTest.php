@@ -128,7 +128,7 @@ test('approval restores stock once and caps refunds at the original delivery inc
 test('only an authorized active Manager or Owner can review cancellation', function (string $role) {
     [$order, $stock] = walletCancellationOrder();
     app(OrderProcessingService::class)->requestCancellation($order->user, $order->id);
-    $actor = User::factory()->administrator()->create(['administration_role_id' => DB::table('administration_roles')->where('code', $role)->value('id')]);
+    $actor = User::factory()->administrator()->create(['administration_role_id' => ($role === 'it' ? legacyItRoleId() : DB::table('administration_roles')->where('code', $role)->value('id'))]);
     $response = $this->actingAs($actor)->patch(route('administration.orders.cancellation-request.update', $order), cancellationDecision());
     if (in_array($role, ['manager', 'owner'], true)) {
         $response->assertSessionHasNoErrors();

@@ -53,7 +53,7 @@ test('supplier filtering preserves active status search and pagination query str
 });
 
 test('supplier mutations require supplier permission and retain missing record responses', function () {
-    $it = User::factory()->administrator()->create(['administration_role_id' => DB::table('administration_roles')->where('code', 'it')->value('id')]);
+    $it = User::factory()->administrator()->create(['administration_role_id' => legacyItRoleId()]);
 
     $this->actingAs($it)->post(route('administration.suppliers.store'), ['name' => 'Forbidden supplier'])->assertForbidden();
 

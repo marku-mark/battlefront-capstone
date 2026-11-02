@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { renderToString } from '@vue/server-renderer';
 import * as Vue from 'vue';
-import { formatAgeDays } from '../../lib/dateTime.js';
+import { formatRelativeTime } from '../../lib/dateTime.js';
 import { compileSkeletonTestComponent } from '../../lib/skeletonTestHelpers.js';
 
 function findNode(node, predicate) {
@@ -156,7 +156,10 @@ function harness(t, pageName, pageProps = {}) {
                     cancelPendingSearch() {},
                 }),
             },
-            '@/lib/dateTime': { formatAgeDays, formatDateTime: () => 'Today' },
+            '@/lib/dateTime': {
+                formatRelativeTime,
+                formatDateTime: () => 'Today',
+            },
         },
         {
             get(target, key) {
@@ -239,6 +242,39 @@ const requestForms = [
     ['SupplierReturns', 'SupplierReturn', 'store', '', 'wrong_item'],
     ['CustomerReturns', 'CustomerReturn', 'store', '', 'defective'],
 ];
+
+for (const [pageName, propName] of [
+    ['DamageReports', 'reports'],
+    ['SupplierReturns', 'returns'],
+    ['WorkQueue', 'entries'],
+]) {
+    test(`${pageName} shows timestamp-based relative ages`, async (t) => {
+        t.mock.timers.enable({
+            apis: ['Date'],
+            now: Date.parse('2026-11-02T08:02:00Z'),
+        });
+        const app = harness(t, pageName, {
+            [propName]: {
+                data: [
+                    {
+                        id: 1,
+                        kind: 'damage',
+                        status: 'pending',
+                        created_at: '2026-11-02T08:00:00Z',
+                        age_days: 0,
+                    },
+                ],
+                last_page: 1,
+                total: 1,
+            },
+        });
+
+        const html = await app.html();
+
+        assert.match(html, /2 minutes ago/);
+        assert.doesNotMatch(html, /Less than a day old|0 days open/);
+    });
+}
 
 for (const [pageName, controller, method, id, reasonCode] of requestForms) {
     test(`${pageName} ${method} requires notes only for Other`, async (t) => {

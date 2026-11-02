@@ -148,7 +148,7 @@ class AdministratorOrderRepository
                 ->whereIn('administration_role_id', DB::table('administration_role_permissions as grants')
                     ->join('administration_permissions as permissions', 'permissions.id', '=', 'grants.administration_permission_id')
                     ->join('administration_roles as roles', 'roles.id', '=', 'grants.administration_role_id')
-                    ->where('permissions.code', 'orders.process')->where('roles.code', '!=', 'it')
+                    ->where('permissions.code', 'orders.process')->whereIn('roles.code', ['owner', 'manager', 'staff'])
                     ->select('grants.administration_role_id'))
                 ->orderBy('name')->get(['id', 'name']);
     }

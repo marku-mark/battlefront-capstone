@@ -433,7 +433,7 @@ test('administrator dashboard hides metrics and data from ungranted business are
 
 test('active administration roles receive their own dashboard without redirects', function (string $role, string $component) {
     $user = User::factory()->administrator()->create([
-        'administration_role_id' => DB::table('administration_roles')->where('code', $role)->value('id'),
+        'administration_role_id' => ($role === 'it' ? legacyItRoleId() : DB::table('administration_roles')->where('code', $role)->value('id')),
     ]);
 
     $response = $this->actingAs($user)->get(route('dashboard'));
@@ -446,7 +446,6 @@ test('active administration roles receive their own dashboard without redirects'
     $this->assertDatabaseHas('users', ['id' => $user->id, 'has_visited_dashboard' => false]);
 })->with([
     'Staff' => ['staff', 'Dashboard/Staff'],
-    'IT' => ['it', 'Dashboard/It'],
     'Manager' => ['manager', 'Dashboard/Administration'],
     'Owner' => ['owner', 'Dashboard/Administration'],
 ]);
@@ -540,7 +539,7 @@ test('managers without report access keep their dashboard and authorized operati
 
 test('administrators with no module permissions can still open their assigned dashboard', function (string $role, string $component) {
     $user = User::factory()->administrator()->create([
-        'administration_role_id' => DB::table('administration_roles')->where('code', $role)->value('id'),
+        'administration_role_id' => ($role === 'it' ? legacyItRoleId() : DB::table('administration_roles')->where('code', $role)->value('id')),
     ]);
     DB::table('administration_role_permissions')->where('administration_role_id', $user->administration_role_id)->delete();
 
@@ -555,33 +554,14 @@ test('administrators with no module permissions can still open their assigned da
 
 test('IT dashboard never supplies business data even when explicitly requested', function () {
     $it = User::factory()->administrator()->create([
-        'administration_role_id' => DB::table('administration_roles')->where('code', 'it')->value('id'),
+        'administration_role_id' => legacyItRoleId(),
     ]);
     Order::factory()->create();
     Inventory::factory()->create();
     Sale::factory()->create();
 
-    $initial = $this->actingAs($it)->get(route('dashboard'));
-    $initial->assertInertia(fn (Assert $page) => $page
-        ->component('Dashboard/It')
-        ->where('auth.can.manageUsers', true)
-        ->where('auth.can.viewAudit', true)
-        ->where('auth.can.viewReports', false)
-        ->where('auth.can.viewOrders', false)
-        ->where('auth.can.viewInventory', false)
-        ->missing('dashboard')
-        ->missing('recommendations')
-        ->missing('cartQuantity'));
-    expect($initial->viewData('page'))->not->toHaveKey('deferredProps');
-
-    $this->get(route('dashboard'), [
-        'X-Inertia' => 'true',
-        'X-Inertia-Version' => $initial->viewData('page')['version'],
-        'X-Inertia-Partial-Component' => 'Dashboard/Administration',
-        'X-Inertia-Partial-Data' => 'dashboard,recommendations',
-    ])->assertJsonPath('component', 'Dashboard/It')
-        ->assertJsonMissingPath('props.dashboard')
-        ->assertJsonMissingPath('props.recommendations');
+    $this->actingAs($it)->get(route('dashboard'))->assertForbidden();
+    $this->get(route('dashboard'), ['X-Inertia-Partial-Component' => 'Dashboard/Administration', 'X-Inertia-Partial-Data' => 'dashboard'])->assertForbidden();
 });
 
 test('inactive and unassigned administrators cannot load dashboard data', function (array $attributes) {

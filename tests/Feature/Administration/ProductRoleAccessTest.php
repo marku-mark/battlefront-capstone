@@ -72,7 +72,7 @@ test('manager can manage products while owner retains price and deletion control
 
 test('IT and customers do not receive administrator catalog navigation', function () {
     $it = User::factory()->administrator()->create([
-        'administration_role_id' => DB::table('administration_roles')->where('code', 'it')->value('id'),
+        'administration_role_id' => legacyItRoleId(),
     ]);
     $customer = User::factory()->customer()->create();
 

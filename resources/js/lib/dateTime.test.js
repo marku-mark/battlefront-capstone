@@ -3,7 +3,7 @@ import test from 'node:test';
 import {
     BUSINESS_TIMEZONE,
     formatCalendarDate,
-    formatAgeDays,
+    formatRelativeTime,
     formatDateTime,
     formatTimestampDate,
 } from './dateTime.js';
@@ -39,8 +39,56 @@ test('database timestamps without offsets display as UTC instants in Philippine 
     );
 });
 
-test('record ages describe recent records and use singular day labels', () => {
-    assert.equal(formatAgeDays(0), 'Less than a day old');
-    assert.equal(formatAgeDays(1), '1 day old');
-    assert.equal(formatAgeDays(2), '2 days old');
+test('relative timestamps show elapsed units with singular and plural labels', () => {
+    const now = Date.parse('2026-11-02T08:00:00Z');
+    const cases = [
+        [0, 'just now'],
+        [1, '1 second ago'],
+        [45, '45 seconds ago'],
+        [59, '59 seconds ago'],
+        [60, '1 minute ago'],
+        [3599, '59 minutes ago'],
+        [3600, '1 hour ago'],
+        [7200, '2 hours ago'],
+        [86399, '23 hours ago'],
+        [86400, '1 day ago'],
+        [172800, '2 days ago'],
+        [604800, '1 week ago'],
+        [1209600, '2 weeks ago'],
+        [2592000, '1 month ago'],
+        [5184000, '2 months ago'],
+        [31536000, '1 year ago'],
+        [63072000, '2 years ago'],
+    ];
+
+    for (const [seconds, expected] of cases) {
+        assert.equal(
+            formatRelativeTime(new Date(now - seconds * 1000), now),
+            expected,
+        );
+    }
+});
+
+test('relative timestamps interpret UTC database values and explicit offsets consistently', () => {
+    const now = Date.parse('2026-11-02T08:01:00Z');
+
+    for (const value of [
+        '2026-11-02 08:00:00',
+        '2026-11-02T08:00:00',
+        '2026-11-02T16:00:00+08:00',
+    ]) {
+        assert.equal(formatRelativeTime(value, now), '1 minute ago');
+    }
+});
+
+test('relative timestamps handle future, missing and invalid values', () => {
+    const now = Date.parse('2026-11-02T08:00:00Z');
+
+    assert.equal(
+        formatRelativeTime('2026-11-02T08:02:00Z', now),
+        'in 2 minutes',
+    );
+    for (const value of [null, undefined, '', 'invalid']) {
+        assert.equal(formatRelativeTime(value, now), 'Not available');
+    }
 });

@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ref, reactive, watch } from 'vue';
-import { formatAgeDays, formatDateTime } from '@/lib/dateTime';
+import { formatRelativeTime, formatDateTime } from '@/lib/dateTime';
 
 const requestReasonCode = ref('');
 
@@ -260,7 +260,9 @@ defineOptions({
                 </p>
                 <p class="text-muted-foreground text-sm">
                     {{ entry.reason_label }} · Requested
-                    {{ formatDateTime(entry.created_at) }}
+                    <span :title="formatDateTime(entry.created_at)">
+                        {{ formatRelativeTime(entry.created_at) }}
+                    </span>
                 </p>
                 <p
                     v-if="entry.reason"
@@ -549,7 +551,9 @@ defineOptions({
                         </p>
                         <p class="mt-1 text-sm">
                             {{ entry.reason }} ·
-                            {{ formatAgeDays(entry.age_days) }}
+                            <span :title="formatDateTime(entry.created_at)">
+                                {{ formatRelativeTime(entry.created_at) }}
+                            </span>
                         </p>
                     </div>
                     <span class="text-sm font-semibold capitalize">{{

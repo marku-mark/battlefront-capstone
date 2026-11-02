@@ -417,33 +417,10 @@ test('staff dashboard keeps Tasks available when operational data needs a retry'
     assert.doesNotMatch(html, /data-slot="stat-skeleton"/);
 });
 
-test('IT dashboard welcomes the user and contains only authorized technical shortcuts', async () => {
-    const props = {
-        auth: {
-            user: { name: 'IT Operator' },
-            can: { manageUsers: true, viewAudit: true },
-        },
-        dashboard: { recorded_revenue: '999.00', pending_orders: 17 },
-    };
-    let html = await renderPage('Dashboard/It', props);
-
-    assert.match(html, /Welcome, IT Operator/);
-    assert.match(html, /href="\/administration\/team"/);
-    assert.match(html, /href="\/administration\/reports\/audit"/);
-    assert.doesNotMatch(
-        html,
-        /999|Pending orders|Inventory|My sales|Sales reports|stat-skeleton/,
-    );
-
-    props.auth.can.manageUsers = false;
-    html = await renderPage('Dashboard/It', props);
-    assert.doesNotMatch(html, /href="\/administration\/team"/);
-    assert.match(html, /href="\/administration\/reports\/audit"/);
-
-    props.auth.can.viewAudit = false;
-    html = await renderPage('Dashboard/It', props);
-    assert.match(html, /Welcome, IT Operator/);
-    assert.doesNotMatch(html, /<a\b/);
+test('retired IT dashboard is unavailable', async () => {
+    await assert.rejects(() => renderPage('Dashboard/It', {}), {
+        code: 'ENOENT',
+    });
 });
 
 test('catalog keeps existing results while deferred recommendations and the next page load', async () => {

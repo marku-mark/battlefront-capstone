@@ -5,43 +5,27 @@ use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 
-test('IT administrators can manage staff accounts and review audits without business access', function () {
+test('retired IT administrators cannot manage accounts or review audits', function () {
     $this->withoutVite();
 
     $it = User::factory()->administrator()->create([
-        'administration_role_id' => DB::table('administration_roles')->where('code', 'it')->value('id'),
+        'administration_role_id' => legacyItRoleId(),
     ]);
     $manager = User::factory()->administrator()->create([
         'administration_role_id' => DB::table('administration_roles')->where('code', 'manager')->value('id'),
     ]);
 
-    expect($it->can('users.manage'))->toBeTrue()
-        ->and($it->can('audit.view'))->toBeTrue()
-        ->and($it->can('permissions.manage'))->toBeFalse()
-        ->and($it->can('orders.view'))->toBeFalse()
-        ->and($it->can('inventory.approve'))->toBeFalse()
-        ->and($it->can('audit.export'))->toBeFalse();
-
-    $this->actingAs($it)->get(route('dashboard'))->assertOk()
-        ->assertInertia(fn ($page) => $page->component('Dashboard/It')->missing('dashboard'));
-    $this->actingAs($it)->get(route('administration.team.index'))
-        ->assertOk()->assertInertia(fn ($page) => $page
-        ->where('availableRoles', ['staff', 'manager'])
-        ->where('canManagePermissions', false));
-    $this->actingAs($it)->get(route('administration.reports.audit'))->assertOk();
-    $this->actingAs($it)->get(route('administration.orders.index'))->assertForbidden();
-    $this->actingAs($it)->get(route('administration.reports.audit.export'))->assertForbidden();
-    $this->actingAs($it)->put(route('administration.team.permissions.update', 'staff'), ['permissions' => ['orders.view']])->assertForbidden();
-
-    $this->actingAs($it)->patch(route('administration.team.update', $manager), [
-        'role' => 'staff', 'is_active' => true,
-    ])->assertSessionHasNoErrors();
-    expect($manager->fresh()->administrationRoleCode())->toBe('staff');
+    expect($it->can('users.manage'))->toBeFalse()->and($it->can('audit.view'))->toBeFalse();
+    foreach (['dashboard', 'administration.team.index', 'administration.reports.audit', 'administration.orders.index', 'administration.reports.audit.export'] as $route) {
+        $this->actingAs($it)->get(route($route))->assertForbidden();
+    }
+    $this->patch(route('administration.team.update', $manager), ['role' => 'staff', 'is_active' => true])->assertForbidden();
+    expect($manager->fresh()->administrationRoleCode())->toBe('manager');
 });
 
 test('IT administrators cannot create or alter owner and IT accounts', function () {
     $it = User::factory()->administrator()->create([
-        'administration_role_id' => DB::table('administration_roles')->where('code', 'it')->value('id'),
+        'administration_role_id' => legacyItRoleId(),
     ]);
     $owner = User::factory()->administrator()->create();
 
@@ -62,7 +46,7 @@ test('IT administrators cannot create or alter owner and IT accounts', function 
         ->and($it->fresh()->administrationRoleCode())->toBe('it');
 });
 
-test('an owner can create an IT account but cannot change its fixed permissions', function () {
+test('an owner cannot create a retired IT account or edit its permissions', function () {
     Mail::fake();
     $owner = User::factory()->administrator()->create();
     $this->actingAs($owner)->postJson(route('administration.team.email-verification.store'), ['email' => 'it-operator@example.test'])->assertOk();
@@ -73,28 +57,21 @@ test('an owner can create an IT account but cannot change its fixed permissions'
         'name' => 'IT Operator', 'email' => 'it-operator@example.test',
         'role' => 'it', 'password' => 'CorrectHorseBatteryStaple!1',
         'password_confirmation' => 'CorrectHorseBatteryStaple!1',
-    ])->assertSessionHasNoErrors();
-
-    $it = User::query()->where('email', 'it-operator@example.test')->firstOrFail();
-    expect($it->administrationRoleCode())->toBe('it')
-        ->and($it->must_change_password)->toBeFalse()
-        ->and($it->can('access-administration'))->toBeTrue();
+    ])->assertSessionHasErrors('role');
+    $this->assertDatabaseMissing('users', ['email' => 'it-operator@example.test']);
 
     $this->actingAs($owner)->put(route('administration.team.permissions.update', 'it'), [
-        'permissions' => ['orders.view'],
+        'permissions' => ['orders.view'], 'edit_version' => 1,
     ])->assertSessionHasErrors('role');
     Mail::assertSentCount(1);
 });
 
-test('the rollout command assigns an existing administrator to IT and requires a password change', function () {
+test('the rollout command rejects the retired IT role', function () {
     $administrator = User::factory()->create(['role' => 'administrator']);
 
     $this->artisan('administration:assign-role', ['email' => $administrator->email, 'role' => 'it'])
-        ->assertExitCode(0);
+        ->assertExitCode(1);
 
-    expect($administrator->fresh()->administrationRoleCode())->toBe('it')
-        ->and($administrator->fresh()->must_change_password)->toBeFalse();
-    $this->assertDatabaseHas('audit_logs', [
-        'action' => 'team.role.assigned_by_cli', 'subject_id' => $administrator->id,
-    ]);
+    expect($administrator->fresh()->administrationRoleCode())->toBeNull();
+    $this->assertDatabaseMissing('audit_logs', ['action' => 'team.role.assigned_by_cli', 'subject_id' => $administrator->id]);
 });

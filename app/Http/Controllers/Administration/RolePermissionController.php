@@ -14,8 +14,8 @@ class RolePermissionController extends Controller
 {
     public function update(Request $request, string $role, TeamAccessService $team): RedirectResponse
     {
-        if (in_array($role, ['owner', 'it'], true)) {
-            throw ValidationException::withMessages(['role' => 'Owner and IT permissions are fixed.']);
+        if ($role === 'owner') {
+            throw ValidationException::withMessages(['role' => 'Owner permissions are fixed.']);
         }
 
         $validated = $request->validate([

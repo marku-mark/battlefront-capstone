@@ -28,14 +28,9 @@ class DashboardController extends Controller
 
             $component = match ($user->administrationRoleCode()) {
                 'staff' => 'Dashboard/Staff',
-                'it' => 'Dashboard/It',
                 'manager', 'owner' => 'Dashboard/Administration',
                 default => abort(403),
             };
-
-            if ($user->administrationRoleCode() === 'it') {
-                return Inertia::render($component);
-            }
 
             return Inertia::render($component, [
                 'dashboard' => Inertia::defer(fn (): array => $user->administrationRoleCode() === 'staff'

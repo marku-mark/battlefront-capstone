@@ -21,7 +21,7 @@ function teamHarness(t, overrides = {}) {
     const props = Vue.reactive({
         users: { data: [], last_page: 1 },
         filters: {},
-        availableRoles: ['staff', 'manager', 'owner', 'it'],
+        availableRoles: ['staff', 'manager', 'owner'],
         permissions: [
             ...staffPermissions,
             'orders.assign',

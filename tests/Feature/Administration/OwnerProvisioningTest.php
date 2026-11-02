@@ -56,7 +56,7 @@ test('CLI cannot demote the last active Owner', function () {
     $owner = User::factory()->administrator()->create();
     User::factory()->administrator()->create(['is_active' => false]);
 
-    $this->artisan('administration:assign-role', ['email' => $owner->email, 'role' => 'it'])
+    $this->artisan('administration:assign-role', ['email' => $owner->email, 'role' => 'staff'])
         ->expectsOutputToContain('The last active owner cannot be removed.')->assertFailed();
 
     expect($owner->refresh()->administrationRoleCode())->toBe('owner');

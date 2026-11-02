@@ -51,7 +51,7 @@ test('authorized creators verify email before creating a team account and keep t
     $this->assertDatabaseCount('personal_access_tokens', 0);
     Mail::assertSentCount(1);
 })->with([
-    ['owner', 'staff'], ['owner', 'manager'], ['owner', 'owner'], ['owner', 'it'], ['it', 'staff'], ['it', 'manager'],
+    ['owner', 'staff'], ['owner', 'manager'], ['owner', 'owner'],
 ]);
 
 test('team creation rejects missing pending and expired verification proofs', function (string $state) {
@@ -285,13 +285,13 @@ test('team sending and checking enforce creator and IP budgets', function (strin
 test('unauthorized roles cannot use team email verification', function (string $role) {
     Mail::fake();
     $user = $role === 'customer' ? User::factory()->customer()->create() : User::factory()->administrator()->create([
-        'administration_role_id' => DB::table('administration_roles')->where('code', $role)->value('id'),
+        'administration_role_id' => ($role === 'it' ? legacyItRoleId() : DB::table('administration_roles')->where('code', $role)->value('id')),
     ]);
     $this->actingAs($user)->postJson(route('administration.team.email-verification.store'), ['email' => 'new.staff@example.test'])->assertForbidden();
     $this->postJson(route('administration.team.email-verification.verify'), ['email' => 'new.staff@example.test', 'code' => '123456'])->assertForbidden();
     $this->deleteJson(route('administration.team.email-verification.destroy'), ['email' => 'new.staff@example.test'])->assertForbidden();
     Mail::assertNothingSent();
-})->with(['customer', 'staff', 'manager']);
+})->with(['customer', 'staff', 'manager', 'it']);
 
 test('the team service requires verification even when called directly', function () {
     $actor = User::factory()->administrator()->create();
@@ -320,7 +320,7 @@ test('a role change after verification cannot grant IT permission to create an o
     $actor = User::factory()->administrator()->create();
     $this->actingAs($actor)->postJson(route('administration.team.email-verification.store'), ['email' => 'new.staff@example.test'])->assertOk();
     $this->postJson(route('administration.team.email-verification.verify'), ['email' => 'new.staff@example.test', 'code' => Mail::sent(VerifyEmailOtp::class)->sole()->code])->assertOk();
-    $actor->forceFill(['administration_role_id' => DB::table('administration_roles')->where('code', 'it')->value('id')])->save();
+    $actor->forceFill(['administration_role_id' => legacyItRoleId()])->save();
 
     $this->post(route('administration.team.store'), teamEmailAccountInput(['role' => 'owner']))->assertForbidden();
     $this->assertDatabaseMissing('users', ['email' => 'new.staff@example.test']);

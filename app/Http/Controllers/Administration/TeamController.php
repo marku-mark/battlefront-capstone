@@ -37,7 +37,7 @@ class TeamController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', Rule::unique(User::class, 'email')],
-            'role' => ['required', Rule::in(['staff', 'manager', 'owner', 'it'])],
+            'role' => ['required', Rule::in(['staff', 'manager', 'owner'])],
             'password' => ['required', 'confirmed', Password::defaults()],
         ]);
         $team->create($request->user(), $validated, $request->session());
@@ -50,7 +50,7 @@ class TeamController extends Controller
     public function update(Request $request, User $user, TeamAccessService $team): RedirectResponse
     {
         $validated = $request->validate([
-            'role' => ['required', Rule::in(['staff', 'manager', 'owner', 'it'])],
+            'role' => ['required', Rule::in(['staff', 'manager', 'owner'])],
             'is_active' => ['required', 'boolean'],
         ]);
         $team->update($request->user(), $user, $validated['role'], (bool) $validated['is_active']);

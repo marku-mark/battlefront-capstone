@@ -12,12 +12,38 @@ function parseTimestamp(value) {
     return new Date(value);
 }
 
-export function formatAgeDays(days) {
-    if (days < 1) {
-        return 'Less than a day old';
+export function formatRelativeTime(value, now = Date.now()) {
+    if (!value) {
+        return 'Not available';
     }
 
-    return days + (days === 1 ? ' day old' : ' days old');
+    const seconds = (parseTimestamp(value).getTime() - Number(now)) / 1000;
+
+    if (!Number.isFinite(seconds)) {
+        return 'Not available';
+    }
+
+    if (Math.abs(seconds) < 1) {
+        return 'just now';
+    }
+
+    const units = [
+        ['year', 365 * 24 * 60 * 60],
+        ['month', 30 * 24 * 60 * 60],
+        ['week', 7 * 24 * 60 * 60],
+        ['day', 24 * 60 * 60],
+        ['hour', 60 * 60],
+        ['minute', 60],
+        ['second', 1],
+    ];
+    const [unit, duration] = units.find(
+        ([, size]) => Math.abs(seconds) >= size,
+    );
+
+    return new Intl.RelativeTimeFormat('en', { numeric: 'always' }).format(
+        Math.trunc(seconds / duration),
+        unit,
+    );
 }
 
 export function formatDateTime(

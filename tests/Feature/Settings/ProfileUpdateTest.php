@@ -42,7 +42,7 @@ test('profile shares verified email status and the assigned role without changin
         'role' => $role,
         'administration_role_id' => $administrationRoleCode === null
             ? null
-            : DB::table('administration_roles')->where('code', $administrationRoleCode)->value('id'),
+            : ($administrationRoleCode === 'it' ? legacyItRoleId() : DB::table('administration_roles')->where('code', $administrationRoleCode)->value('id')),
     ]);
     $original = $user->refresh()->getAttributes();
 
@@ -67,7 +67,7 @@ test('profile shares verified email status and the assigned role without changin
 test('all account types can update their name with omitted or unchanged email', function (string $role, bool $includeEmail) {
     $user = User::factory()->create([
         'role' => $role === 'customer' ? UserRole::Customer : UserRole::Administrator,
-        'administration_role_id' => $role === 'customer' ? null : DB::table('administration_roles')->where('code', $role)->value('id'),
+        'administration_role_id' => $role === 'customer' ? null : ($role === 'it' ? legacyItRoleId() : DB::table('administration_roles')->where('code', $role)->value('id')),
     ]);
     $email = $user->email;
     $verifiedAt = $user->getRawOriginal('email_verified_at');
@@ -96,7 +96,7 @@ test('all account types can update their name with omitted or unchanged email', 
 test('all account types reject email changes without saving accompanying profile changes', function (string $role) {
     $user = User::factory()->create([
         'role' => $role === 'customer' ? UserRole::Customer : UserRole::Administrator,
-        'administration_role_id' => $role === 'customer' ? null : DB::table('administration_roles')->where('code', $role)->value('id'),
+        'administration_role_id' => $role === 'customer' ? null : ($role === 'it' ? legacyItRoleId() : DB::table('administration_roles')->where('code', $role)->value('id')),
     ]);
     $original = $user->refresh()->getAttributes();
 

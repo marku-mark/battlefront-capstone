@@ -12,7 +12,7 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 
-#[Signature('administration:assign-role {email} {role : staff, manager, owner, or it} {--create : Create the first Owner using hidden password prompts} {--name= : Name required when creating the first Owner}')]
+#[Signature('administration:assign-role {email} {role : staff, manager, or owner} {--create : Create the first Owner using hidden password prompts} {--name= : Name required when creating the first Owner}')]
 #[Description('Explicitly assign an existing Administrator role or provision the first Owner.')]
 class AssignAdministrationRole extends Command
 {
@@ -21,8 +21,8 @@ class AssignAdministrationRole extends Command
     public function handle(TeamAccessService $access): int
     {
         $roleCode = (string) $this->argument('role');
-        if (! in_array($roleCode, ['staff', 'manager', 'owner', 'it'], true)) {
-            $this->error('Role must be staff, manager, owner, or it.');
+        if (! in_array($roleCode, ['staff', 'manager', 'owner'], true)) {
+            $this->error('Role must be staff, manager, or owner.');
 
             return self::FAILURE;
         }

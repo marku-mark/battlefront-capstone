@@ -20,7 +20,7 @@ class AuditLogController extends Controller
 
         return Inertia::render('Administration/Reports/AuditLog', [
             'filters' => $filters,
-            'entries' => $logs->query($filters, $request->user()->can('products.cost'), $request->user()->administrationRoleCode() === 'it')->paginate(25)->withQueryString()
+            'entries' => $logs->query($filters, $request->user()->can('products.cost'))->paginate(25)->withQueryString()
                 ->through(fn (stdClass $entry): array => $presenter->present($entry, $request->user())),
             ...$logs->lookups(),
         ]);
