@@ -71,7 +71,7 @@ test('mobile chatbot uses shared product store and FAQ context with the resource
 
     $response = $this->post('/api/v1/chatbot', ['message' => $message])
         ->assertOk()->assertJsonCount(1)
-        ->assertJsonCount(3, 'data')
+        ->assertJsonCount(5, 'data')
         ->assertJsonPath('data.message', $topic === 'faq' ? $fact : 'Approved answer.')
         ->assertJsonPath('data.source', $topic === 'faq' ? 'fallback' : 'gemini');
     expect($response->json('data.context_token'))->toBeString();
@@ -126,7 +126,7 @@ test('mobile order answers send only owned minimal facts to Gemini', function ()
 
         return true;
     });
-    expect(array_keys($response->json('data')))->toBe(['message', 'source', 'context_token']);
+    expect(array_keys($response->json('data')))->toBe(['message', 'presentation', 'source', 'context_token', 'language']);
     expect($response->getContent())->not->toContain('Private Recipient', 'payment-proofs/');
 });
 
@@ -161,7 +161,7 @@ test('mobile provider failures retain shared safe fact-based fallback', function
     $this->postJson('/api/v1/chatbot', ['message' => 'Where is the Sagay store?'])
         ->assertOk()->assertJsonPath('data.source', 'fallback')
         ->assertJsonPath('data.message', 'Sagay City: Address: Confirmed Sagay address.')
-        ->assertJsonCount(3, 'data');
+        ->assertJsonCount(5, 'data');
     ChatbotResponseAgent::assertPromptedTimes(1);
     Http::assertNothingSent();
 })->with(['provider', 'timeout', 'empty'])->with([true, false]);

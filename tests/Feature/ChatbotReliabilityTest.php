@@ -61,7 +61,7 @@ test('competing FAQ matches clarify before provider generation', function () {
     ChatbotKnowledge::factory()->create(['category' => ChatbotCategory::Faq, 'question_pattern' => 'How can I search the catalog?', 'response_template' => 'Delivery answer.', 'priority' => 90]);
 
     $this->postJson(route('chatbot.store'), ['message' => 'How should I search the catalog?'])
-        ->assertJsonPath('message', 'Which question do you mean? How do I search the catalog? / How can I search the catalog?');
+        ->assertJsonPath('message', "Which question do you mean?\n\n- How do I search the catalog?\n- How can I search the catalog?");
 
     ChatbotResponseAgent::assertNeverPrompted();
 });
@@ -88,8 +88,8 @@ test('provider outage returns catalog price and preserves demo notice', function
 
     ChatbotResponseAgent::assertPromptedTimes(1);
 })->with([
-    'real' => ['Aurelius Mouse', 'Aurelius Mouse. Listed price: PHP 1,200.00. Discount price: PHP 1,000.00.'],
-    'demo' => ['[DEMO] Aurelius Mouse', '[DEMO] Aurelius Mouse. Demo item only; listed prices are samples and Battlefront stock is unconfirmed. Listed price: PHP 1,200.00. Discount price: PHP 1,000.00.'],
+    'real' => ['Aurelius Mouse', "Aurelius Mouse.\n\nListed price: PHP 1,200.00.\n\nDiscount price: PHP 1,000.00."],
+    'demo' => ['[DEMO] Aurelius Mouse', "[DEMO] Aurelius Mouse.\n\nDemo item only; listed prices are samples and Battlefront stock is unconfirmed.\n\nListed price: PHP 1,200.00.\n\nDiscount price: PHP 1,000.00."],
 ]);
 
 test('provider outage distinguishes unknown stock from zero stock', function (?int $quantity, string $expected) {
@@ -130,7 +130,7 @@ test('provider outage returns owned payment status without private order fields'
     $order = Order::factory()->for($customer)->paidWithGCash()->create(['recipient_name' => 'Private recipient']);
 
     $this->actingAs($customer)->postJson(route('chatbot.store'), ['message' => 'What is the payment status of '.$order->reference.'?'])
-        ->assertJsonPath('message', $order->reference.': Order status: Pending. Fulfillment: Pickup. Payment method: GCash. Payment status: Pending.')
+        ->assertJsonPath('message', $order->reference.": Order status: Pending.\n\nFulfillment: Pickup.\n\nPayment method: GCash. Payment status: Pending.")
         ->assertJsonPath('source', 'fallback');
 
     ChatbotResponseAgent::assertPromptedTimes(1);

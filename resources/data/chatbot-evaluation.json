@@ -1,0 +1,1818 @@
+[
+    {
+        "id":  "en-single-1",
+        "language":  "en",
+        "messages":  [
+                         "How do I search for products? Reply in English."
+                     ],
+        "contains":  [
+                         "catalog"
+                     ]
+    },
+    {
+        "id":  "en-context-1",
+        "language":  "en",
+        "messages":  [
+                         "Reply in English.",
+                         "How do I search for products?",
+                         "How can I narrow the results by brand?"
+                     ],
+        "contains":  [
+                         "catalog"
+                     ]
+    },
+    {
+        "id":  "en-single-2",
+        "language":  "en",
+        "messages":  [
+                         "How can I view a product\u0027s details? Reply in English."
+                     ],
+        "contains":  [
+                         "catalog"
+                     ]
+    },
+    {
+        "id":  "en-context-2",
+        "language":  "en",
+        "messages":  [
+                         "Reply in English.",
+                         "How can I view a product\u0027s details?",
+                         "Where can I see its listed price?"
+                     ],
+        "contains":  [
+                         "catalog"
+                     ]
+    },
+    {
+        "id":  "en-single-3",
+        "language":  "en",
+        "messages":  [
+                         "How can I check my order status? Reply in English."
+                     ],
+        "contains":  [
+                         "order history"
+                     ]
+    },
+    {
+        "id":  "en-context-3",
+        "language":  "en",
+        "messages":  [
+                         "Reply in English.",
+                         "How can I check my order status?",
+                         "Where is my order history?"
+                     ],
+        "contains":  [
+                         "order history"
+                     ]
+    },
+    {
+        "id":  "en-single-4",
+        "language":  "en",
+        "messages":  [
+                         "Do you offer real-time delivery tracking? Reply in English."
+                     ],
+        "contains":  [
+                         "tracking"
+                     ]
+    },
+    {
+        "id":  "en-context-4",
+        "language":  "en",
+        "messages":  [
+                         "Reply in English.",
+                         "Do you offer real-time delivery tracking?",
+                         "Can I see a live courier location?"
+                     ],
+        "contains":  [
+                         "tracking"
+                     ]
+    },
+    {
+        "id":  "en-single-5",
+        "language":  "en",
+        "messages":  [
+                         "How do I use PC Builder? Reply in English."
+                     ],
+        "contains":  [
+                         "PC Builder"
+                     ]
+    },
+    {
+        "id":  "en-context-5",
+        "language":  "en",
+        "messages":  [
+                         "Reply in English.",
+                         "How do I use PC Builder?",
+                         "Where do I select components?"
+                     ],
+        "contains":  [
+                         "PC Builder"
+                     ]
+    },
+    {
+        "id":  "en-single-6",
+        "language":  "en",
+        "messages":  [
+                         "How do I select components in PC Builder? Reply in English."
+                     ],
+        "contains":  [
+                         "PC Builder"
+                     ]
+    },
+    {
+        "id":  "en-context-6",
+        "language":  "en",
+        "messages":  [
+                         "Reply in English.",
+                         "How do I select components in PC Builder?",
+                         "Can I change my selection?"
+                     ],
+        "contains":  [
+                         "PC Builder"
+                     ]
+    },
+    {
+        "id":  "en-single-7",
+        "language":  "en",
+        "messages":  [
+                         "How do saved PC builds work? Reply in English."
+                     ],
+        "contains":  [
+                         "public link"
+                     ]
+    },
+    {
+        "id":  "en-context-7",
+        "language":  "en",
+        "messages":  [
+                         "Reply in English.",
+                         "How do saved PC builds work?",
+                         "Does saving reserve stock?"
+                     ],
+        "contains":  [
+                         "public link"
+                     ]
+    },
+    {
+        "id":  "en-single-8",
+        "language":  "en",
+        "messages":  [
+                         "How do PC Builder templates work? Reply in English."
+                     ],
+        "contains":  [
+                         "template"
+                     ]
+    },
+    {
+        "id":  "en-context-8",
+        "language":  "en",
+        "messages":  [
+                         "Reply in English.",
+                         "How do PC Builder templates work?",
+                         "Is the saved budget the final price?"
+                     ],
+        "contains":  [
+                         "template"
+                     ]
+    },
+    {
+        "id":  "en-single-9",
+        "language":  "en",
+        "messages":  [
+                         "Where can I view PC Builder compatibility results? Reply in English."
+                     ],
+        "contains":  [
+                         "PC Builder"
+                     ]
+    },
+    {
+        "id":  "en-context-9",
+        "language":  "en",
+        "messages":  [
+                         "Reply in English.",
+                         "Where can I view PC Builder compatibility results?",
+                         "What does unknown mean?"
+                     ],
+        "contains":  [
+                         "PC Builder"
+                     ]
+    },
+    {
+        "id":  "en-single-10",
+        "language":  "en",
+        "messages":  [
+                         "What payment methods do you accept? Reply in English."
+                     ]
+    },
+    {
+        "id":  "en-context-10",
+        "language":  "en",
+        "messages":  [
+                         "Reply in English.",
+                         "What payment methods do you accept?",
+                         "Can I pay at pickup?"
+                     ]
+    },
+    {
+        "id":  "en-single-11",
+        "language":  "en",
+        "messages":  [
+                         "How do I upload payment proof? Reply in English."
+                     ]
+    },
+    {
+        "id":  "en-context-11",
+        "language":  "en",
+        "messages":  [
+                         "Reply in English.",
+                         "How do I upload payment proof?",
+                         "Does returning from payment prove it was paid?"
+                     ]
+    },
+    {
+        "id":  "en-single-12",
+        "language":  "en",
+        "messages":  [
+                         "Do you offer pickup or delivery? Reply in English."
+                     ]
+    },
+    {
+        "id":  "en-context-12",
+        "language":  "en",
+        "messages":  [
+                         "Reply in English.",
+                         "Do you offer pickup or delivery?",
+                         "Is an address required for delivery?"
+                     ]
+    },
+    {
+        "id":  "en-single-13",
+        "language":  "en",
+        "messages":  [
+                         "How much is the delivery fee? Reply in English."
+                     ]
+    },
+    {
+        "id":  "en-context-13",
+        "language":  "en",
+        "messages":  [
+                         "Reply in English.",
+                         "How much is the delivery fee?",
+                         "Is that an official LBC rate?"
+                     ]
+    },
+    {
+        "id":  "en-single-14",
+        "language":  "en",
+        "messages":  [
+                         "How do I cancel an order? Reply in English."
+                     ]
+    },
+    {
+        "id":  "en-context-14",
+        "language":  "en",
+        "messages":  [
+                         "Reply in English.",
+                         "How do I cancel an order?",
+                         "Is cancellation an automatic refund?"
+                     ]
+    },
+    {
+        "id":  "en-single-15",
+        "language":  "en",
+        "messages":  [
+                         "How do I request a return? Reply in English."
+                     ]
+    },
+    {
+        "id":  "en-context-15",
+        "language":  "en",
+        "messages":  [
+                         "Reply in English.",
+                         "How do I request a return?",
+                         "Does a request guarantee acceptance?"
+                     ]
+    },
+    {
+        "id":  "en-single-16",
+        "language":  "en",
+        "messages":  [
+                         "How are refunds processed? Reply in English."
+                     ]
+    },
+    {
+        "id":  "en-context-16",
+        "language":  "en",
+        "messages":  [
+                         "Reply in English.",
+                         "How are refunds processed?",
+                         "Can you promise a refund deadline?"
+                     ]
+    },
+    {
+        "id":  "en-single-17",
+        "language":  "en",
+        "messages":  [
+                         "Where is the Sagay store? Reply in English."
+                     ]
+    },
+    {
+        "id":  "en-context-17",
+        "language":  "en",
+        "messages":  [
+                         "Reply in English.",
+                         "Where is the Sagay store?",
+                         "What are its operating hours?"
+                     ]
+    },
+    {
+        "id":  "en-single-18",
+        "language":  "en",
+        "messages":  [
+                         "What are the San Carlos branch hours? Reply in English."
+                     ]
+    },
+    {
+        "id":  "en-context-18",
+        "language":  "en",
+        "messages":  [
+                         "Reply in English.",
+                         "What are the San Carlos branch hours?",
+                         "What about the Escalante branch?"
+                     ]
+    },
+    {
+        "id":  "en-single-19",
+        "language":  "en",
+        "messages":  [
+                         "What is the store contact number? Reply in English."
+                     ]
+    },
+    {
+        "id":  "en-context-19",
+        "language":  "en",
+        "messages":  [
+                         "Reply in English.",
+                         "What is the store contact number?",
+                         "What is its email address?"
+                     ]
+    },
+    {
+        "id":  "en-single-20",
+        "language":  "en",
+        "messages":  [
+                         "What is the price of an SSD? Reply in English."
+                     ]
+    },
+    {
+        "id":  "en-context-20",
+        "language":  "en",
+        "messages":  [
+                         "Reply in English.",
+                         "What is the price of an SSD?",
+                         "What about its stock?"
+                     ]
+    },
+    {
+        "id":  "en-single-21",
+        "language":  "en",
+        "messages":  [
+                         "Is a monitor available in Sagay? Reply in English."
+                     ]
+    },
+    {
+        "id":  "en-context-21",
+        "language":  "en",
+        "messages":  [
+                         "Reply in English.",
+                         "Is a monitor available in Sagay?",
+                         "Do you have a cheaper one?"
+                     ]
+    },
+    {
+        "id":  "en-single-22",
+        "language":  "en",
+        "messages":  [
+                         "Recommend a GPU under PHP 15000, not Intel. Reply in English."
+                     ]
+    },
+    {
+        "id":  "en-context-22",
+        "language":  "en",
+        "messages":  [
+                         "Reply in English.",
+                         "Recommend a GPU under PHP 15000, not Intel.",
+                         "Anything under PHP 10000?"
+                     ]
+    },
+    {
+        "id":  "en-single-23",
+        "language":  "en",
+        "messages":  [
+                         "Compare the current SSD prices. Reply in English."
+                     ]
+    },
+    {
+        "id":  "en-context-23",
+        "language":  "en",
+        "messages":  [
+                         "Reply in English.",
+                         "Compare the current SSD prices.",
+                         "Which one is cheaper?"
+                     ]
+    },
+    {
+        "id":  "en-single-24",
+        "language":  "en",
+        "messages":  [
+                         "Where is my order? Reply in English."
+                     ]
+    },
+    {
+        "id":  "en-context-24",
+        "language":  "en",
+        "messages":  [
+                         "Reply in English.",
+                         "Where is my order?",
+                         "What is my payment status?"
+                     ]
+    },
+    {
+        "id":  "en-single-25",
+        "language":  "en",
+        "messages":  [
+                         "Can these exact parts work together? Reply in English."
+                     ]
+    },
+    {
+        "id":  "en-context-25",
+        "language":  "en",
+        "messages":  [
+                         "Reply in English.",
+                         "Can these exact parts work together?",
+                         "Use the motherboard mentioned earlier."
+                     ]
+    },
+    {
+        "id":  "ceb-single-1",
+        "language":  "ceb",
+        "messages":  [
+                         "Unsaon mangita og products? Reply in Cebuano."
+                     ],
+        "contains":  [
+                         "katalogo"
+                     ]
+    },
+    {
+        "id":  "ceb-context-1",
+        "language":  "ceb",
+        "messages":  [
+                         "Reply in Cebuano.",
+                         "Unsaon mangita og products?",
+                         "Unsaon pagpili og brand?"
+                     ],
+        "contains":  [
+                         "katalogo"
+                     ]
+    },
+    {
+        "id":  "ceb-single-2",
+        "language":  "ceb",
+        "messages":  [
+                         "Unsaon pagtan-aw sa detalye sa produkto? Reply in Cebuano."
+                     ],
+        "contains":  [
+                         "katalogo"
+                     ]
+    },
+    {
+        "id":  "ceb-context-2",
+        "language":  "ceb",
+        "messages":  [
+                         "Reply in Cebuano.",
+                         "Unsaon pagtan-aw sa detalye sa produkto?",
+                         "Asa makita ang presyo niini?"
+                     ],
+        "contains":  [
+                         "katalogo"
+                     ]
+    },
+    {
+        "id":  "ceb-single-3",
+        "language":  "ceb",
+        "messages":  [
+                         "Asa nako makita ang akong order history? Reply in Cebuano."
+                     ],
+        "contains":  [
+                         "order history"
+                     ]
+    },
+    {
+        "id":  "ceb-context-3",
+        "language":  "ceb",
+        "messages":  [
+                         "Reply in Cebuano.",
+                         "Asa nako makita ang akong order history?",
+                         "Unsaon pagtan-aw sa order status?"
+                     ],
+        "contains":  [
+                         "order history"
+                     ]
+    },
+    {
+        "id":  "ceb-single-4",
+        "language":  "ceb",
+        "messages":  [
+                         "Naa moy real-time delivery tracking? Reply in Cebuano."
+                     ],
+        "contains":  [
+                         "tracking"
+                     ]
+    },
+    {
+        "id":  "ceb-context-4",
+        "language":  "ceb",
+        "messages":  [
+                         "Reply in Cebuano.",
+                         "Naa moy real-time delivery tracking?",
+                         "Makita ba ang live location sa courier?"
+                     ],
+        "contains":  [
+                         "tracking"
+                     ]
+    },
+    {
+        "id":  "ceb-single-5",
+        "language":  "ceb",
+        "messages":  [
+                         "Unsaon paggamit sa PC Builder? Reply in Cebuano."
+                     ],
+        "contains":  [
+                         "PC Builder"
+                     ]
+    },
+    {
+        "id":  "ceb-context-5",
+        "language":  "ceb",
+        "messages":  [
+                         "Reply in Cebuano.",
+                         "Unsaon paggamit sa PC Builder?",
+                         "Asa mopili og components?"
+                     ],
+        "contains":  [
+                         "PC Builder"
+                     ]
+    },
+    {
+        "id":  "ceb-single-6",
+        "language":  "ceb",
+        "messages":  [
+                         "Unsaon pagpili og components sa PC Builder? Reply in Cebuano."
+                     ],
+        "contains":  [
+                         "PC Builder"
+                     ]
+    },
+    {
+        "id":  "ceb-context-6",
+        "language":  "ceb",
+        "messages":  [
+                         "Reply in Cebuano.",
+                         "Unsaon pagpili og components sa PC Builder?",
+                         "Pwede usbon ang akong gipili?"
+                     ],
+        "contains":  [
+                         "PC Builder"
+                     ]
+    },
+    {
+        "id":  "ceb-single-7",
+        "language":  "ceb",
+        "messages":  [
+                         "Unsaon pag-save og PC build? Reply in Cebuano."
+                     ],
+        "contains":  [
+                         "public link"
+                     ]
+    },
+    {
+        "id":  "ceb-context-7",
+        "language":  "ceb",
+        "messages":  [
+                         "Reply in Cebuano.",
+                         "Unsaon pag-save og PC build?",
+                         "Mareserba ba ang stock kung i-save?"
+                     ],
+        "contains":  [
+                         "public link"
+                     ]
+    },
+    {
+        "id":  "ceb-single-8",
+        "language":  "ceb",
+        "messages":  [
+                         "Unsaon paggamit sa PC Builder templates? Reply in Cebuano."
+                     ],
+        "contains":  [
+                         "template"
+                     ]
+    },
+    {
+        "id":  "ceb-context-8",
+        "language":  "ceb",
+        "messages":  [
+                         "Reply in Cebuano.",
+                         "Unsaon paggamit sa PC Builder templates?",
+                         "Mao na ba ang final nga presyo?"
+                     ],
+        "contains":  [
+                         "template"
+                     ]
+    },
+    {
+        "id":  "ceb-single-9",
+        "language":  "ceb",
+        "messages":  [
+                         "Asa makita ang PC Builder compatibility results? Reply in Cebuano."
+                     ],
+        "contains":  [
+                         "PC Builder"
+                     ]
+    },
+    {
+        "id":  "ceb-context-9",
+        "language":  "ceb",
+        "messages":  [
+                         "Reply in Cebuano.",
+                         "Asa makita ang PC Builder compatibility results?",
+                         "Unsa ang pasabot sa unknown?"
+                     ],
+        "contains":  [
+                         "PC Builder"
+                     ]
+    },
+    {
+        "id":  "ceb-single-10",
+        "language":  "ceb",
+        "messages":  [
+                         "Unsaon pagbayad? Reply in Cebuano."
+                     ]
+    },
+    {
+        "id":  "ceb-context-10",
+        "language":  "ceb",
+        "messages":  [
+                         "Reply in Cebuano.",
+                         "Unsaon pagbayad?",
+                         "Pwede mobayad sa pickup?"
+                     ]
+    },
+    {
+        "id":  "ceb-single-11",
+        "language":  "ceb",
+        "messages":  [
+                         "Unsaon pag-upload sa payment proof? Reply in Cebuano."
+                     ]
+    },
+    {
+        "id":  "ceb-context-11",
+        "language":  "ceb",
+        "messages":  [
+                         "Reply in Cebuano.",
+                         "Unsaon pag-upload sa payment proof?",
+                         "Pamatuod ba sa bayad ang pagbalik gikan sa payment page?"
+                     ]
+    },
+    {
+        "id":  "ceb-single-12",
+        "language":  "ceb",
+        "messages":  [
+                         "Naa moy pickup o delivery? Reply in Cebuano."
+                     ]
+    },
+    {
+        "id":  "ceb-context-12",
+        "language":  "ceb",
+        "messages":  [
+                         "Reply in Cebuano.",
+                         "Naa moy pickup o delivery?",
+                         "Kinahanglan ba og address sa delivery?"
+                     ]
+    },
+    {
+        "id":  "ceb-single-13",
+        "language":  "ceb",
+        "messages":  [
+                         "Pila ang delivery fee? Reply in Cebuano."
+                     ]
+    },
+    {
+        "id":  "ceb-context-13",
+        "language":  "ceb",
+        "messages":  [
+                         "Reply in Cebuano.",
+                         "Pila ang delivery fee?",
+                         "Opisyal ba kini nga LBC rate?"
+                     ]
+    },
+    {
+        "id":  "ceb-single-14",
+        "language":  "ceb",
+        "messages":  [
+                         "Unsaon i-cancel ang order? Reply in Cebuano."
+                     ]
+    },
+    {
+        "id":  "ceb-context-14",
+        "language":  "ceb",
+        "messages":  [
+                         "Reply in Cebuano.",
+                         "Unsaon i-cancel ang order?",
+                         "Automatic ba ang refund kung i-cancel?"
+                     ]
+    },
+    {
+        "id":  "ceb-single-15",
+        "language":  "ceb",
+        "messages":  [
+                         "Unsaon pag-request og return? Reply in Cebuano."
+                     ]
+    },
+    {
+        "id":  "ceb-context-15",
+        "language":  "ceb",
+        "messages":  [
+                         "Reply in Cebuano.",
+                         "Unsaon pag-request og return?",
+                         "Sigurado ba nga dawaton ang request?"
+                     ]
+    },
+    {
+        "id":  "ceb-single-16",
+        "language":  "ceb",
+        "messages":  [
+                         "Unsaon ang refund processing? Reply in Cebuano."
+                     ]
+    },
+    {
+        "id":  "ceb-context-16",
+        "language":  "ceb",
+        "messages":  [
+                         "Reply in Cebuano.",
+                         "Unsaon ang refund processing?",
+                         "Naa bay sigurado nga refund deadline?"
+                     ]
+    },
+    {
+        "id":  "ceb-single-17",
+        "language":  "ceb",
+        "messages":  [
+                         "Asa inyong tindahan sa Sagay? Reply in Cebuano."
+                     ]
+    },
+    {
+        "id":  "ceb-context-17",
+        "language":  "ceb",
+        "messages":  [
+                         "Reply in Cebuano.",
+                         "Asa inyong tindahan sa Sagay?",
+                         "Unsang orasa mo moabli?"
+                     ]
+    },
+    {
+        "id":  "ceb-single-18",
+        "language":  "ceb",
+        "messages":  [
+                         "Unsang orasa moabli ang San Carlos branch? Reply in Cebuano."
+                     ]
+    },
+    {
+        "id":  "ceb-context-18",
+        "language":  "ceb",
+        "messages":  [
+                         "Reply in Cebuano.",
+                         "Unsang orasa moabli ang San Carlos branch?",
+                         "Unsa man ang Escalante branch?"
+                     ]
+    },
+    {
+        "id":  "ceb-single-19",
+        "language":  "ceb",
+        "messages":  [
+                         "Unsa inyong contact number? Reply in Cebuano."
+                     ]
+    },
+    {
+        "id":  "ceb-context-19",
+        "language":  "ceb",
+        "messages":  [
+                         "Reply in Cebuano.",
+                         "Unsa inyong contact number?",
+                         "Unsa inyong email address?"
+                     ]
+    },
+    {
+        "id":  "ceb-single-20",
+        "language":  "ceb",
+        "messages":  [
+                         "Tagpila ang SSD? Reply in Cebuano."
+                     ]
+    },
+    {
+        "id":  "ceb-context-20",
+        "language":  "ceb",
+        "messages":  [
+                         "Reply in Cebuano.",
+                         "Tagpila ang SSD?",
+                         "Naa pa bay stock niini?"
+                     ]
+    },
+    {
+        "id":  "ceb-single-21",
+        "language":  "ceb",
+        "messages":  [
+                         "Naa moy monitor sa Sagay? Reply in Cebuano."
+                     ]
+    },
+    {
+        "id":  "ceb-context-21",
+        "language":  "ceb",
+        "messages":  [
+                         "Reply in Cebuano.",
+                         "Naa moy monitor sa Sagay?",
+                         "Ang mas barato?"
+                     ]
+    },
+    {
+        "id":  "ceb-single-22",
+        "language":  "ceb",
+        "messages":  [
+                         "Rekomendahi GPU dili molapas sa PHP 15000, ayaw ug Intel. Reply in Cebuano."
+                     ]
+    },
+    {
+        "id":  "ceb-context-22",
+        "language":  "ceb",
+        "messages":  [
+                         "Reply in Cebuano.",
+                         "Rekomendahi GPU dili molapas sa PHP 15000, ayaw ug Intel.",
+                         "Ubos sa PHP 10000?"
+                     ]
+    },
+    {
+        "id":  "ceb-single-23",
+        "language":  "ceb",
+        "messages":  [
+                         "Itandi ang mga presyo sa SSD. Reply in Cebuano."
+                     ]
+    },
+    {
+        "id":  "ceb-context-23",
+        "language":  "ceb",
+        "messages":  [
+                         "Reply in Cebuano.",
+                         "Itandi ang mga presyo sa SSD.",
+                         "Asa ang mas barato?"
+                     ]
+    },
+    {
+        "id":  "ceb-single-24",
+        "language":  "ceb",
+        "messages":  [
+                         "Asa na ang akong order? Reply in Cebuano."
+                     ]
+    },
+    {
+        "id":  "ceb-context-24",
+        "language":  "ceb",
+        "messages":  [
+                         "Reply in Cebuano.",
+                         "Asa na ang akong order?",
+                         "Unsa ang status sa akong bayad?"
+                     ]
+    },
+    {
+        "id":  "ceb-single-25",
+        "language":  "ceb",
+        "messages":  [
+                         "Compatible ba kining exact parts? Reply in Cebuano."
+                     ]
+    },
+    {
+        "id":  "ceb-context-25",
+        "language":  "ceb",
+        "messages":  [
+                         "Reply in Cebuano.",
+                         "Compatible ba kining exact parts?",
+                         "Ang motherboard nga gihisgutan ganiha."
+                     ]
+    },
+    {
+        "id":  "tl-single-1",
+        "language":  "tl",
+        "messages":  [
+                         "Paano maghanap ng products? Reply in Tagalog."
+                     ],
+        "contains":  [
+                         "katalogo"
+                     ]
+    },
+    {
+        "id":  "tl-context-1",
+        "language":  "tl",
+        "messages":  [
+                         "Reply in Tagalog.",
+                         "Paano maghanap ng products?",
+                         "Paano pumili ng brand?"
+                     ],
+        "contains":  [
+                         "katalogo"
+                     ]
+    },
+    {
+        "id":  "tl-single-2",
+        "language":  "tl",
+        "messages":  [
+                         "Paano makita ang detalye ng produkto? Reply in Tagalog."
+                     ],
+        "contains":  [
+                         "katalogo"
+                     ]
+    },
+    {
+        "id":  "tl-context-2",
+        "language":  "tl",
+        "messages":  [
+                         "Reply in Tagalog.",
+                         "Paano makita ang detalye ng produkto?",
+                         "Saan makikita ang presyo nito?"
+                     ],
+        "contains":  [
+                         "katalogo"
+                     ]
+    },
+    {
+        "id":  "tl-single-3",
+        "language":  "tl",
+        "messages":  [
+                         "Paano ko makikita ang order history? Reply in Tagalog."
+                     ],
+        "contains":  [
+                         "order history"
+                     ]
+    },
+    {
+        "id":  "tl-context-3",
+        "language":  "tl",
+        "messages":  [
+                         "Reply in Tagalog.",
+                         "Paano ko makikita ang order history?",
+                         "Paano tingnan ang order status?"
+                     ],
+        "contains":  [
+                         "order history"
+                     ]
+    },
+    {
+        "id":  "tl-single-4",
+        "language":  "tl",
+        "messages":  [
+                         "Mayroon ba kayong real-time delivery tracking? Reply in Tagalog."
+                     ],
+        "contains":  [
+                         "tracking"
+                     ]
+    },
+    {
+        "id":  "tl-context-4",
+        "language":  "tl",
+        "messages":  [
+                         "Reply in Tagalog.",
+                         "Mayroon ba kayong real-time delivery tracking?",
+                         "Makikita ba ang live location ng courier?"
+                     ],
+        "contains":  [
+                         "tracking"
+                     ]
+    },
+    {
+        "id":  "tl-single-5",
+        "language":  "tl",
+        "messages":  [
+                         "Paano gamitin ang PC Builder? Reply in Tagalog."
+                     ],
+        "contains":  [
+                         "PC Builder"
+                     ]
+    },
+    {
+        "id":  "tl-context-5",
+        "language":  "tl",
+        "messages":  [
+                         "Reply in Tagalog.",
+                         "Paano gamitin ang PC Builder?",
+                         "Saan pipili ng components?"
+                     ],
+        "contains":  [
+                         "PC Builder"
+                     ]
+    },
+    {
+        "id":  "tl-single-6",
+        "language":  "tl",
+        "messages":  [
+                         "Paano pumili ng components sa PC Builder? Reply in Tagalog."
+                     ],
+        "contains":  [
+                         "PC Builder"
+                     ]
+    },
+    {
+        "id":  "tl-context-6",
+        "language":  "tl",
+        "messages":  [
+                         "Reply in Tagalog.",
+                         "Paano pumili ng components sa PC Builder?",
+                         "Pwede bang palitan ang napili?"
+                     ],
+        "contains":  [
+                         "PC Builder"
+                     ]
+    },
+    {
+        "id":  "tl-single-7",
+        "language":  "tl",
+        "messages":  [
+                         "Paano mag-save ng PC build? Reply in Tagalog."
+                     ],
+        "contains":  [
+                         "public link"
+                     ]
+    },
+    {
+        "id":  "tl-context-7",
+        "language":  "tl",
+        "messages":  [
+                         "Reply in Tagalog.",
+                         "Paano mag-save ng PC build?",
+                         "Nagrereserba ba ito ng stock?"
+                     ],
+        "contains":  [
+                         "public link"
+                     ]
+    },
+    {
+        "id":  "tl-single-8",
+        "language":  "tl",
+        "messages":  [
+                         "Paano gamitin ang PC Builder templates? Reply in Tagalog."
+                     ],
+        "contains":  [
+                         "template"
+                     ]
+    },
+    {
+        "id":  "tl-context-8",
+        "language":  "tl",
+        "messages":  [
+                         "Reply in Tagalog.",
+                         "Paano gamitin ang PC Builder templates?",
+                         "Final na ba ang naka-save na presyo?"
+                     ],
+        "contains":  [
+                         "template"
+                     ]
+    },
+    {
+        "id":  "tl-single-9",
+        "language":  "tl",
+        "messages":  [
+                         "Saan makikita ang PC Builder compatibility results? Reply in Tagalog."
+                     ],
+        "contains":  [
+                         "PC Builder"
+                     ]
+    },
+    {
+        "id":  "tl-context-9",
+        "language":  "tl",
+        "messages":  [
+                         "Reply in Tagalog.",
+                         "Saan makikita ang PC Builder compatibility results?",
+                         "Ano ang ibig sabihin ng unknown?"
+                     ],
+        "contains":  [
+                         "PC Builder"
+                     ]
+    },
+    {
+        "id":  "tl-single-10",
+        "language":  "tl",
+        "messages":  [
+                         "Paano magbayad? Reply in Tagalog."
+                     ]
+    },
+    {
+        "id":  "tl-context-10",
+        "language":  "tl",
+        "messages":  [
+                         "Reply in Tagalog.",
+                         "Paano magbayad?",
+                         "Pwede bang magbayad sa pickup?"
+                     ]
+    },
+    {
+        "id":  "tl-single-11",
+        "language":  "tl",
+        "messages":  [
+                         "Paano mag-upload ng payment proof? Reply in Tagalog."
+                     ]
+    },
+    {
+        "id":  "tl-context-11",
+        "language":  "tl",
+        "messages":  [
+                         "Reply in Tagalog.",
+                         "Paano mag-upload ng payment proof?",
+                         "Patunay ba ng bayad ang pagbalik mula sa payment page?"
+                     ]
+    },
+    {
+        "id":  "tl-single-12",
+        "language":  "tl",
+        "messages":  [
+                         "May pickup o delivery ba kayo? Reply in Tagalog."
+                     ]
+    },
+    {
+        "id":  "tl-context-12",
+        "language":  "tl",
+        "messages":  [
+                         "Reply in Tagalog.",
+                         "May pickup o delivery ba kayo?",
+                         "Kailangan ba ng address sa delivery?"
+                     ]
+    },
+    {
+        "id":  "tl-single-13",
+        "language":  "tl",
+        "messages":  [
+                         "Magkano ang delivery fee? Reply in Tagalog."
+                     ]
+    },
+    {
+        "id":  "tl-context-13",
+        "language":  "tl",
+        "messages":  [
+                         "Reply in Tagalog.",
+                         "Magkano ang delivery fee?",
+                         "Opisyal ba itong LBC rate?"
+                     ]
+    },
+    {
+        "id":  "tl-single-14",
+        "language":  "tl",
+        "messages":  [
+                         "Paano i-cancel ang order? Reply in Tagalog."
+                     ]
+    },
+    {
+        "id":  "tl-context-14",
+        "language":  "tl",
+        "messages":  [
+                         "Reply in Tagalog.",
+                         "Paano i-cancel ang order?",
+                         "Automatic ba ang refund kapag kinansela?"
+                     ]
+    },
+    {
+        "id":  "tl-single-15",
+        "language":  "tl",
+        "messages":  [
+                         "Paano mag-request ng return? Reply in Tagalog."
+                     ]
+    },
+    {
+        "id":  "tl-context-15",
+        "language":  "tl",
+        "messages":  [
+                         "Reply in Tagalog.",
+                         "Paano mag-request ng return?",
+                         "Sigurado bang tatanggapin ang request?"
+                     ]
+    },
+    {
+        "id":  "tl-single-16",
+        "language":  "tl",
+        "messages":  [
+                         "Paano ang refund processing? Reply in Tagalog."
+                     ]
+    },
+    {
+        "id":  "tl-context-16",
+        "language":  "tl",
+        "messages":  [
+                         "Reply in Tagalog.",
+                         "Paano ang refund processing?",
+                         "May tiyak bang refund deadline?"
+                     ]
+    },
+    {
+        "id":  "tl-single-17",
+        "language":  "tl",
+        "messages":  [
+                         "Saan ang tindahan ninyo sa Sagay? Reply in Tagalog."
+                     ]
+    },
+    {
+        "id":  "tl-context-17",
+        "language":  "tl",
+        "messages":  [
+                         "Reply in Tagalog.",
+                         "Saan ang tindahan ninyo sa Sagay?",
+                         "Anong oras kayo magbukas?"
+                     ]
+    },
+    {
+        "id":  "tl-single-18",
+        "language":  "tl",
+        "messages":  [
+                         "Anong oras bukas ang San Carlos branch? Reply in Tagalog."
+                     ]
+    },
+    {
+        "id":  "tl-context-18",
+        "language":  "tl",
+        "messages":  [
+                         "Reply in Tagalog.",
+                         "Anong oras bukas ang San Carlos branch?",
+                         "Paano naman ang Escalante branch?"
+                     ]
+    },
+    {
+        "id":  "tl-single-19",
+        "language":  "tl",
+        "messages":  [
+                         "Ano ang inyong contact number? Reply in Tagalog."
+                     ]
+    },
+    {
+        "id":  "tl-context-19",
+        "language":  "tl",
+        "messages":  [
+                         "Reply in Tagalog.",
+                         "Ano ang inyong contact number?",
+                         "Ano ang inyong email address?"
+                     ]
+    },
+    {
+        "id":  "tl-single-20",
+        "language":  "tl",
+        "messages":  [
+                         "Magkano ang SSD? Reply in Tagalog."
+                     ]
+    },
+    {
+        "id":  "tl-context-20",
+        "language":  "tl",
+        "messages":  [
+                         "Reply in Tagalog.",
+                         "Magkano ang SSD?",
+                         "May stock pa ba nito?"
+                     ]
+    },
+    {
+        "id":  "tl-single-21",
+        "language":  "tl",
+        "messages":  [
+                         "Meron ba kayong monitor sa Sagay? Reply in Tagalog."
+                     ]
+    },
+    {
+        "id":  "tl-context-21",
+        "language":  "tl",
+        "messages":  [
+                         "Reply in Tagalog.",
+                         "Meron ba kayong monitor sa Sagay?",
+                         "Yung mas mura?"
+                     ]
+    },
+    {
+        "id":  "tl-single-22",
+        "language":  "tl",
+        "messages":  [
+                         "Irekomenda ang GPU hindi lalampas sa PHP 15000, huwag ng Intel. Reply in Tagalog."
+                     ]
+    },
+    {
+        "id":  "tl-context-22",
+        "language":  "tl",
+        "messages":  [
+                         "Reply in Tagalog.",
+                         "Irekomenda ang GPU hindi lalampas sa PHP 15000, huwag ng Intel.",
+                         "Mas mababa sa PHP 10000?"
+                     ]
+    },
+    {
+        "id":  "tl-single-23",
+        "language":  "tl",
+        "messages":  [
+                         "Ikumpara ang presyo ng mga SSD. Reply in Tagalog."
+                     ]
+    },
+    {
+        "id":  "tl-context-23",
+        "language":  "tl",
+        "messages":  [
+                         "Reply in Tagalog.",
+                         "Ikumpara ang presyo ng mga SSD.",
+                         "Alin ang mas mura?"
+                     ]
+    },
+    {
+        "id":  "tl-single-24",
+        "language":  "tl",
+        "messages":  [
+                         "Nasaan ang aking order? Reply in Tagalog."
+                     ]
+    },
+    {
+        "id":  "tl-context-24",
+        "language":  "tl",
+        "messages":  [
+                         "Reply in Tagalog.",
+                         "Nasaan ang aking order?",
+                         "Ano ang status ng aking bayad?"
+                     ]
+    },
+    {
+        "id":  "tl-single-25",
+        "language":  "tl",
+        "messages":  [
+                         "Compatible ba ang exact parts na ito? Reply in Tagalog."
+                     ]
+    },
+    {
+        "id":  "tl-context-25",
+        "language":  "tl",
+        "messages":  [
+                         "Reply in Tagalog.",
+                         "Compatible ba ang exact parts na ito?",
+                         "Yung motherboard na binanggit kanina."
+                     ]
+    },
+    {
+        "id":  "hil-single-1",
+        "language":  "hil",
+        "messages":  [
+                         "Paano mangita sang products? Reply in Hiligaynon."
+                     ],
+        "contains":  [
+                         "katalogo"
+                     ]
+    },
+    {
+        "id":  "hil-context-1",
+        "language":  "hil",
+        "messages":  [
+                         "Reply in Hiligaynon.",
+                         "Paano mangita sang products?",
+                         "Paano magpili sang brand?"
+                     ],
+        "contains":  [
+                         "katalogo"
+                     ]
+    },
+    {
+        "id":  "hil-single-2",
+        "language":  "hil",
+        "messages":  [
+                         "Paano makita ang detalye sang produkto? Reply in Hiligaynon."
+                     ],
+        "contains":  [
+                         "katalogo"
+                     ]
+    },
+    {
+        "id":  "hil-context-2",
+        "language":  "hil",
+        "messages":  [
+                         "Reply in Hiligaynon.",
+                         "Paano makita ang detalye sang produkto?",
+                         "Diin makita ang presyo sini?"
+                     ],
+        "contains":  [
+                         "katalogo"
+                     ]
+    },
+    {
+        "id":  "hil-single-3",
+        "language":  "hil",
+        "messages":  [
+                         "Diin ko makita ang akon order history? Reply in Hiligaynon."
+                     ],
+        "contains":  [
+                         "order history"
+                     ]
+    },
+    {
+        "id":  "hil-context-3",
+        "language":  "hil",
+        "messages":  [
+                         "Reply in Hiligaynon.",
+                         "Diin ko makita ang akon order history?",
+                         "Paano makita ang order status?"
+                     ],
+        "contains":  [
+                         "order history"
+                     ]
+    },
+    {
+        "id":  "hil-single-4",
+        "language":  "hil",
+        "messages":  [
+                         "May ara kamo real-time delivery tracking? Reply in Hiligaynon."
+                     ],
+        "contains":  [
+                         "tracking"
+                     ]
+    },
+    {
+        "id":  "hil-context-4",
+        "language":  "hil",
+        "messages":  [
+                         "Reply in Hiligaynon.",
+                         "May ara kamo real-time delivery tracking?",
+                         "Makita bala ang live location sang courier?"
+                     ],
+        "contains":  [
+                         "tracking"
+                     ]
+    },
+    {
+        "id":  "hil-single-5",
+        "language":  "hil",
+        "messages":  [
+                         "Paano gamiton ang PC Builder? Reply in Hiligaynon."
+                     ],
+        "contains":  [
+                         "PC Builder"
+                     ]
+    },
+    {
+        "id":  "hil-context-5",
+        "language":  "hil",
+        "messages":  [
+                         "Reply in Hiligaynon.",
+                         "Paano gamiton ang PC Builder?",
+                         "Diin magpili sang components?"
+                     ],
+        "contains":  [
+                         "PC Builder"
+                     ]
+    },
+    {
+        "id":  "hil-single-6",
+        "language":  "hil",
+        "messages":  [
+                         "Paano magpili sang components sa PC Builder? Reply in Hiligaynon."
+                     ],
+        "contains":  [
+                         "PC Builder"
+                     ]
+    },
+    {
+        "id":  "hil-context-6",
+        "language":  "hil",
+        "messages":  [
+                         "Reply in Hiligaynon.",
+                         "Paano magpili sang components sa PC Builder?",
+                         "Mahimo ilisan ang akon ginpili?"
+                     ],
+        "contains":  [
+                         "PC Builder"
+                     ]
+    },
+    {
+        "id":  "hil-single-7",
+        "language":  "hil",
+        "messages":  [
+                         "Paano mag-save sang PC build? Reply in Hiligaynon."
+                     ],
+        "contains":  [
+                         "public link"
+                     ]
+    },
+    {
+        "id":  "hil-context-7",
+        "language":  "hil",
+        "messages":  [
+                         "Reply in Hiligaynon.",
+                         "Paano mag-save sang PC build?",
+                         "Mareserba bala ang stock kon i-save?"
+                     ],
+        "contains":  [
+                         "public link"
+                     ]
+    },
+    {
+        "id":  "hil-single-8",
+        "language":  "hil",
+        "messages":  [
+                         "Paano gamiton ang PC Builder templates? Reply in Hiligaynon."
+                     ],
+        "contains":  [
+                         "template"
+                     ]
+    },
+    {
+        "id":  "hil-context-8",
+        "language":  "hil",
+        "messages":  [
+                         "Reply in Hiligaynon.",
+                         "Paano gamiton ang PC Builder templates?",
+                         "Final na bala ang natipigan nga presyo?"
+                     ],
+        "contains":  [
+                         "template"
+                     ]
+    },
+    {
+        "id":  "hil-single-9",
+        "language":  "hil",
+        "messages":  [
+                         "Diin makita ang PC Builder compatibility results? Reply in Hiligaynon."
+                     ],
+        "contains":  [
+                         "PC Builder"
+                     ]
+    },
+    {
+        "id":  "hil-context-9",
+        "language":  "hil",
+        "messages":  [
+                         "Reply in Hiligaynon.",
+                         "Diin makita ang PC Builder compatibility results?",
+                         "Ano ang buot silingon sang unknown?"
+                     ],
+        "contains":  [
+                         "PC Builder"
+                     ]
+    },
+    {
+        "id":  "hil-single-10",
+        "language":  "hil",
+        "messages":  [
+                         "Paano bala magbayad? Reply in Hiligaynon."
+                     ]
+    },
+    {
+        "id":  "hil-context-10",
+        "language":  "hil",
+        "messages":  [
+                         "Reply in Hiligaynon.",
+                         "Paano bala magbayad?",
+                         "Mahimo magbayad sa pickup?"
+                     ]
+    },
+    {
+        "id":  "hil-single-11",
+        "language":  "hil",
+        "messages":  [
+                         "Paano mag-upload sang payment proof? Reply in Hiligaynon."
+                     ]
+    },
+    {
+        "id":  "hil-context-11",
+        "language":  "hil",
+        "messages":  [
+                         "Reply in Hiligaynon.",
+                         "Paano mag-upload sang payment proof?",
+                         "Pamatuod bala sang bayad ang pagbalik halin sa payment page?"
+                     ]
+    },
+    {
+        "id":  "hil-single-12",
+        "language":  "hil",
+        "messages":  [
+                         "May ara kamo pickup ukon delivery? Reply in Hiligaynon."
+                     ]
+    },
+    {
+        "id":  "hil-context-12",
+        "language":  "hil",
+        "messages":  [
+                         "Reply in Hiligaynon.",
+                         "May ara kamo pickup ukon delivery?",
+                         "Kinahanglan bala sang address sa delivery?"
+                     ]
+    },
+    {
+        "id":  "hil-single-13",
+        "language":  "hil",
+        "messages":  [
+                         "Pila ang delivery fee? Reply in Hiligaynon."
+                     ]
+    },
+    {
+        "id":  "hil-context-13",
+        "language":  "hil",
+        "messages":  [
+                         "Reply in Hiligaynon.",
+                         "Pila ang delivery fee?",
+                         "Opisyal bala ini nga LBC rate?"
+                     ]
+    },
+    {
+        "id":  "hil-single-14",
+        "language":  "hil",
+        "messages":  [
+                         "Paano kanselahon ang order? Reply in Hiligaynon."
+                     ]
+    },
+    {
+        "id":  "hil-context-14",
+        "language":  "hil",
+        "messages":  [
+                         "Reply in Hiligaynon.",
+                         "Paano kanselahon ang order?",
+                         "Automatic bala ang refund kon kanselahon?"
+                     ]
+    },
+    {
+        "id":  "hil-single-15",
+        "language":  "hil",
+        "messages":  [
+                         "Paano mag-request sang return? Reply in Hiligaynon."
+                     ]
+    },
+    {
+        "id":  "hil-context-15",
+        "language":  "hil",
+        "messages":  [
+                         "Reply in Hiligaynon.",
+                         "Paano mag-request sang return?",
+                         "Sigurado bala nga batunon ang request?"
+                     ]
+    },
+    {
+        "id":  "hil-single-16",
+        "language":  "hil",
+        "messages":  [
+                         "Paano ang refund processing? Reply in Hiligaynon."
+                     ]
+    },
+    {
+        "id":  "hil-context-16",
+        "language":  "hil",
+        "messages":  [
+                         "Reply in Hiligaynon.",
+                         "Paano ang refund processing?",
+                         "May sigurado bala nga refund deadline?"
+                     ]
+    },
+    {
+        "id":  "hil-single-17",
+        "language":  "hil",
+        "messages":  [
+                         "Diin ang inyo tindahan sa Sagay? Reply in Hiligaynon."
+                     ]
+    },
+    {
+        "id":  "hil-context-17",
+        "language":  "hil",
+        "messages":  [
+                         "Reply in Hiligaynon.",
+                         "Diin ang inyo tindahan sa Sagay?",
+                         "Ano nga oras kamo mag-abri?"
+                     ]
+    },
+    {
+        "id":  "hil-single-18",
+        "language":  "hil",
+        "messages":  [
+                         "Ano nga oras abri ang San Carlos branch? Reply in Hiligaynon."
+                     ]
+    },
+    {
+        "id":  "hil-context-18",
+        "language":  "hil",
+        "messages":  [
+                         "Reply in Hiligaynon.",
+                         "Ano nga oras abri ang San Carlos branch?",
+                         "Kamusta naman ang Escalante branch?"
+                     ]
+    },
+    {
+        "id":  "hil-single-19",
+        "language":  "hil",
+        "messages":  [
+                         "Ano ang inyo contact number? Reply in Hiligaynon."
+                     ]
+    },
+    {
+        "id":  "hil-context-19",
+        "language":  "hil",
+        "messages":  [
+                         "Reply in Hiligaynon.",
+                         "Ano ang inyo contact number?",
+                         "Ano ang inyo email address?"
+                     ]
+    },
+    {
+        "id":  "hil-single-20",
+        "language":  "hil",
+        "messages":  [
+                         "Pila ang presyo sang SSD? Reply in Hiligaynon."
+                     ]
+    },
+    {
+        "id":  "hil-context-20",
+        "language":  "hil",
+        "messages":  [
+                         "Reply in Hiligaynon.",
+                         "Pila ang presyo sang SSD?",
+                         "May ara pa stock sini?"
+                     ]
+    },
+    {
+        "id":  "hil-single-21",
+        "language":  "hil",
+        "messages":  [
+                         "May ara kamo monitor sa Sagay? Reply in Hiligaynon."
+                     ]
+    },
+    {
+        "id":  "hil-context-21",
+        "language":  "hil",
+        "messages":  [
+                         "Reply in Hiligaynon.",
+                         "May ara kamo monitor sa Sagay?",
+                         "Ang mas barato?"
+                     ]
+    },
+    {
+        "id":  "hil-single-22",
+        "language":  "hil",
+        "messages":  [
+                         "Ma suggest GPU indi maglapaw sa PHP 15000, indi sang Intel. Reply in Hiligaynon."
+                     ]
+    },
+    {
+        "id":  "hil-context-22",
+        "language":  "hil",
+        "messages":  [
+                         "Reply in Hiligaynon.",
+                         "Ma suggest GPU indi maglapaw sa PHP 15000, indi sang Intel.",
+                         "Mas manubo sa PHP 10000?"
+                     ]
+    },
+    {
+        "id":  "hil-single-23",
+        "language":  "hil",
+        "messages":  [
+                         "Itandi ang presyo sang mga SSD. Reply in Hiligaynon."
+                     ]
+    },
+    {
+        "id":  "hil-context-23",
+        "language":  "hil",
+        "messages":  [
+                         "Reply in Hiligaynon.",
+                         "Itandi ang presyo sang mga SSD.",
+                         "Diin ang mas barato?"
+                     ]
+    },
+    {
+        "id":  "hil-single-24",
+        "language":  "hil",
+        "messages":  [
+                         "Diin na ang akon order? Reply in Hiligaynon."
+                     ]
+    },
+    {
+        "id":  "hil-context-24",
+        "language":  "hil",
+        "messages":  [
+                         "Reply in Hiligaynon.",
+                         "Diin na ang akon order?",
+                         "Ano ang status sang akon bayad?"
+                     ]
+    },
+    {
+        "id":  "hil-single-25",
+        "language":  "hil",
+        "messages":  [
+                         "Compatible bala ini nga exact parts? Reply in Hiligaynon."
+                     ]
+    },
+    {
+        "id":  "hil-context-25",
+        "language":  "hil",
+        "messages":  [
+                         "Reply in Hiligaynon.",
+                         "Compatible bala ini nga exact parts?",
+                         "Ang motherboard nga ginmitlang kagina."
+                     ]
+    }
+]

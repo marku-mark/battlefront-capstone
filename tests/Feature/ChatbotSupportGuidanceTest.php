@@ -137,7 +137,7 @@ test('distinct rule questions clarify and resume only the selected guidance', fu
     ChatbotIntentAgent::assertNeverPrompted();
 });
 
-test('web and mobile preserve the three response fields for multilingual requests', function (string $channel) {
+test('web and mobile preserve response fields and include language metadata', function (string $channel) {
     Product::factory()->available()->create(['name' => 'Logitech Mouse', 'price' => '899.00']);
     ChatbotResponseAgent::fake(['Ang presyo ay PHP 899.00.'])->preventStrayPrompts();
 
@@ -145,7 +145,8 @@ test('web and mobile preserve the three response fields for multilingual request
 
     $response->assertOk();
     $data = $channel === 'web' ? $response->json() : $response->json('data');
-    expect(array_keys($data))->toBe(['message', 'source', 'context_token']);
+    expect(array_keys($data))->toBe(['message', 'presentation', 'source', 'context_token', 'language']);
+    expect($data['language'])->toBe('tl');
     expect($data['source'])->toBe('gemini');
     expect($data['message'])->toBe('Ang presyo ay PHP 899.00.');
     expect($data['context_token'])->toBeString();

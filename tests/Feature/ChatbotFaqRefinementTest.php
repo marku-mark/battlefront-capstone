@@ -108,7 +108,7 @@ test('rule guidance ignores saved overrides and answers without Gemini or active
     ['Do you accept GCash?', 'Pay online uses PayMongo Hosted Checkout'],
     ['Do I need payment proof for Maya?', 'New online payments require no receipt or screenshot upload'],
     ['Can I choose pickup or delivery?', 'Battlefront supports pickup and delivery. Choose an available fulfillment option during checkout; a delivery address is required for delivery.'],
-    ['What is the delivery fee?', 'nationwide fallback routes require manual arrangements without an automatic ETA or Shipment'],
+    ['What is the delivery fee?', 'Other destinations require staff arrangements'],
 ]);
 
 test('FAQ exactness and relevance select one answer regardless of priority', function () {

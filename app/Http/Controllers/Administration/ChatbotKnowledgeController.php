@@ -31,6 +31,7 @@ class ChatbotKnowledgeController extends Controller
                 'response_template',
                 'priority',
                 'is_active',
+                'translations',
             ])
             ->when($filters['q'] ?? null, fn ($query, $search) => $query->where(fn ($query) => $query
                 ->where('question_pattern', 'like', '%'.$search.'%')
@@ -54,7 +55,7 @@ class ChatbotKnowledgeController extends Controller
     public function store(SaveChatbotKnowledgeRequest $request): RedirectResponse
     {
         ChatbotKnowledge::query()->create([
-            ...$request->safe()->only(['question_pattern', 'response_template']),
+            ...$request->faqData(),
             'category' => ChatbotCategory::Faq,
             'priority' => 0,
         ]);
@@ -86,7 +87,7 @@ class ChatbotKnowledgeController extends Controller
         ChatbotKnowledge $chatbotKnowledge,
     ): RedirectResponse {
         $chatbotKnowledge->update([
-            ...$request->safe()->only(['question_pattern', 'response_template']),
+            ...$request->faqData(),
             'category' => ChatbotCategory::Faq,
         ]);
 
@@ -135,6 +136,7 @@ class ChatbotKnowledgeController extends Controller
             'response_template' => $chatbotKnowledge->response_template,
             'priority' => $chatbotKnowledge->priority,
             'is_active' => $chatbotKnowledge->is_active,
+            'translations' => $chatbotKnowledge->translations ?? [],
         ];
     }
 }

@@ -70,6 +70,19 @@ class ProductCatalogRepository
             ));
     }
 
+    /** @return EloquentCollection<int, Product> */
+    public function chatbotSearch(string $search): EloquentCollection
+    {
+        $intent = app(CatalogSearchIntent::class)->resolve($search);
+        $query = $this->catalogQuery(['q' => $search], $intent)->customerAvailable()
+            ->with('inventory:id,product_id,quantity,reorder_level');
+        if ($intent !== null) {
+            $this->prioritizePrimaryProducts($query, $intent, onlyPrimary: true);
+        }
+
+        return $query->orderByDesc('is_featured')->orderBy('name')->orderBy('id')->limit(3)->get();
+    }
+
     public function findEligibleOrFail(int $productId): Product
     {
         return $this->catalogQuery()->findOrFail($productId);
@@ -79,7 +92,7 @@ class ProductCatalogRepository
      * @param  Builder<Product>  $query
      * @param  array{category: string, query: string}  $intent
      */
-    private function prioritizePrimaryProducts(Builder $query, array $intent): void
+    private function prioritizePrimaryProducts(Builder $query, array $intent, bool $onlyPrimary = false): void
     {
         if (preg_match('/\b(ink|toner|cartridge|cable|balun|adapter|adaptor|battery|bracket|mount|mousepad|enclosure|reader|paste|grease)\b/u', $intent['query'])) {
             return;
@@ -114,7 +127,11 @@ class ProductCatalogRepository
             $conditions[] = 'LOWER(products.name) NOT LIKE ?';
             $bindings[] = $pattern;
         }
-        $query->orderByRaw('CASE WHEN '.implode(' AND ', $conditions).' THEN 0 ELSE 1 END', $bindings);
+        if ($onlyPrimary) {
+            $query->whereRaw('('.implode(' AND ', $conditions).')', $bindings);
+        } else {
+            $query->orderByRaw('CASE WHEN '.implode(' AND ', $conditions).' THEN 0 ELSE 1 END', $bindings);
+        }
     }
 
     /** @param Builder<Product> $query */

@@ -14,6 +14,7 @@ test('the chatbot knowledge schema follows the approved ERD decisions', function
         'response_template',
         'priority',
         'is_active',
+        'translations',
     ]);
 });
 

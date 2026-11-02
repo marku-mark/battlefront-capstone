@@ -463,9 +463,9 @@ test('catalog resolves recommendation data once and skips ranking for product-on
 
 test('catalog query resets return current filters and recommendation state for searching and first clear', function () {
     $customer = User::factory()->customer()->create();
-    $category = Category::factory()->create();
+    $category = Category::factory()->create(['name' => 'Laptops & Desktops']);
     createWorkflowProduct($category, ['name' => 'Laptop', 'is_featured' => true]);
-    createWorkflowProduct($category, ['name' => 'Keyboard', 'is_featured' => true]);
+    createWorkflowProduct(Category::factory()->create(['name' => 'Peripherals']), ['name' => 'Keyboard', 'is_featured' => true]);
     $initial = $this->actingAs($customer)->get(route('products.index'));
     $this->withHeaders([
         'X-Inertia' => 'true',

@@ -63,7 +63,7 @@ test('customers receive only the chatbot response fields for a supported inquiry
     $this->actingAs($customer)
         ->postJson(route('chatbot.store'), ['message' => 'Where is the Sagay store?'])
         ->assertOk()
-        ->assertJsonCount(3)
+        ->assertJsonCount(5)
         ->assertJsonStructure(['message', 'source', 'context_token'])
         ->assertJson([
             'message' => 'The Sagay store is at the confirmed address.',
@@ -105,7 +105,7 @@ test('guests can ask about catalog products', function () {
 
     $this->postJson(route('chatbot.store'), ['message' => 'Is the Aurelius Link Station available?'])
         ->assertOk()
-        ->assertJsonCount(3)
+        ->assertJsonCount(5)
         ->assertJsonStructure(['message', 'source', 'context_token'])
         ->assertJson([
             'message' => 'The Aurelius Link Station is available. Live inventory information covers the Sagay branch only.',
@@ -126,7 +126,7 @@ test('guests can ask about store information', function () {
 
     $this->postJson(route('chatbot.store'), ['message' => 'Where is the Sagay store?'])
         ->assertOk()
-        ->assertJsonCount(3)
+        ->assertJsonCount(5)
         ->assertJsonStructure(['message', 'source', 'context_token'])
         ->assertJson([
             'message' => 'The Sagay store is at the confirmed address.',
@@ -148,7 +148,7 @@ test('guests receive application payment rules without saved FAQ overrides or Ge
 
     $this->postJson(route('chatbot.store'), ['message' => 'What payment methods are accepted?'])
         ->assertOk()
-        ->assertJsonCount(3)
+        ->assertJsonCount(5)
         ->assertJsonStructure(['message', 'source', 'context_token'])
         ->assertJson([
             'message' => 'Pickup orders support Cash (Pay at Pickup), Debit/Credit Card (Pay at Store), Pay online. Delivery orders support Cash on Delivery (COD), Pay online. Pay online uses PayMongo Hosted Checkout for QR Ph, online card, GCash, Maya. New online payments require no receipt or screenshot upload. Confirmation comes from authenticated server processing; a browser return is not proof of payment. Use Continue payment in your saved order when available. Development transactions are test mode only. Route restrictions still apply; use the options offered at checkout. Direct online banking is not offered for new orders.',
@@ -167,7 +167,7 @@ test('guest order inquiries require sign-in without resolving an order or callin
 
     $this->postJson(route('chatbot.store'), ['message' => sprintf($messageFormat, $order->reference)])
         ->assertOk()
-        ->assertJsonCount(3)
+        ->assertJsonCount(5)
         ->assertJsonStructure(['message', 'source', 'context_token'])
         ->assertJson([
             'message' => 'Please sign in with a customer account to check order status.',
@@ -204,7 +204,7 @@ test('sensitive customer input returns a safe fallback before context or Gemini 
 
     $this->postJson(route('chatbot.store'), ['message' => $message])
         ->assertOk()
-        ->assertJsonCount(3)
+        ->assertJsonCount(5)
         ->assertJsonStructure(['message', 'source', 'context_token'])
         ->assertJson([
             'message' => 'Please remove sensitive information from your question and try again.',
@@ -234,7 +234,7 @@ test('customers can ask about their own order', function () {
     $this->actingAs($customer)
         ->postJson(route('chatbot.store'), ['message' => "Track my order {$order->reference}."])
         ->assertOk()
-        ->assertJsonCount(3)
+        ->assertJsonCount(5)
         ->assertJsonStructure(['message', 'source', 'context_token'])
         ->assertJson([
             'message' => 'Your order is pending.',
@@ -261,7 +261,7 @@ test('unsupported inquiries reach the customer as a safe fallback', function () 
     $this->actingAs($customer)
         ->postJson(route('chatbot.store'), ['message' => 'Recommend the best laptop.'])
         ->assertOk()
-        ->assertJsonCount(3)
+        ->assertJsonCount(5)
         ->assertJsonStructure(['message', 'source', 'context_token'])
         ->assertJson([
             'message' => 'I can only help with Battlefront products, your orders, store information, payment methods, pickup, and delivery.',
@@ -283,7 +283,7 @@ test('provider failures reach the customer as a safe fallback', function () {
     $this->actingAs($customer)
         ->postJson(route('chatbot.store'), ['message' => 'Where is the Sagay store?'])
         ->assertOk()
-        ->assertJsonCount(3)
+        ->assertJsonCount(5)
         ->assertJsonStructure(['message', 'source', 'context_token'])
         ->assertJson([
             'message' => 'Sagay City: Address: Confirmed Sagay address.',
@@ -306,7 +306,7 @@ test('another customers order never reaches Gemini through the chatbot endpoint'
             'message' => "Track my order {$foreignOrder->reference}.",
         ])
         ->assertOk()
-        ->assertJsonCount(3)
+        ->assertJsonCount(5)
         ->assertJsonStructure(['message', 'source', 'context_token'])
         ->assertJson([
             'message' => "I couldn't find a matching order in your account.",

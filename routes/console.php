@@ -1,5 +1,10 @@
 <?php
 
+Schedule::command('chatbot:prune-memory')->daily()->withoutOverlapping()
+    ->when(fn (): bool => (bool) config('ai_integration.memory.enabled'));
+Schedule::command('chatbot:reconcile-catalog')->hourly()->withoutOverlapping()
+    ->when(fn (): bool => (bool) config('ai_integration.sync_enabled'));
+
 use App\Console\Commands\PruneExpiredCustomerSearches;
 use App\Console\Commands\PruneExpiredRecommendationInteractions;
 use App\Console\Commands\PruneWishlistActivities;

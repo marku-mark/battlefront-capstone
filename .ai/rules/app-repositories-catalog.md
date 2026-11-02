@@ -31,3 +31,6 @@ Normalize query whitespace and spaced capacity units before provider/fallback ma
 
 ## Honor explicit quoted catalog phrases
 Paired straight double quotes opt into literal contiguous, case-insensitive phrase matching within one public product_code/name/brand/description field. Keep quoted units, punctuation and alias words literal; skip category intent rewriting for quoted searches. Algolia requests enable only advancedSyntaxFeatures exactPhrase (not minus exclusions). Apply quoted phrase predicates to live SQL before pagination even for provider IDs; this is the explicit exception to provider-only text matching. Unquoted terms remain provider matched or all-term SQL fallback; multiple quoted phrases are ANDed.
+
+## Reuse catalog search for short chatbot discovery
+Developer approved chatbot Algolia candidate retrieval for short product discovery after Send. Reuse CatalogSearchIntent and live MySQL eligibility/prices/inventory, bounded to three displayed products. Preserve exact named unavailable-item inquiries and SQL outage fallback; provider zero hits do not trigger broader text matching. Structured presentation supplements the existing text response.

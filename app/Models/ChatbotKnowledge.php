@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Model;
  * @property string $response_template
  * @property int $priority
  * @property bool $is_active
+ * @property array<string, mixed>|null $translations
  */
 #[Fillable([
     'category',
@@ -24,6 +25,7 @@ use Illuminate\Database\Eloquent\Model;
     'response_template',
     'priority',
     'is_active',
+    'translations',
 ])]
 class ChatbotKnowledge extends Model
 {
@@ -59,6 +61,24 @@ class ChatbotKnowledge extends Model
             'category' => ChatbotCategory::class,
             'priority' => 'integer',
             'is_active' => 'boolean',
+            'translations' => 'array',
         ];
+    }
+
+    /** @return array{question_pattern: string, response_template: string}|null */
+    public function reviewedTranslation(string $language): ?array
+    {
+        $translation = $this->translations[$language] ?? null;
+        if (! in_array($language, ['ceb', 'tl', 'hil'], true) || ! is_array($translation)
+            || ($translation['reviewed'] ?? false) !== true
+            || ($translation['source_question'] ?? null) !== $this->question_pattern
+            || ($translation['source_answer'] ?? null) !== $this->response_template
+            || ! is_string($translation['question_pattern'] ?? null)
+            || ! is_string($translation['response_template'] ?? null)
+            || trim($translation['question_pattern']) === '' || trim($translation['response_template']) === '') {
+            return null;
+        }
+
+        return ['question_pattern' => $translation['question_pattern'], 'response_template' => $translation['response_template']];
     }
 }

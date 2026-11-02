@@ -16,8 +16,10 @@ class ChatbotResponseResource extends JsonResource
     {
         return [
             'message' => $this->resource['message'],
+            ...isset($this->resource['presentation']) ? ['presentation' => $this->resource['presentation']] : [],
             'source' => $this->resource['source'],
             'context_token' => $this->resource['context_token'],
+            'language' => $this->resource['language'] ?? 'en',
         ];
     }
 }

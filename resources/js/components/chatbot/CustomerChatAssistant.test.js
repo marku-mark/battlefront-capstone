@@ -4,6 +4,8 @@ import test from 'node:test';
 import { runInNewContext } from 'node:vm';
 import { compileScript, parse } from '@vue/compiler-sfc';
 import { quickQuestions } from './quickQuestions.js';
+import { safePresentation } from './chatContextStorage.js';
+import { reactive, watch, nextTick } from 'vue';
 
 const source = readFileSync(
     new URL('./CustomerChatAssistant.vue', import.meta.url),
@@ -21,6 +23,44 @@ const handlerSource = descriptor.scriptSetup.content.slice(
     handler.end,
 );
 
+test('ordinary Inertia visits retain history while identity changes reset it', async () => {
+    const identityWatch = script.scriptSetupAst.find(
+        (node) =>
+            node.type === 'ExpressionStatement' &&
+            node.expression?.callee?.name === 'watch' &&
+            node.expression.arguments[1]?.name === 'startNewChat',
+    );
+    const page = reactive({
+        props: { auth: { user: null }, chatbotMemory: { identity: 'guest-a' } },
+    });
+    let resets = 0;
+    const stop = runInNewContext(
+        descriptor.scriptSetup.content
+            .slice(identityWatch.start, identityWatch.end)
+            .replace(/;$/, ''),
+        {
+            watch,
+            page,
+            startNewChat: () => {
+                resets++;
+            },
+        },
+    );
+    page.props = {
+        auth: { user: null },
+        chatbotMemory: { identity: 'guest-a' },
+    };
+    await nextTick();
+    assert.equal(resets, 0);
+    page.props = {
+        auth: { user: { id: 7 } },
+        chatbotMemory: { identity: 'customer-b' },
+    };
+    await nextTick();
+    assert.equal(resets, 1);
+    stop();
+});
+
 function functionSource(name) {
     const declaration = script.scriptSetupAst.find(
         (node) => node.type === 'FunctionDeclaration' && node.id.name === name,
@@ -33,6 +73,12 @@ function functionSource(name) {
 
 test('New chat clears transcript, token, errors and saved reading position', () => {
     const context = {
+        clearChatContext() {},
+        clearChatTranscript() {},
+        clearTimeout() {},
+        expiryTimer: null,
+        transcriptExpiresAt: 0,
+        contextStorage: () => null,
         conversationVersion: 1,
         quickMenu: { value: 'main' },
         showQuickQuestions: { value: true },
@@ -68,6 +114,9 @@ for (const failure of [false, true]) {
             finish = failure ? reject : resolve;
         });
         const context = {
+            transcriptExpiresAt: 0,
+            scheduleExpiry() {},
+            safePresentation,
             conversationVersion: 1,
             quickMenu: { value: 'main' },
             showQuickQuestions: { value: true },
@@ -84,6 +133,7 @@ for (const failure of [false, true]) {
                 post: () => response,
             },
             scrollToLatest() {},
+            persistContext() {},
             showReply() {},
             ChatbotController: { store: { url: () => '/chatbot' } },
         };
@@ -131,6 +181,9 @@ for (const succeeds of [true, false]) {
     test(`quick question preserves draft and ${succeeds ? 'uses new' : 'restores old'} context`, async () => {
         let sent;
         const context = {
+            transcriptExpiresAt: 0,
+            scheduleExpiry() {},
+            safePresentation,
             conversationVersion: 1,
             nextMessageId: 1,
             readerScrolledBack: false,
@@ -155,6 +208,7 @@ for (const succeeds of [true, false]) {
                 },
             },
             scrollToLatest() {},
+            persistContext() {},
             showReply() {},
             ChatbotController: { store: { url: () => '/chatbot' } },
         };
@@ -179,9 +233,9 @@ for (const succeeds of [true, false]) {
 for (const [name, event, shouldSubmit] of [
     ['Enter submits instead of inserting a new line', { key: 'Enter' }, true],
     [
-        'Shift+Enter submits instead of inserting a new line',
+        'Shift+Enter inserts a new line without submitting',
         { key: 'Enter', shiftKey: true },
-        true,
+        false,
     ],
     ['Ctrl+Enter still submits', { key: 'Enter', ctrlKey: true }, true],
     [
@@ -211,3 +265,16 @@ for (const [name, event, shouldSubmit] of [
         assert.equal(prevented, shouldSubmit);
     });
 }
+import { compileTemplate } from '@vue/compiler-sfc';
+
+test('product cards compile with escaped Vue text and route helpers', () => {
+    const compiled = compileTemplate({
+        source: descriptor.template.content,
+        filename: 'CustomerChatAssistant.vue',
+        id: 'chatbot-cards',
+    });
+    assert.deepEqual(compiled.errors, []);
+    assert.ok(compiled.code.includes('ProductCatalogController.show.url'));
+    assert.ok(compiled.code.includes('toDisplayString(product.name)'));
+    assert.ok(!compiled.code.includes('innerHTML'));
+});

@@ -24,6 +24,7 @@ use App\Models\Tag;
 use App\Models\User;
 use App\Services\Chatbot\ChatbotAiAdapter;
 use App\Services\Chatbot\ChatbotOrchestrationService;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Http;
 use Laravel\Ai\Exceptions\AiException;
 use Laravel\Ai\Exceptions\ProviderConnectionException;
@@ -80,7 +81,7 @@ test('categorizes before resolving context and resolves context before generatin
         new ResolveChatbotRuleGuidance,
     ))->respond("  Is the Aurelius Link Station\navailable?  ");
 
-    expect($result)->toBe([
+    expect(Arr::except($result, ['presentation']))->toBe([
         'category' => ChatbotQueryCategory::Product,
         'message' => 'The Aurelius Link Station is in stock.',
         'source' => 'gemini',
@@ -100,7 +101,7 @@ test('returns predefined fallbacks without Gemini for empty and unsupported inqu
 
     $result = app(ChatbotOrchestrationService::class)->respond($message);
 
-    expect($result)->toBe([
+    expect(Arr::except($result, ['presentation']))->toBe([
         'category' => ChatbotQueryCategory::Unsupported,
         'message' => $expectedMessage,
         'source' => 'fallback',
@@ -146,6 +147,7 @@ test('sends only matched catalog and Sagay inventory facts for a product inquiry
 
     $expectedContext = [
         'products' => [[
+            'id' => $product->id,
             'name' => 'Aurelius Link Station',
             'description' => 'Outdoor networking unit',
             'brand' => 'Helios Labs',
@@ -242,7 +244,7 @@ test('returns only matching active managed knowledge directly for an FAQ inquiry
 
     $result = app(ChatbotOrchestrationService::class)->respond('How do I search for products?');
 
-    expect($result)->toBe([
+    expect(Arr::except($result, ['presentation']))->toBe([
         'category' => ChatbotQueryCategory::Faq,
         'message' => 'Approved search guidance.',
         'source' => 'fallback',
@@ -263,7 +265,7 @@ test('returns category-specific missing-context fallbacks without Gemini', funct
 
     $result = app(ChatbotOrchestrationService::class)->respond($message, $customer);
 
-    expect($result)->toBe([
+    expect(Arr::except($result, ['presentation']))->toBe([
         'category' => $category,
         'message' => $expectedMessage,
         'source' => 'fallback',
@@ -329,7 +331,7 @@ test('passes only minimized owned order context to Gemini', function () {
         $customer,
     );
 
-    expect($result)->toBe([
+    expect(Arr::except($result, ['presentation']))->toBe([
         'category' => ChatbotQueryCategory::Order,
         'message' => 'Your order is being prepared for delivery.',
         'source' => 'gemini',
@@ -372,7 +374,7 @@ test('uses owned order payment context for a shorthand reference instead of gene
         $customer,
     );
 
-    expect($result)->toBe([
+    expect(Arr::except($result, ['presentation']))->toBe([
         'category' => ChatbotQueryCategory::Order,
         'message' => 'Your delivery order uses GCash and its payment is verified.',
         'source' => 'gemini',
@@ -404,7 +406,7 @@ test('passes explicitly named demo products to Gemini as unconfirmed samples', f
         'Do you have Samsung Sprint NVMe SSD available currently?',
     );
 
-    expect($result)->toBe([
+    expect(Arr::except($result, ['presentation']))->toBe([
         'category' => ChatbotQueryCategory::Product,
         'message' => 'This is a demo listing; Battlefront stock is unconfirmed.',
         'source' => 'gemini',
@@ -431,7 +433,7 @@ test('cannot use another customers order as Gemini context', function () {
         $customer,
     );
 
-    expect($result)->toBe([
+    expect(Arr::except($result, ['presentation']))->toBe([
         'category' => ChatbotQueryCategory::Order,
         'message' => "I couldn't find a matching order in your account.",
         'source' => 'fallback',
@@ -453,7 +455,7 @@ test('returns the confirmed address after a provider connection failure', functi
 
     $result = app(ChatbotOrchestrationService::class)->respond('Where is the Sagay store?');
 
-    expect($result)->toBe([
+    expect(Arr::except($result, ['presentation']))->toBe([
         'category' => ChatbotQueryCategory::Store,
         'message' => 'Sagay City: Address: Approved Sagay address.',
         'source' => 'fallback',
@@ -477,7 +479,7 @@ test('returns the approved knowledge answer without attempting an unavailable pr
         'How do I search for products?',
     );
 
-    expect($result)->toBe([
+    expect(Arr::except($result, ['presentation']))->toBe([
         'category' => ChatbotQueryCategory::Faq,
         'message' => 'Approved search guidance.',
         'source' => 'fallback',

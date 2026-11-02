@@ -4,8 +4,10 @@ namespace App\Actions\Chatbot\Context;
 
 use App\Models\Product;
 use App\Models\Tag;
+use App\Repositories\Catalog\CatalogSearchIntent;
 use App\Repositories\Catalog\ProductCatalogRepository;
 use App\Services\Chatbot\ChatbotLanguage;
+use App\Services\Chatbot\SemanticCatalogCandidates;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Str;
 
@@ -13,6 +15,7 @@ class ResolveProductContext
 {
     /** @var list<string> */
     private const QUERY_WORDS = [
+        'and', 'also', 'plus', 'still', 'about', 'much', 'thanks', 'thank',
         'ang', 'sang', 'sa', 'ng', 'mga', 'ba', 'bala', 'gid', 'bi', 'palihog', 'nga', 'pud', 'sad', 'naman', 'lang', 'na', 'man', 'pa', 'po', 'kamo', 'kayo', 'ninyo', 'niyo', 'inyong', 'inyo', 'ko', 'nako', 'it', 'there', 'inquiry', 'pila', 'magkano', 'tagpila', 'may', 'ara', 'naa', 'moy', 'meron', 'mayroon', 'kayong',
         'a',
         'an',
@@ -84,8 +87,31 @@ class ResolveProductContext
      *     inventory: array{quantity: int|null, status: 'unavailable'|'out_of_stock'|'low_stock'|'in_stock'}
      * }>}
      */
-    public function execute(string $message): array
+    public function execute(string $message, ?string $semanticMessage = null): array
     {
+        if (config('ai_integration.enabled') && preg_match('/^\s*(?:what products (?:do you have|are available)|what do you (?:sell|have)|browse (?:the )?catalog)\s*[?.!]*$/iu', $message) === 1) {
+            $products = Product::query()->customerAvailable()->with(['category', 'inventory', 'tags'])
+                ->orderBy('price')->orderBy('id')->limit(6)->get();
+            $products->loadMissing('componentProfile.revisions');
+
+            return ['resolution' => $products->isEmpty() ? 'not_found' : 'matched', 'products' => array_values($products->map(fn (Product $product): array => $this->mapProduct($product))->all())];
+        }
+        $catalogQuery = $this->catalogSearchQuery($message);
+        $useCatalogIntent = $catalogQuery !== null && $this->namedProducts($message)->isEmpty();
+        if ($this->isShortSearch($message) || $useCatalogIntent) {
+            $search = $useCatalogIntent ? $catalogQuery : $message;
+            $matches = $this->products->chatbotSearch($search);
+            if ($matches->isNotEmpty()) {
+                if (config('ai_integration.enabled')) {
+                    $matches->loadMissing('componentProfile.revisions');
+                }
+
+                return ['resolution' => 'matched', 'search_query' => $search, 'products' => array_values($matches->map(fn (Product $product): array => ['id' => $product->id, ...$this->mapProduct($product)])->all())];
+            }
+            if (! $this->namedProducts($message)->contains(fn (Product $product): bool => ($product->inventory->quantity ?? 0) === 0)) {
+                return ['resolution' => 'not_found', 'products' => []];
+            }
+        }
         $terms = $this->meaningfulTerms($message);
 
         if ($terms === []) {
@@ -111,6 +137,29 @@ class ResolveProductContext
             $products = $this->products->contextMatches($terms, availableOnly: true);
         }
 
+        $semanticDiscovery = $namedProducts->isEmpty()
+            && preg_match('/\b(?:for|gaming|office|editing|streaming|affordable|budget|cheap|barato|work|recommend|suggest)\b/iu', $semanticMessage ?? $message) === 1;
+        if (($products->isEmpty() || $semanticDiscovery) && config('ai_integration.enabled') && config('ai_integration.qdrant.enabled')) {
+            $ids = app(SemanticCatalogCandidates::class)->ids($semanticMessage ?? $message);
+            $semanticProducts = Product::query()->customerAvailable()->with(['category', 'inventory', 'tags'])
+                ->whereIn('id', $ids)->limit(6)->get()
+                ->sortBy(fn (Product $product): int => (int) array_search($product->id, $ids, true));
+            $scores = [];
+            foreach ([$products->values(), $semanticProducts->values()] as $ranking) {
+                foreach ($ranking as $rank => $candidate) {
+                    $scores[$candidate->id] = ($scores[$candidate->id] ?? 0.0) + 1 / (60 + $rank + 1);
+                }
+            }
+            $products = $products->merge($semanticProducts)->unique('id')
+                ->sort(function (Product $first, Product $second) use ($scores): int {
+                    return ($scores[$second->id] <=> $scores[$first->id]) ?: ($first->id <=> $second->id);
+                })->take(6);
+        }
+
+        if (config('ai_integration.enabled')) {
+            $products->loadMissing('componentProfile.revisions');
+        }
+
         return [
             'resolution' => $products->isEmpty() ? 'not_found' : 'matched',
             'products' => array_values($products
@@ -124,8 +173,25 @@ class ResolveProductContext
     {
         $product = Product::query()->customerEligible()
             ->with(['category', 'inventory', 'tags'])->find($productId);
+        if (config('ai_integration.enabled')) {
+            $product?->loadMissing('componentProfile.revisions');
+        }
 
         return ['resolution' => $product === null ? 'not_found' : 'matched', 'products' => $product === null ? [] : [$this->mapProduct($product)]];
+    }
+
+    public function isShortSearch(string $message): bool
+    {
+        $words = preg_split('/\s+/u', trim($message), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+
+        return config('scout.driver') === 'algolia' && count($words) >= 1 && count($words) <= 5 && $this->meaningfulTerms($message) !== []
+            && array_intersect(array_map(fn (string $word): string => mb_strtolower(trim($word, '?.!,')), $words), self::QUERY_WORDS) === []
+            && ! preg_match('/\b(?:price|cost|stock|available|specs|details|where|how|order|refund|payment|delivery)\b/iu', $message);
+    }
+
+    public function isCatalogSearch(string $message): bool
+    {
+        return $this->catalogSearchQuery($message) !== null && $this->namedProducts($message)->isEmpty();
     }
 
     public function namesProduct(string $message): bool
@@ -138,11 +204,36 @@ class ResolveProductContext
 
     public function matchesCatalogTerms(string $message): bool
     {
+        $catalogQuery = $this->catalogSearchQuery($message);
+        if (($this->isShortSearch($message) || $catalogQuery !== null) && $this->products->chatbotSearch($catalogQuery ?? $message)->isNotEmpty()) {
+            return true;
+        }
         $candidates = $this->products->contextMatches($this->meaningfulTerms($message), limit: 6, includeDescription: false);
 
         $productIds = array_values($candidates->map(fn (Product $product): int => $product->id)->all());
 
         return $this->clarificationChoices($productIds, $message) !== [];
+    }
+
+    private function catalogSearchQuery(string $message): ?string
+    {
+        if (config('scout.driver') !== 'algolia') {
+            return null;
+        }
+        $language = new ChatbotLanguage;
+        $ignored = array_values(array_diff([...self::QUERY_WORDS, 'specs', 'specifications', 'details', 'description'], ['for', 'with', 'a', 'an']));
+        $pattern = '/\b(?:'.implode('|', array_map(fn (string $word): string => preg_quote($word, '/'), $ignored)).')\b/iu';
+        $clean = fn (string $query): string => Str::squish(trim(preg_replace($pattern, ' ', $query) ?? $query, " \t\n\r\0\x0B?.!"));
+        $query = $clean($language->canonical($message));
+        $literal = $clean($language->withoutLanguageRequest($message));
+        $resolver = app(CatalogSearchIntent::class);
+        $intent = $resolver->resolve($query);
+        $literalIntent = $resolver->resolve($literal);
+        if ($literalIntent !== null && ($intent === null || $literalIntent['category'] !== $intent['category'])) {
+            return $literal;
+        }
+
+        return $intent !== null ? $query : null;
     }
 
     /** @return Collection<int, Product> */
@@ -249,6 +340,7 @@ class ResolveProductContext
         $quantity = $isDemo ? null : $product->inventory?->quantity;
 
         $context = [
+            'id' => $product->id,
             'name' => $product->name,
             'description' => $product->description,
             'brand' => $product->brand,
@@ -273,6 +365,19 @@ class ResolveProductContext
 
         if ($isDemo) {
             $context['demo_notice'] = 'Demo item only; listed prices are samples and Battlefront stock is unconfirmed.';
+        }
+
+        if (config('ai_integration.enabled') || config('ai_integration.memory.enabled') || config('ai_integration.advice_enabled')) {
+            $context['id'] = $product->id;
+        }
+        if (config('ai_integration.enabled')) {
+            $profile = $product->componentProfile;
+            $revision = $profile?->review_status === 'approved'
+                ? $profile->revisions->first(fn ($revision): bool => $revision->revision === $profile->current_revision && $revision->review_status === 'approved')
+                : null;
+            $context['specification_review_status'] = $revision === null ? 'unreviewed' : 'approved';
+            $context['approved_specifications'] = $revision === null ? [] : array_filter($revision->specifications,
+                fn ($value): bool => is_scalar($value) || $value === null);
         }
 
         return $context;

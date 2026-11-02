@@ -57,6 +57,17 @@ class HandleInertiaRequests extends Middleware
                 'wishlistCount' => Inertia::always(fn (): int => app(WishlistService::class)->count($customer)),
             ] : []),
             'name' => config('app.name'),
+            'chatbotMemory' => Inertia::always(function () use ($request, $customer): array {
+                $enabled = (bool) config('ai_integration.memory.enabled', false)
+                    && $request->hasSession()
+                    && ($request->user() === null || $request->user()->can('use-chatbot'));
+
+                return [
+                    'enabled' => $enabled,
+                    'identity' => $request->hasSession() && ($customer === null || $customer->can('use-chatbot'))
+                        ? hash_hmac('sha256', $request->session()->getId().':'.($customer?->getKey() ?? 'guest'), (string) config('app.key')) : null,
+                ];
+            }),
             'workQueueCounts' => fn (): array => $request->user()?->can('access-administration')
                 && $canBrowseProductCatalog
                     ? app(AdministrationWorkQueue::class)->counts($request->user()) : [],

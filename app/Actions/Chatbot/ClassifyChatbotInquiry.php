@@ -60,7 +60,7 @@ class ClassifyChatbotInquiry
 
     public function containsSensitiveInput(string $message): bool
     {
-        if (preg_match('/\b(?:password|passcode|senha|kontrasenyas|otp|pin|secret|credential|card number|cvv|api[ _-]?key)\b/iu', $message) === 1
+        if (preg_match('/\b(?:password|passcode|senha|kontrasenyas|otp|pin|secret|credential|card number|cvv|api[ _-]?key)\s*(?::|=|\bis\b|\bko\b|\bnako\b)?\s*[\w@!#$%*.-]*\d[\w@!#$%*.-]*/iu', $message) === 1
             || preg_match('/\b(?:sk-|AIza)[a-z0-9_-]{12,}\b|\b\d{4}[ -]?\d{4}[ -]?\d{4}[ -]?\d{4}\b/iu', $message) === 1) {
             return true;
         }

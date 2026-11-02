@@ -5,6 +5,7 @@ namespace App\Actions\Chatbot;
 use App\Enums\ChatbotCategory;
 use App\Models\ChatbotKnowledge;
 use App\Services\Chatbot\ChatbotLanguage;
+use App\Services\Chatbot\SemanticFaqCandidates;
 use Illuminate\Support\Str;
 
 class MatchChatbotKnowledge
@@ -32,18 +33,26 @@ class MatchChatbotKnowledge
 
         return array_values(ChatbotKnowledge::query()->active()
             ->where('category', ChatbotCategory::Faq->value)
-            ->select(['id', 'question_pattern', 'response_template'])
+            ->select(['id', 'question_pattern', 'response_template', 'translations'])
             ->get()
             ->filter(fn (ChatbotKnowledge $knowledge): bool => $builderTopic === null || (new ChatbotLanguage)->pcBuilderHelpTopic($knowledge->question_pattern) === $builderTopic)
             ->filter(fn (ChatbotKnowledge $knowledge): bool => $this->boundary->execute($knowledge->question_pattern)['eligible_for_faq'] && trim($knowledge->response_template) !== '')
             ->filter(fn (ChatbotKnowledge $knowledge): bool => $this->hasVerificationIntent($this->terms($knowledge->question_pattern)) === $verificationIntent)
             ->map(function (ChatbotKnowledge $knowledge) use ($normalized, $terms): array {
+                $wordings = [$knowledge->question_pattern];
+                foreach (['ceb', 'tl', 'hil'] as $language) {
+                    $translation = $knowledge->reviewedTranslation($language);
+                    if ($translation !== null) {
+                        $wordings[] = $translation['question_pattern'];
+                    }
+                }
+
                 return [
                     'id' => $knowledge->id,
                     'question_pattern' => $knowledge->question_pattern,
                     'response_template' => $knowledge->response_template,
-                    'relevance' => count(array_intersect($terms, $this->terms($knowledge->question_pattern))),
-                    'exact' => $normalized === $this->normalize($knowledge->question_pattern),
+                    'relevance' => max(array_map(fn (string $wording): int => count(array_intersect($terms, $this->terms($wording))), $wordings)),
+                    'exact' => in_array($normalized, array_map(fn (string $wording): string => $this->normalize($wording), $wordings), true),
                 ];
             })
             ->filter(fn (array $match): bool => $match['exact'] || (! $exactOnly && ($builderTopic !== null || $match['relevance'] >= min(2, count($terms)))))
@@ -54,9 +63,16 @@ class MatchChatbotKnowledge
     }
 
     /** @return list<array{id: int, question_pattern: string, response_template: string, relevance: int, exact: bool}> */
-    public function bestMatches(string $message): array
+    public function bestMatches(string $message, bool $allowSemantic = false): array
     {
         $matches = $this->execute($message);
+        if ($matches === [] && $allowSemantic) {
+            $ids = app(SemanticFaqCandidates::class)->ids($message);
+
+            return array_values(ChatbotKnowledge::query()->active()->whereIn('id', $ids)->orderBy('id')->get()
+                ->map(fn (ChatbotKnowledge $knowledge): array => ['id' => $knowledge->id, 'question_pattern' => $knowledge->question_pattern,
+                    'response_template' => $knowledge->response_template, 'relevance' => 0, 'exact' => false])->all());
+        }
         if ($matches === []) {
             return [];
         }

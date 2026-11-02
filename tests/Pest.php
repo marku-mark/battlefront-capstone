@@ -23,6 +23,25 @@ pest()->extend(TestCase::class)
         config()->set('inertia.ssr.enabled', false);
         // Chatbot verification must never consume the configured Gemini quota.
         config()->set('ai.providers.gemini.key', 'testing-only');
+        config()->set([
+            'ai_integration.enabled' => false,
+            'ai_integration.offline' => false,
+            'ai_integration.faq.enabled' => false,
+            'ai_integration.localization_enabled' => false,
+            'ai_integration.sync_enabled' => false,
+            'ai_integration.advice_enabled' => false,
+            'ai_integration.memory.enabled' => false,
+            'ai_integration.qdrant.enabled' => false,
+            'ai_integration.neo4j.enabled' => false,
+            'ai_integration.gemini.validation_enabled' => false,
+            'ai_integration.gemini.max_calls' => 1,
+            'ai_integration.gemini.scope_key' => 'testing-only',
+            'ai_integration.gemini.response_key' => 'testing-only',
+            'ai_integration.gemini.validation_key' => 'testing-only',
+            'ai_integration.embedding.key' => 'testing-only',
+            'ai_integration.qdrant.key' => 'testing-only',
+            'ai_integration.neo4j.password' => 'testing-only',
+        ]);
         ChatbotResponseAgent::fake()->preventStrayPrompts();
         ChatbotIntentAgent::fake()->preventStrayPrompts();
         Http::preventStrayRequests();

@@ -4,6 +4,7 @@ Before planning or editing, find the row whose globs match the file's path and r
 
 | Applies to | Rule file |
 | --- | --- |
+| app/Actions/Chatbot/** | .ai/rules/actions-chatbot.md |
 | app/Actions/Product/** | .ai/rules/actions-product.md |
 | app/Services/Order/**,app/Models/Shipment.php,app/Http/Controllers/Administration/Order*,resources/js/pages/Administration/Orders/**, app/Services/Order/OrderProcessingService.php,app/Models/Shipment.php,app/Http/Controllers/Administration/Order*,resources/js/pages/Administration/Orders/** | .ai/rules/administration-js-pages-administration-orders.md |
 | app/Actions/{Inventory,Order}/**,app/Services/Order/**,app/Http/Controllers/Administration/Order*,resources/js/pages/Administration/Orders/** | .ai/rules/administration-orders.md |
@@ -22,6 +23,7 @@ Before planning or editing, find the row whose globs match the file's path and r
 | resources/js/components/catalog/StockAvailability.vue | .ai/rules/catalog.md |
 | app/Actions/Chatbot/**,app/Services/Chatbot/**,app/Http/Requests/Administration/*ChatbotKnowledge*.php,resources/js/pages/Administration/ChatbotKnowledge/**,database/seeders/DevelopmentChatbotKnowledgeSeeder.php | .ai/rules/chatbot-knowledge-seeders.md |
 | app/Actions/Chatbot/**,app/Http/Controllers/Administration/ChatbotKnowledgeController.php,resources/js/pages/Administration/ChatbotKnowledge/** | .ai/rules/chatbot-knowledge.md |
+| app/Actions/Chatbot/**,app/Repositories/Catalog/** | .ai/rules/chatbot-repositories-catalog.md |
 | app/{Ai,Services/Chatbot}/** | .ai/rules/chatbot.md |
 | app/Actions/Checkout/**,app/Http/Requests/ValidateCheckoutRequest.php,resources/js/pages/Checkout/**,resources/js/pages/Orders/** | .ai/rules/checkout-http-requests-js-pages-checkout.md |
 | app/Services/Order/**,app/Actions/{Checkout,Order}/**,app/Models/Product.php,config/battlefront.php | .ai/rules/checkout-order-models.md |
@@ -48,6 +50,7 @@ Before planning or editing, find the row whose globs match the file's path and r
 | app/Actions/Inventory/HandleCustomerReturn*.php,app/Services/CustomerReturn*.php, app/Actions/Inventory/HandleCustomerReturn.php,app/Services/CustomerReturnRequestPresenter.php | .ai/rules/inventory-services.md |
 | app/Services/Dashboard/**,app/Repositories/Inventory/** | .ai/rules/inventory.md |
 | app/Repositories/Catalog/**,app/Models/{Category,Product}.php,app/Jobs/SyncCatalogSearch.php | .ai/rules/jobs.md |
+| app/Services/Chatbot/**,resources/js/components/chatbot/** | .ai/rules/js-components-chatbot.md |
 | app/Http/Controllers/BranchController.php,resources/js/pages/Branches/**,resources/js/components/BranchMap.vue | .ai/rules/js-components.md |
 | app/Actions/Order/**,app/Services/Order/**,app/Http/Controllers/Administration/Order*,resources/js/pages/Administration/Orders/** | .ai/rules/js-pages-administration-orders.md |
 | app/Actions/Inventory/HandleCustomerReturn.php,app/Services/CustomerReturnRequestPresenter.php,app/Http/Controllers/Administration/CustomerReturnController.php,resources/js/components/{OrderReturnRequests,RefundAmountFields}.vue,resources/js/pages/Administration/CustomerReturns.vue | .ai/rules/js-pages-administration.md |

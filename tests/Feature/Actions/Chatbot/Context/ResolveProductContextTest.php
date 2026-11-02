@@ -28,6 +28,7 @@ test('finds arbitrary catalog products through supported attributes', function (
     expect($context)->toBe([
         'resolution' => 'matched',
         'products' => [[
+            'id' => $product->id,
             'name' => 'Aurelius Link Station',
             'description' => 'Outdoor connectivity unit',
             'brand' => 'Helios Labs',

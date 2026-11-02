@@ -250,7 +250,7 @@ test('the HTTP conversation contract returns and accepts an opaque token', funct
     Branch::factory()->create(['city' => 'San Carlos City']);
 
     $first = $this->postJson(route('chatbot.store'), ['message' => 'Where is Sagay branch?'])
-        ->assertOk()->assertJsonCount(3)->assertJsonStructure(['message', 'source', 'context_token']);
+        ->assertOk()->assertJsonCount(5)->assertJsonStructure(['message', 'source', 'context_token', 'language']);
     $this->withCredentials()->withCookie(config('session.cookie'), session()->getId())
         ->postJson(route('chatbot.store'), ['message' => 'What are its hours?', 'context_token' => $first->json('context_token')])
         ->assertOk()->assertJsonPath('source', 'gemini');

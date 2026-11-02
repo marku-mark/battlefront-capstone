@@ -2,6 +2,8 @@
 
 ## Project Title
 
+**Chatbot AI integration amendment (developer-reported, 2026-11-01):** the developer authorized implementation of `docs/ai-integration/IMPLEMENTATION_PLAN.md` and confirmed an adviser-approved amendment permitting catalog-grounded chatbot recommendations and exact-part compatibility advice. This supersedes the earlier chatbot recommendation/compatibility exclusion for this implementation. MySQL and reviewed specification revisions remain authoritative; the existing deterministic PC Builder engine determines compatibility. The formal manuscript has not been edited by this task. Cloud activation, account entitlements, provider privacy review and measured multilingual evaluation remain release gates; local implementation is feature-gated.
+
 **Integrated Web and Mobile Business Management System with Product Recommendation, Predictive Analytics, and Integrated Chatbot for Battlefront Computer Trading**
 
 This document records the current Battlefront Computer Trading repository implementation, completed work, pending work, and development boundaries. The repository snapshot was reviewed on **2026-10-08**; Linear status references below remain the historical **2026-10-01** snapshot unless explicitly rechecked.

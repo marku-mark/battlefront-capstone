@@ -1,11 +1,25 @@
 <script setup>
-import { useHttp, usePage } from '@inertiajs/vue3';
+import { Link, useHttp, usePage } from '@inertiajs/vue3';
 import { LoaderCircle, MessageSquareText, Send, X } from '@lucide/vue';
-import { nextTick, onMounted, ref, watch } from 'vue';
+import { nextTick, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import ChatbotController from '@/actions/App/Http/Controllers/ChatbotController';
+import ProductCatalogController from '@/actions/App/Http/Controllers/ProductCatalogController';
+import BranchController from '@/actions/App/Http/Controllers/BranchController';
+import OrderController from '@/actions/App/Http/Controllers/OrderController';
+import PcBuilderController from '@/actions/App/Http/Controllers/PcBuilderController';
+import { login } from '@/routes';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { quickQuestions } from './quickQuestions';
+import {
+    clearChatContext,
+    readChatContext,
+    writeChatContext,
+    clearChatTranscript,
+    readChatTranscript,
+    writeChatTranscript,
+    safePresentation,
+} from './chatContextStorage';
 
 const inquiry = useHttp({ message: '', context_token: null });
 const page = usePage();
@@ -18,18 +32,122 @@ const conversation = ref(null);
 const composer = ref(null);
 const launcher = ref(null);
 const isMounted = ref(false);
+const announceMessages = ref(false);
 const quickMenu = ref('main');
 const showQuickQuestions = ref(true);
 let readerScrolledBack = false;
 let savedScrollTop = 0;
 let nextMessageId = 1;
 let conversationVersion = 0;
+let transcriptExpiresAt = 0;
+let expiryTimer;
+let restoring = true;
 
 onMounted(() => {
     isMounted.value = true;
+    if (page.props.chatbotMemory?.identity) {
+        inquiry.context_token = readChatContext(
+            contextStorage(),
+            page.props.chatbotMemory.identity,
+        );
+    } else {
+        clearChatContext(contextStorage());
+    }
+    const saved = readChatTranscript(
+        contextStorage(),
+        page.props.chatbotMemory?.identity,
+    );
+    if (saved) {
+        messages.value = saved.messages;
+        nextMessageId =
+            Math.max(
+                0,
+                ...saved.messages.map((message) => Number(message.id) || 0),
+            ) + 1;
+        inquiry.message = saved.draft;
+        isOpen.value = saved.isOpen === true;
+        savedScrollTop = Number.isFinite(saved.scrollTop) ? saved.scrollTop : 0;
+        showQuickQuestions.value = messages.value.length === 0;
+        transcriptExpiresAt = saved.expiresAt;
+        if (saved.pending)
+            requestError.value =
+                'Your previous question was interrupted. Please send it again.';
+        void nextTick(() => {
+            if (conversation.value)
+                conversation.value.scrollTop = savedScrollTop;
+        });
+        scheduleExpiry();
+    }
+    restoring = false;
+    void nextTick(() => {
+        announceMessages.value = true;
+    });
+    window.addEventListener('pagehide', persistTranscript);
 });
 
+onBeforeUnmount(() => {
+    persistTranscript();
+    conversationVersion++;
+    clearTimeout(expiryTimer);
+    window.removeEventListener('pagehide', persistTranscript);
+});
+
+function scheduleExpiry() {
+    clearTimeout(expiryTimer);
+    expiryTimer = setTimeout(
+        startNewChat,
+        Math.max(0, transcriptExpiresAt - Date.now()),
+    );
+}
+
+function persistTranscript() {
+    if (restoring) return;
+    if (!transcriptExpiresAt && inquiry.message) {
+        transcriptExpiresAt = Date.now() + 15 * 60 * 1000;
+        scheduleExpiry();
+    }
+    if (!transcriptExpiresAt) return;
+    writeChatTranscript(
+        contextStorage(),
+        page.props.chatbotMemory?.identity,
+        {
+            messages: messages.value,
+            draft: pendingMessage.value || inquiry.message,
+            pending: Boolean(pendingMessage.value),
+            isOpen: isOpen.value,
+            scrollTop: conversation.value?.scrollTop ?? savedScrollTop,
+        },
+        transcriptExpiresAt,
+    );
+}
+
+watch(
+    [messages, () => inquiry.message, isOpen, pendingMessage],
+    persistTranscript,
+    { deep: true },
+);
+
+function contextStorage() {
+    try {
+        return typeof window === 'undefined' ? null : window.sessionStorage;
+    } catch {
+        return null;
+    }
+}
+
+function persistContext() {
+    writeChatContext(
+        contextStorage(),
+        page.props.chatbotMemory?.identity,
+        inquiry.context_token,
+    );
+}
+
 function startNewChat() {
+    clearChatContext(contextStorage());
+    clearChatTranscript(contextStorage());
+    clearTimeout(expiryTimer);
+    transcriptExpiresAt = 0;
     conversationVersion++;
     messages.value = [];
     inquiry.message = '';
@@ -44,7 +162,13 @@ function startNewChat() {
     savedScrollTop = 0;
 }
 
-watch(() => page.props.auth?.user?.id ?? null, startNewChat);
+watch(
+    [
+        () => page.props.auth?.user?.id ?? null,
+        () => page.props.chatbotMemory?.identity,
+    ],
+    startNewChat,
+);
 
 async function openPanel() {
     isOpen.value = true;
@@ -63,7 +187,7 @@ async function closePanel() {
 }
 
 function handleComposerKeydown(event) {
-    if (event.key === 'Enter' && !event.isComposing) {
+    if (event.key === 'Enter' && !event.isComposing && !event.shiftKey) {
         event.preventDefault();
         void submitMessage();
     }
@@ -106,10 +230,40 @@ async function chooseQuickQuestion(item) {
     await submitMessage(item.question);
 }
 
-async function submitMessage(quickQuestion = null) {
+function actionUrl(action) {
+    switch (action.kind) {
+        case 'product':
+            return Number.isInteger(action.id) && action.id > 0
+                ? ProductCatalogController.show.url(action.id)
+                : null;
+        case 'catalog':
+            return ProductCatalogController.index.url({
+                query: {
+                    q: typeof action.query === 'string' ? action.query : '',
+                },
+            });
+        case 'branches':
+            return BranchController.index.url();
+        case 'orders':
+            return OrderController.index.url();
+        case 'builder':
+            return PcBuilderController.index.url();
+        case 'login':
+            return login.url();
+        default:
+            return null;
+    }
+}
+
+async function submitMessage(quickQuestion = null, freshContext = true) {
     if (inquiry.processing) {
         return;
     }
+
+    if (transcriptExpiresAt && transcriptExpiresAt <= Date.now())
+        startNewChat();
+    transcriptExpiresAt = Date.now() + 15 * 60 * 1000;
+    scheduleExpiry();
 
     inputError.value = '';
     requestError.value = '';
@@ -130,7 +284,7 @@ async function submitMessage(quickQuestion = null) {
     let receivedReply = false;
     if (quickQuestion !== null) {
         inquiry.message = message;
-        inquiry.context_token = null;
+        if (freshContext) inquiry.context_token = null;
     }
     void scrollToLatest();
 
@@ -158,11 +312,13 @@ async function submitMessage(quickQuestion = null) {
                 id: nextMessageId++,
                 role: 'assistant',
                 content: response.message,
+                presentation: safePresentation(response.presentation),
                 source: response.source,
             },
         );
         inquiry.message = quickQuestion !== null ? draft : '';
         inquiry.context_token = response.context_token ?? null;
+        persistContext();
         showQuickQuestions.value = false;
         void showReply(replyId);
     } catch {
@@ -265,7 +421,7 @@ async function submitMessage(quickQuestion = null) {
                             aria-hidden="true"
                         />
                         <h2 class="mt-3 font-semibold">
-                            Hello! I’m the Battlefront assistant.
+                            Hello! I'm the Battlefront assistant.
                         </h2>
                         <p
                             class="text-muted-foreground mt-2 max-w-xs text-sm leading-5"
@@ -278,7 +434,7 @@ async function submitMessage(quickQuestion = null) {
                         v-else
                         class="flex flex-col gap-3"
                         role="log"
-                        aria-live="polite"
+                        :aria-live="announceMessages ? 'polite' : 'off'"
                         aria-relevant="additions"
                         aria-label="Chatbot messages"
                     >
@@ -315,15 +471,141 @@ async function submitMessage(quickQuestion = null) {
                                 <div
                                     class="mt-1 space-y-3 text-sm leading-6 [overflow-wrap:anywhere]"
                                 >
-                                    <p
-                                        v-for="(
-                                            paragraph, index
-                                        ) in message.content.split(/\n\s*\n/)"
+                                    <template
+                                        v-for="(paragraph, index) in (
+                                            message.presentation?.intro ??
+                                            message.content
+                                        ).split(/\n\s*\n/)"
                                         :key="index"
-                                        class="whitespace-pre-wrap"
                                     >
-                                        {{ paragraph }}
-                                    </p>
+                                        <ul
+                                            v-if="
+                                                paragraph
+                                                    .trim()
+                                                    .startsWith('- ')
+                                            "
+                                            class="list-disc space-y-1 pl-4"
+                                        >
+                                            <li
+                                                v-for="(
+                                                    line, lineIndex
+                                                ) in paragraph
+                                                    .trim()
+                                                    .split('\n')"
+                                                :key="lineIndex"
+                                            >
+                                                {{ line.replace(/^-\s*/, '') }}
+                                            </li>
+                                        </ul>
+                                        <p v-else class="whitespace-pre-wrap">
+                                            {{ paragraph }}
+                                        </p>
+                                    </template>
+                                    <template v-if="message.presentation">
+                                        <dl
+                                            v-if="
+                                                message.presentation.facts
+                                                    ?.length
+                                            "
+                                            class="space-y-2"
+                                        >
+                                            <div
+                                                v-for="(fact, index) in message
+                                                    .presentation.facts"
+                                                :key="`fact-${index}`"
+                                            >
+                                                <dt class="font-semibold">
+                                                    {{ fact.label }}
+                                                </dt>
+                                                <dd>{{ fact.value }}</dd>
+                                            </div>
+                                        </dl>
+                                        <div
+                                            v-for="product in message
+                                                .presentation.products"
+                                            :key="product.id"
+                                            class="border-border bg-card rounded-md border p-3"
+                                        >
+                                            <p class="font-semibold">
+                                                {{ product.name }}
+                                            </p>
+                                            <p>
+                                                PHP
+                                                {{
+                                                    Number(
+                                                        product.price,
+                                                    ).toLocaleString('en-PH', {
+                                                        minimumFractionDigits: 2,
+                                                        maximumFractionDigits: 2,
+                                                    })
+                                                }}
+                                                · {{ product.stock }}
+                                            </p>
+                                            <p
+                                                v-if="product.notice"
+                                                class="text-muted-foreground"
+                                            >
+                                                {{ product.notice }}
+                                            </p>
+                                            <Link
+                                                :href="
+                                                    ProductCatalogController.show.url(
+                                                        product.id,
+                                                    )
+                                                "
+                                                class="text-primary-ink focus-visible:ring-ring underline focus-visible:ring-2"
+                                                >View product</Link
+                                            >
+                                        </div>
+                                        <p>
+                                            {{ message.presentation.follow_up }}
+                                        </p>
+                                        <Link
+                                            v-if="message.presentation.query"
+                                            :href="
+                                                ProductCatalogController.index.url(
+                                                    {
+                                                        query: {
+                                                            q: message
+                                                                .presentation
+                                                                .query,
+                                                        },
+                                                    },
+                                                )
+                                            "
+                                            class="text-primary-ink focus-visible:ring-ring underline focus-visible:ring-2"
+                                            >Browse matching products</Link
+                                        >
+                                        <template
+                                            v-for="(action, index) in message
+                                                .presentation.actions ?? []"
+                                            :key="`action-${index}`"
+                                        >
+                                            <Link
+                                                v-if="actionUrl(action)"
+                                                :href="actionUrl(action)"
+                                                class="text-primary-ink focus-visible:ring-ring block underline focus-visible:ring-2"
+                                                >{{ action.label }}</Link
+                                            >
+                                        </template>
+                                        <Button
+                                            v-for="(choice, index) in message
+                                                .presentation.choices ?? []"
+                                            :key="`choice-${index}`"
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            class="h-auto text-left whitespace-normal"
+                                            :disabled="inquiry.processing"
+                                            @click="
+                                                submitMessage(
+                                                    choice.question,
+                                                    false,
+                                                )
+                                            "
+                                            >{{ choice.label }}</Button
+                                        >
+                                    </template>
                                 </div>
                             </article>
                         </li>

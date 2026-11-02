@@ -74,7 +74,7 @@ test('cancellation and delivery guidance preserves financial boundaries', functi
     $rules = app(ResolveChatbotRuleGuidance::class);
     expect($rules->execute('cancellation')['guidance'])->toContain('reconciled', 'confirmed closed', 'not an automatic refund');
     config(['battlefront.delivery.regional_estimates.fees.visayas' => '170.00']);
-    expect($rules->execute('delivery_quote')['guidance'])->toContain('Visayas/NIR PHP 170.00', 'Missing regional pricing blocks', 'Only historical orders');
+    expect($rules->execute('delivery_quote')['guidance'])->toContain('Visayas/NIR PHP 170.00', 'If pricing for your region is unavailable', 'Older orders');
 });
 
 test('every quick question reaches its intended support answer without a provider call', function (string $question, string $answer) {

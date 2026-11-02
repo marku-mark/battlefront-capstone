@@ -36,7 +36,7 @@ test('defense questions return the documented deterministic topic and guidance',
     'Q06 GCash' => ['Do you accept GCash?', ChatbotQueryCategory::Faq, 'payment_methods', ['Pickup orders support', 'Hosted Checkout for QR Ph, online card, GCash, Maya']],
     'Q07 payment proof' => ['Do I need payment proof for Maya?', ChatbotQueryCategory::Faq, 'payment_proof', ['New online payments require no receipt or screenshot upload', 'Historical manual GCash and Maya', 'COD is delivery-only and requires no upload']],
     'Q08 fulfillment' => ['Can I choose pickup or delivery?', ChatbotQueryCategory::Faq, 'fulfillment', ['Battlefront supports pickup and delivery.', 'a delivery address is required']],
-    'Q09 delivery quote' => ['What is the delivery fee?', ChatbotQueryCategory::Faq, 'delivery_quote', ['regional base fees', 'demonstration estimates', 'Only historical orders retain saved zero-fee placeholders', 'without an automatic ETA or Shipment']],
+    'Q09 delivery quote' => ['What is the delivery fee?', ChatbotQueryCategory::Faq, 'delivery_quote', ['regional base fees', 'demonstration estimates', 'Older orders may show a saved zero-fee estimate', 'an automatic delivery date or shipment tracking may be unavailable']],
     'Q10 tracking FAQ' => ['Do you offer real-time delivery tracking?', ChatbotQueryCategory::Faq, null, ['Real-time delivery tracking is not available. Sign in and check your order history for the latest order status.']],
     'Q11 physical returns' => ['Can I return my item?', ChatbotQueryCategory::Faq, 'returns', ['physical item receipt and staff review', 'does not guarantee acceptance or a refund', 'The chatbot cannot submit or approve a return.']],
     'Q12 cancellation' => ['How do I cancel an order?', ChatbotQueryCategory::Faq, 'cancellation', ['cancellation review request', 'approval is not automatic', 'separate from returning a received item']],
@@ -44,7 +44,7 @@ test('defense questions return the documented deterministic topic and guidance',
     'Q16 non-Sagay inventory scope' => ['May ara kamo Logitech mouse sa Bacolod?', ChatbotQueryCategory::Product, null, ['Sagay branch only', 'cannot confirm stock at the other branches']],
     'Q21 Tagalog payment' => ['Paano magbayad?', ChatbotQueryCategory::Faq, 'payment_methods', ['Pickup orders support', 'Delivery orders support']],
     'Q22 Cebuano payment' => ['Unsaon pagbayad?', ChatbotQueryCategory::Faq, 'payment_methods', ['Pickup orders support', 'Delivery orders support']],
-    'Q23 Hiligaynon-requested delivery guidance' => ['Pila ang delivery fee?', ChatbotQueryCategory::Faq, 'delivery_quote', ['demonstration estimates', 'Only historical orders retain saved zero-fee placeholders']],
+    'Q23 Hiligaynon-requested delivery guidance' => ['Pila ang delivery fee?', ChatbotQueryCategory::Faq, 'delivery_quote', ['demonstration estimates', 'Older orders may show a saved zero-fee estimate']],
     'Q24 Hiligaynon location clarification' => ['Diin kamo dampi?', ChatbotQueryCategory::Store, null, ['Which branch do you mean?', 'Sagay City', 'San Carlos City']],
     'Q25 Cebuano location clarification' => ['Asa inyong tindahan?', ChatbotQueryCategory::Store, null, ['Which branch do you mean?', 'Sagay City', 'San Carlos City']],
     'Q26 Tagalog location clarification' => ['Saan kayo located?', ChatbotQueryCategory::Store, null, ['Which branch do you mean?', 'Sagay City', 'San Carlos City']],
@@ -131,7 +131,7 @@ test('defense product clarification and language switch keep the original price 
     expect($first['message'])->toContain('Which product', 'NX1600', 'N100');
     expect($second['message'])->toContain('Which product', 'NX1600', 'N100');
     expect($selected['message'])->toContain('RAPOO WIRED OPTICAL USB MOUSE N100', 'PHP 180.00')->not->toContain('NX1600');
-    expect($switch['message'])->toContain('Approved guidance and fallback messages remain in English.');
+    expect($switch['message'])->toContain('Language preference saved.');
     ChatbotResponseAgent::assertPromptedTimes(1);
     ChatbotIntentAgent::assertNeverPrompted();
     Http::assertNothingSent();

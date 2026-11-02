@@ -3,7 +3,16 @@
 namespace App\Providers;
 
 use App\Enums\UserRole;
+use App\Jobs\SyncFaqProjection;
+use App\Models\Category;
+use App\Models\ChatbotKnowledge;
+use App\Models\ComponentSpecificationRevision;
+use App\Models\Product;
+use App\Models\ProductComponentProfile;
+use App\Models\Tag;
 use App\Models\User;
+use App\Services\Chatbot\ChatbotProviderBudget;
+use App\Services\Chatbot\Retrieval\CatalogProjectionRecorder;
 use App\Services\Order\PsgcDeliveryLocations;
 use Carbon\CarbonImmutable;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -31,6 +40,7 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->scoped(PsgcDeliveryLocations::class);
+        $this->app->scoped(ChatbotProviderBudget::class);
     }
 
     /**
@@ -44,6 +54,7 @@ class AppServiceProvider extends ServiceProvider
 
         $this->configureDefaults();
         $this->monitorRecommendationQueryTime();
+        $this->observeCatalogProjections();
 
         Sanctum::authenticateAccessTokensUsing(
             fn (PersonalAccessToken $token, bool $isValid): bool => $isValid
@@ -114,6 +125,52 @@ class AppServiceProvider extends ServiceProvider
                     'message' => 'Too many questions. Please wait a minute and try again.',
                 ], 429, $headers));
         });
+    }
+
+    private function observeCatalogProjections(): void
+    {
+        foreach (['saved', 'deleted'] as $event) {
+            ChatbotKnowledge::{$event}(function (ChatbotKnowledge $knowledge): void {
+                if (config('ai_integration.sync_enabled') && config('ai_integration.faq.enabled')) {
+                    SyncFaqProjection::dispatch($knowledge->id)->afterCommit();
+                }
+            });
+        }
+        $record = function (int $productId): void {
+            if (config('ai_integration.sync_enabled')) {
+                app(CatalogProjectionRecorder::class)->record($productId);
+            }
+        };
+        foreach (['saved', 'deleted', 'restored'] as $event) {
+            Product::{$event}(fn (Product $product) => $record($product->id));
+        }
+        foreach (['saved', 'deleted'] as $event) {
+            ProductComponentProfile::{$event}(fn ($profile) => $record($profile->product_id));
+            ComponentSpecificationRevision::{$event}(function (ComponentSpecificationRevision $revision) use ($record): void {
+                $profile = ProductComponentProfile::query()->find($revision->product_component_profile_id);
+                if ($profile !== null) {
+                    $record($profile->product_id);
+                }
+            });
+            Category::{$event}(function ($category) use ($record): void {
+                if (config('ai_integration.sync_enabled')) {
+                    Product::withTrashed()->where('category_id', $category->id)->select('id')->chunkById(100, function ($products) use ($record): void {
+                        foreach ($products as $product) {
+                            $record($product->id);
+                        }
+                    });
+                }
+            });
+            Tag::{$event}(function ($tag) use ($record): void {
+                if (config('ai_integration.sync_enabled')) {
+                    $tag->products()->select('products.id')->chunkById(100, function ($products) use ($record): void {
+                        foreach ($products as $product) {
+                            $record($product->id);
+                        }
+                    }, 'products.id', 'id');
+                }
+            });
+        }
     }
 
     /**

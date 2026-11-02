@@ -60,6 +60,22 @@ class CatalogSearchIntent
         'Vending & Coin-Op Machine Parts' => ['pisowifi' => 'piso', 'piso wifi' => 'piso', 'water timer' => 'timer', 'water pump' => 'pump', 'video game timer' => 'timer'],
     ];
 
+    /** Public, curated catalog vocabulary only; never derive these words from customer input.
+     * @return list<string>
+     */
+    public static function publicTerms(): array
+    {
+        $phrases = array_keys(self::CATEGORIES);
+        foreach (self::CATEGORIES as $aliases) {
+            $phrases = [...$phrases, ...$aliases];
+        }
+        foreach (self::SPECIFIC_PARTS as $aliases) {
+            $phrases = [...$phrases, ...array_keys($aliases), ...array_values($aliases)];
+        }
+
+        return array_values(array_unique(preg_split('/[^\p{L}\p{N}]+/u', mb_strtolower(implode(' ', $phrases)), flags: PREG_SPLIT_NO_EMPTY) ?: []));
+    }
+
     /** @return list<array{objectID: string, type: 'synonym', synonyms: list<string>}> */
     public static function algoliaSynonyms(): array
     {

@@ -67,7 +67,7 @@ test('customer catalog availability and stock labels agree at every boundary', f
 ]);
 
 test('restocking and depletion update catalog and filter visibility without changing activation', function (string $channel) {
-    $category = Category::factory()->create();
+    $category = Category::factory()->create(['name' => 'Networking']);
     $tag = Tag::factory()->create();
     $product = Product::factory()->for($category)->create(['name' => 'Restocked Router', 'brand' => 'Atlas']);
     $product->tags()->attach($tag);

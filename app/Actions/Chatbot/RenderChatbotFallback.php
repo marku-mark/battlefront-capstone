@@ -30,7 +30,7 @@ class RenderChatbotFallback
         $candidates = $exact !== [] ? $exact : $records;
 
         if (count($candidates) > 1) {
-            return 'Which question do you mean? '.implode(' / ', array_column($candidates, 'question_pattern'));
+            return "Which question do you mean?\n\n".implode("\n", array_map(fn (string $question): string => '- '.$question, array_slice(array_column($candidates, 'question_pattern'), 0, 3)));
         }
 
         $answer = trim($candidates[0]['response_template'] ?? '');
@@ -99,16 +99,21 @@ class RenderChatbotFallback
         if (! $price && ! $stock) {
             $parts[] = preg_match('/\b(?:specs|specifications|details|description)\b/iu', $message) === 1
                 ? 'Product details: '.($product['description'] ?: 'unavailable').'.'
-                : 'Please specify whether you need the product price or Sagay stock availability.';
+                : 'Listed price: PHP '.number_format((float) ($product['discount_price'] ?? $product['price']), 2).'.'
+                    ."\n\n".match ($product['inventory']['status']) {
+                        'in_stock', 'low_stock' => 'Sagay stock: '.$product['inventory']['quantity'].' available.',
+                        'out_of_stock' => 'Currently out of stock at Sagay.',
+                        default => 'Sagay stock information is unavailable.',
+                    };
         }
 
-        return implode(' ', $parts);
+        return implode("\n\n", $parts);
     }
 
     /** @param list<string> $names */
     public function productClarification(array $names): string
     {
-        return 'Which product do you mean? Examples: '.implode('; ', array_slice($names, 0, 3)).'. Please reply with one product name or model, or specify a brand.';
+        return "Which product do you mean? Examples:\n\n".implode("\n", array_map(fn (string $name): string => '- '.$name, array_slice($names, 0, 3)))."\n\nPlease reply with one product name or model, or specify a brand.";
     }
 
     /** @param list<array<string, mixed>> $orders */
@@ -144,6 +149,6 @@ class RenderChatbotFallback
             $answer .= ' '.($support['message'] ?? '');
         }
 
-        return trim($answer);
+        return trim(str_replace([' Fulfillment:', ' Payment method:', ' Shipment status:', ' Approved refund:', ' Confirmed paid:', ' Remaining:'], ["\n\nFulfillment:", "\n\nPayment method:", "\n\nShipment status:", "\n\nApproved refund:", "\nConfirmed paid:", "\nRemaining:"], $answer));
     }
 }

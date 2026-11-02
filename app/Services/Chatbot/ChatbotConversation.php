@@ -10,6 +10,8 @@ use App\Enums\ChatbotQueryCategory;
 use App\Models\Branch;
 use App\Models\Product;
 use App\Models\User;
+use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class ChatbotConversation
@@ -22,29 +24,181 @@ class ChatbotConversation
         private ResolveProductContext $products,
         private RenderChatbotFallback $fallbackRenderer,
         private ChatbotLanguage $language = new ChatbotLanguage,
+        private ChatbotMemory $memory = new ChatbotMemory,
     ) {}
 
-    /** @return array{message: string, source: string, context_token: string|null} */
+    /** @return array{message: string, source: string, context_token: string|null, language: string, presentation: array<string, mixed>} */
     public function respond(string $message, ?User $customer, ?string $token, string $contextScope): array
+    {
+        $response = $this->respondToMessage($message, $customer, $token, $contextScope);
+        $subject = $contextScope.':'.($customer?->getKey() ?? 'guest');
+        $responseState = $this->tokens->decode($response['context_token'], $subject);
+        $response['language'] = $responseState['language'] ?? $this->language->select($message);
+        $response['presentation'] ??= app(ChatbotPresentation::class)->build([
+            'message' => $response['message'],
+            'category' => ChatbotQueryCategory::tryFrom($responseState['active'] ?? '') ?? ChatbotQueryCategory::Unsupported,
+        ], [], $message, $customer, $response['language']);
+        foreach ($responseState['pending'] ?? [] as $topic => $question) {
+            $response['presentation']['choices'][] = ['label' => str_replace(['faq:', '_'], ['', ' '], $topic), 'question' => $question];
+        }
+        if (isset($responseState['product_clarification']) && $response['presentation']['choices'] === []) {
+            foreach ($this->products->clarificationChoices($responseState['references']['product'] ?? []) as $product) {
+                $response['presentation']['choices'][] = ['label' => $product['name'], 'question' => $product['name']];
+            }
+        }
+        if ($this->memory->enabled($subject) && $response['context_token'] !== null) {
+            $state = $this->tokens->decode($response['context_token'], $subject);
+            try {
+                $this->memory->recordTurn($state, $subject, $message, $response['message']);
+            } catch (QueryException) {
+                Log::warning('Chatbot memory unavailable', ['operation' => 'history']);
+            }
+        }
+
+        return $response;
+    }
+
+    /** @return array{message: string, source: string, context_token: string|null, presentation?: array<string, mixed>|null} */
+    private function respondToMessage(string $message, ?User $customer, ?string $token, string $contextScope): array
     {
         $subject = $contextScope.':'.($customer?->getKey() ?? 'guest');
         $state = $this->tokens->decode($token, $subject);
         $message = Str::squish($message);
-
-        if (! $this->chatbot->containsSensitiveInput($message)) {
-            $state['language'] = $this->language->select($message, $state['language'] ?? null);
-            if ($this->language->explicit($message) !== null && trim($this->language->withoutLanguageRequest($message), ' .?!') === '') {
-                return $this->fallback('I will use your selected language when I can express the current facts reliably. Approved guidance and fallback messages remain in English.', $state, $subject);
+        $languageMessage = $message;
+        if (preg_match('/^(?:please )?(?:explain (?:that|it)(?: more)? simply|say (?:that|it) again|rephrase(?: that)?|simplify(?: that)?)[.!?]*$/iu', $message) === 1) {
+            if (is_string($state['last_question'] ?? null)) {
+                $message = $state['last_question'];
+            } else {
+                return $this->fallback('Please tell me which product, branch, order or support question you would like help with.', $state, $subject);
+            }
+        }
+        $canonical = $this->language->canonical($message);
+        $constraintFollowUp = false;
+        $interpreted = $this->language->interpret($message);
+        if (($state['active'] ?? null) === 'product' && config('ai_integration.advice_enabled')
+            && ($interpreted['maximum_php'] !== null || $interpreted['excluded_brands'] !== [])
+            && preg_match('/^(?:(?:my|the|actually|make it|what about|and|i meant)\s+)*(?:budget|under|below|not|without|exclude|except)\b/iu', $canonical) === 1) {
+            $previous = Product::query()->customerEligible()->with('category')
+                ->whereIn('id', array_slice($state['references']['product'] ?? [], 0, 6))->get();
+            $categoryName = $previous->isNotEmpty() && $previous->pluck('category_id')->unique()->count() === 1
+                ? $previous->first()->category->name : ($state['catalog_constraints']['category'] ?? null);
+            if (is_string($categoryName)) {
+                $constraintFollowUp = true;
+                if ($interpreted['maximum_php'] !== null) {
+                    $state['catalog_constraints']['maximum_php'] = $interpreted['maximum_php'];
+                }
+                if ($interpreted['excluded_brands'] !== []) {
+                    $state['catalog_constraints']['excluded_brands'] = $interpreted['excluded_brands'];
+                }
+                $message = 'recommend '.$categoryName;
+                if (isset($state['catalog_constraints']['maximum_php'])) {
+                    $message .= ' under PHP '.$state['catalog_constraints']['maximum_php'];
+                }
+                foreach ($state['catalog_constraints']['excluded_brands'] ?? [] as $brand) {
+                    $message .= ', not '.$brand;
+                }
+                unset($state['product_clarification']);
+            }
+        }
+        if (($state['active'] ?? null) === 'product'
+            && preg_match('/\b(?:first|second|third|1st|2nd|3rd)\s+(?:one|option|product)|^(?:first|second|third|1st|2nd|3rd)[.!?]*$/iu', $canonical, $ordinal) === 1) {
+            $position = preg_match('/first|1st/iu', $ordinal[0]) ? 0 : (preg_match('/second|2nd/iu', $ordinal[0]) ? 1 : 2);
+            $id = $state['references']['product'][$position] ?? null;
+            $selected = $id === null ? null : Product::query()->customerEligible()->whereKey($id)->first();
+            if ($selected === null) {
+                return $this->fallback('Which product do you mean? Please provide its name or model.', $state, $subject);
+            }
+            $message = preg_replace('/\b(?:first|second|third|1st|2nd|3rd)(?:\s+(?:one|option|product))?/iu', $selected->name, $canonical) ?? $canonical;
+            unset($state['product_clarification']);
+        }
+        if (($state['active'] ?? null) === 'product'
+            && preg_match('/^\d+(?:\.\d+)?\s*(?:TB|GB)\s*[?.!]*$/iu', $message) === 1) {
+            $previous = Product::query()->customerEligible()->with('category')
+                ->whereIn('id', array_slice($state['references']['product'] ?? [], 0, 6))->get();
+            if ($previous->isNotEmpty() && $previous->pluck('category_id')->unique()->count() === 1) {
+                $message = $previous->first()->category->name.' '.trim($message, '?.!');
+                unset($state['product_clarification']);
+            }
+        }
+        $advice = app(ChatbotCatalogAdvice::class)->supports($message);
+        if (($state['active'] ?? null) === 'faq' && is_string($state['faq_question'] ?? null)
+            && ! $this->chatbot->containsSensitiveInput($message)
+            && preg_match('/\bbf[\s\W_]*\d+\b/iu', $message) !== 1) {
+            $previous = $state['faq_question'];
+            $followUp = match ($previous) {
+                'How do I use PC Builder?' => preg_match('/\bcomponents?\b/iu', $message) === 1,
+                'How do I select components in PC Builder?' => preg_match('/\b(?:change|selection|usbon|palitan|ilisan|gipili|napili|ginpili)\b/iu', $message) === 1,
+                'How do saved PC builds work?' => preg_match('/(?:reserv|reserb).*stock|stock.*(?:reserv|reserb)/iu', $message) === 1,
+                'How do PC Builder templates work?' => preg_match('/final.*(?:price|presyo)|(?:price|presyo).*final|saved.*budget/iu', $message) === 1,
+                'Where can I view PC Builder compatibility results?' => preg_match('/\b(?:unknown|draft|warning)\b|missing.*evidence|kulang.*ebidensya/iu', $message) === 1,
+                'How do I search for products?' => preg_match('/\b(?:filter|brand|category|tag|salain)\b/iu', $message) === 1,
+                "How can I view a product's details?" => preg_match('/\b(?:where|asa|diin|saan)\b.*\b(?:price|presyo|details)\b/iu', $message) === 1,
+                'How can I check my order status?' => preg_match('/\b(?:where|asa|diin|saan)\b.*\bhistory\b/iu', $message) === 1,
+                'Do you offer real-time delivery tracking?' => preg_match('/live.*(?:courier|location)|(?:courier|location).*live/iu', $message) === 1,
+                default => false,
+            };
+            if ($followUp) {
+                $message = $previous === 'How do I use PC Builder?'
+                    ? 'How do I select components in PC Builder?' : $previous;
+            }
+        }
+        if ($advice) {
+            preg_match_all('/\b(?:not|without|exclude|except)\s+(intel|amd|nvidia)\b/iu', $this->language->canonical($message), $excluded);
+            $state['catalog_constraints']['excluded_brands'] = array_values(array_unique(array_map('strtolower', $excluded[1])));
+            $interpreted = $this->language->interpret($message);
+            if ($interpreted['maximum_php'] !== null) {
+                $state['catalog_constraints']['maximum_php'] = $interpreted['maximum_php'];
             }
         }
 
-        if ($this->chatbot->containsSensitiveInput($message) || $this->categorizer->isBlocked($message)) {
-            $result = $this->chatbot->respond($message, $customer);
+        if (! $this->chatbot->containsSensitiveInput($message)) {
+            $explicitLanguage = $this->language->explicit($languageMessage);
+            if ($explicitLanguage !== null) {
+                $state['language_preference'] = $explicitLanguage;
+            }
+            $state['language'] = $state['language_preference'] ?? $this->language->select($languageMessage, $state['language'] ?? null);
+            if ($this->language->explicit($message) !== null && trim($this->language->withoutLanguageRequest($message), ' .?!') === '') {
+                return $this->fallback('Language preference saved.', $state, $subject);
+            }
+        }
+
+        if ($this->chatbot->containsSensitiveInput($message) || (! $advice && $this->categorizer->isBlocked($message))) {
+            $result = $this->chatbot->respond($message, $customer, language: $state['language'] ?? $this->language->select($languageMessage));
 
             return ['message' => $result['message'], 'source' => $result['source'], 'context_token' => null];
         }
 
+        if (config('ai_integration.enabled') && config('ai_integration.advice_enabled')
+            && ($state['active'] ?? null) === 'product'
+            && preg_match('/^(?:(?:do you have|show me|can you suggest|anything|something|any|and|what about)\s+)*(?:something\s+)?(?:cheaper|less expensive|under\s+(?:PHP\s*|₱\s*)?[\d,]+(?:\.\d{1,2})?|below\s+(?:PHP\s*|₱\s*)?[\d,]+(?:\.\d{1,2})?)\s*[?.!]*$/iu', $this->language->canonical($message)) === 1) {
+            $previous = Product::query()->customerEligible()->with('category')
+                ->whereIn('id', array_slice($state['references']['product'] ?? [], 0, 6))->get();
+            if ($previous->isNotEmpty() && $previous->pluck('category_id')->unique()->count() === 1) {
+                if (preg_match('/\b(?:under|below)\s*(?:PHP\s*|₱\s*)?([\d,]+(?:\.\d{1,2})?)/iu', $this->language->canonical($message), $budget) === 1) {
+                    $maximum = (float) str_replace(',', '', $budget[1]);
+                } else {
+                    $maximum = (float) $previous->min(fn (Product $product): float => (float) ($product->discount_price ?? $product->price)) - 0.01;
+                }
+                if ($maximum > 0) {
+                    $message = 'recommend '.$previous->first()->category->name.' under PHP '.number_format($maximum, 2, '.', '');
+                    foreach ($state['catalog_constraints']['excluded_brands'] ?? [] as $brand) {
+                        if (in_array($brand, ['intel', 'amd', 'nvidia'], true)) {
+                            $message .= ', not '.$brand;
+                        }
+                    }
+                    $advice = true;
+                    $constraintFollowUp = true;
+                    unset($state['product_clarification']);
+                }
+            } else {
+                return $this->fallback('Which component category should I use for that budget? Please name the component and your budget in PHP.', $state, $subject);
+            }
+        }
+
         $acknowledged = $this->language->isAcknowledgement($message);
+        if (preg_match('/^(?:hi|hello|hey|thanks|thank you|salamat|salamat gid|salamat po)[.!\s]*$/iu', $message) === 1) {
+            return $this->fallback('Hello! Ask me about a Battlefront product, your order, or store information.', $state, $subject);
+        }
         if ($acknowledged && ($state['pending'] ?? []) !== []) {
             return $this->fallback($this->router->clarification($state['pending']), $state, $subject);
         }
@@ -59,7 +213,7 @@ class ChatbotConversation
         unset($state['pending']);
 
         $routing = $this->router->execute($message, resolveCatalogTerms: true);
-        if ($routing['choices'] !== []) {
+        if (! $advice && $routing['choices'] !== []) {
             $state['pending'] = $routing['choices'];
 
             return $this->fallback($this->router->clarification($routing['choices']), $state, $subject);
@@ -72,7 +226,7 @@ class ChatbotConversation
             && $this->products->clarificationChoices($state['references']['product'] ?? [], $message) === []) {
             unset($state['product_clarification']);
         }
-        if (($state['active'] ?? null) === 'product' && isset($state['product_clarification'])
+        if (! $advice && ($state['active'] ?? null) === 'product' && isset($state['product_clarification'])
             && in_array($category, [ChatbotQueryCategory::Product, ChatbotQueryCategory::Unsupported], true)
             && ! $this->categorizer->requiresLiveFacts($message)) {
             $references = $state['references']['product'] ?? [];
@@ -99,7 +253,7 @@ class ChatbotConversation
         }
 
         $matchingMessage = $this->language->canonical($message);
-        $isFollowUp = preg_match('/\b(?:it|its|that|this|there|earlier|previous)\b|^(?:how much|and the)\b|^(?:price|available)\s*[?!.]*$/iu', $matchingMessage) === 1;
+        $isFollowUp = ! $advice && preg_match('/\b(?:it|its|that|this|there|earlier|previous)\b|^(?:how much|and the)\b|^(?:price|available)\s*[?!.]*$/iu', $matchingMessage) === 1;
 
         if ($isFollowUp && $this->hasExplicitEntity($message, $category)) {
             $isFollowUp = false;
@@ -154,14 +308,28 @@ class ChatbotConversation
         $result = $this->chatbot->respond($message, $customer, function (ChatbotQueryCategory $category, array $context) use (&$state, &$resolved, $message): void {
             $resolved = true;
             $state['active'] = $category->value;
+            $state['last_question'] = mb_substr($message, 0, 2000);
             if ($category === ChatbotQueryCategory::Product) {
-                $state['references']['product'] = Product::query()->customerEligible()
-                    ->whereIn('name', array_column($context['products'], 'name'))
+                $categories = array_values(array_unique(array_column($context['products'], 'category')));
+                if (count($categories) === 1) {
+                    $state['catalog_constraints']['category'] = $categories[0];
+                } else {
+                    unset($state['catalog_constraints']['category']);
+                }
+                $resolvedProducts = Product::query()->customerEligible()->with('componentProfile')
+                    ->when(array_column($context['products'], 'id') !== [],
+                        fn ($query) => $query->whereIn('id', array_column($context['products'], 'id')),
+                        fn ($query) => $query->whereIn('name', array_column($context['products'], 'name')))
                     ->limit(6)->get(['id', 'name'])
-                    ->sortBy(fn (Product $product): int => (int) array_search($product->name, array_column($context['products'], 'name'), true))
-                    ->pluck('id')->all();
+                    ->sortBy(fn (Product $product): int => (int) array_search($product->name, array_column($context['products'], 'name'), true));
+                $state['references']['product'] = $resolvedProducts->pluck('id')->all();
+                foreach ($resolvedProducts->groupBy(fn (Product $product): string => $product->componentProfile->component_type ?? '') as $type => $components) {
+                    if ($type !== '') {
+                        $state['component_references'][$type] = $components->pluck('id')->all();
+                    }
+                }
                 unset($state['product_clarification']);
-                if (count($context['products']) > 1) {
+                if (count($context['products']) > 1 && ! config('ai_integration.enabled')) {
                     $text = $this->language->canonical($message);
                     $price = preg_match('/\b(?:price|prices|pricing|cost|how much)\b/iu', $text) === 1;
                     $stock = preg_match('/\b(?:stock|available|availability)\b/iu', $text) === 1;
@@ -182,23 +350,29 @@ class ChatbotConversation
                 };
             } elseif ($category === ChatbotQueryCategory::Order) {
                 $state['references']['order'] = array_column($context['orders'], 'reference');
+            } elseif ($category === ChatbotQueryCategory::Faq && count($context['knowledge'] ?? []) === 1) {
+                $state['faq_question'] = $context['knowledge'][0]['question_pattern'];
             }
-        }, $productId, $state['language']);
+        }, $productId, $state['language'], componentReferences: $state['component_references'] ?? []);
 
         if (! $resolved) {
             $state['active'] = $result['category']->value;
             unset($state['references'][$state['active']]);
+            if ($state['active'] === 'product' && ! $constraintFollowUp) {
+                unset($state['catalog_constraints']['category']);
+            }
         }
 
         if ($result['source'] === 'gemini' && $state['active'] === 'product'
             && preg_match('/\b(?:stock|available|availability)\b/iu', $this->language->canonical($message)) === 1) {
-            $result['message'] .= ' Live inventory information covers the Sagay branch only.';
+            $result['message'] .= ' '.app(ChatbotLocalizedResponse::class)->text('Live inventory information covers the Sagay branch only.', $state['language']);
         }
 
         return [
             'message' => $result['message'],
             'source' => $result['source'],
             'context_token' => $this->tokens->encode($state, $subject),
+            'presentation' => $result['presentation'],
         ];
     }
 
@@ -247,6 +421,6 @@ class ChatbotConversation
      */
     private function fallback(string $message, array $state, string $subject): array
     {
-        return ['message' => $message, 'source' => 'fallback', 'context_token' => $this->tokens->encode($state, $subject)];
+        return ['message' => app(ChatbotLocalizedResponse::class)->text($message, $state['language'] ?? 'en'), 'source' => 'fallback', 'context_token' => $this->tokens->encode($state, $subject)];
     }
 }

@@ -54,12 +54,18 @@ class RouteChatbotQuery
         $classification = $this->boundary->execute($message);
         $category = $classification['category'];
 
+        if ($resolveCatalogTerms && $category === ChatbotQueryCategory::Store
+            && preg_match('/\b(?:price|cost|stock|availability|available)\b/iu', $this->language->canonical($message)) === 1
+            && $this->products->namesProduct($message)) {
+            return ChatbotQueryCategory::Product;
+        }
+
         if ($resolveCatalogTerms && $category === ChatbotQueryCategory::Unsupported
             && ! $this->language->isAcknowledgement($message) && $this->products->matchesCatalogTerms($message)) {
             return ChatbotQueryCategory::Product;
         }
 
-        if ($classification['eligible_for_faq'] && $this->knowledge->execute($message) !== []) {
+        if ($classification['eligible_for_faq'] && $this->knowledge->bestMatches($message, allowSemantic: $resolveCatalogTerms) !== []) {
             $category = ChatbotQueryCategory::Faq;
         }
 

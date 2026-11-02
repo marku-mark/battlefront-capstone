@@ -56,10 +56,40 @@ class ChatbotOrchestrationService
     /**
      * Coordinate deterministic routing, authoritative context, and response wording.
      *
-     * @return array{category: ChatbotQueryCategory, message: string, source: 'gemini'|'fallback'}
+     * @param  array<string, list<int>>  $componentReferences
+     * @return array{category: ChatbotQueryCategory, message: string, source: 'gemini'|'fallback', presentation: array<string, mixed>}
      */
-    public function respond(string $message, ?User $customer = null, ?Closure $remember = null, ?int $productId = null, ?string $language = null): array
+    public function respond(string $message, ?User $customer = null, ?Closure $remember = null, ?int $productId = null, ?string $language = null, array $componentReferences = []): array
     {
+        $resolvedContext = [];
+        $capture = function (ChatbotQueryCategory $category, array $context) use (&$resolvedContext, $remember): void {
+            $resolvedContext = $context;
+            $remember?->__invoke($category, $context);
+        };
+        try {
+            $result = $this->respondInLanguage($message, $customer, $capture, $productId, $language, $componentReferences);
+        } finally {
+            if (config('ai_integration.enabled')) {
+                app(ChatbotProviderBudget::class)->releaseTurn();
+            }
+        }
+        if ($result['source'] === 'fallback') {
+            $result['message'] = app(ChatbotLocalizedResponse::class)->text($result['message'], $language ?? $this->language->select($message), $result['protected'] ?? []);
+        }
+        unset($result['protected']);
+        $result['presentation'] = app(ChatbotPresentation::class)->build($result, $resolvedContext !== [] ? $resolvedContext : ($result['response_context'] ?? []), $message, $customer, $language ?? $this->language->select($message));
+        unset($result['response_context']);
+
+        return $result;
+    }
+
+    /** @param array<string, list<int>> $componentReferences
+     * @return array{category: ChatbotQueryCategory, message: string, source: 'gemini'|'fallback', protected?: list<mixed>, presentation?: array<string, mixed>, response_context?: array<string, mixed>} */
+    private function respondInLanguage(string $message, ?User $customer, ?Closure $remember, ?int $productId, ?string $language, array $componentReferences): array
+    {
+        if (config('ai_integration.enabled')) {
+            $this->chatbotAiAdapter->beginTurn();
+        }
         $normalizedMessage = Str::of($message)->trim()->squish()->toString();
         $routing = $this->routeChatbotQuery->execute($normalizedMessage, resolveCatalogTerms: true);
         $category = $routing['category'];
@@ -80,6 +110,31 @@ class ChatbotOrchestrationService
             return $this->fallback($category, self::SENSITIVE_INPUT);
         }
 
+        $advice = app(ChatbotCatalogAdvice::class);
+        if ($advice->supports($normalizedMessage)
+            && ! preg_match('/\b(?:ignore|instructions|system prompt|password|api key|execute|sql|cypher)\b/iu', $normalizedMessage)) {
+            if (config('ai_integration.enabled') && (int) config('ai_integration.gemini.max_calls', 1) >= 3) {
+                $scope = $this->chatbotAiAdapter->classify($normalizedMessage);
+                if ($scope === null || $scope['outcome'] !== 'supported' || ! in_array($scope['intent'], ['catalog_recommendation', 'component_compatibility'], true)) {
+                    return $this->fallback(ChatbotQueryCategory::Product, 'Which component are you choosing, what will you use it for, and what is your budget in PHP?');
+                }
+            }
+            $answer = $advice->answer($normalizedMessage, $componentReferences);
+            if ($answer['context'] !== []) {
+                $remember?->__invoke(ChatbotQueryCategory::Product, $answer['context']);
+            }
+
+            if (config('ai_integration.enabled')
+                && ($answer['context']['products'] ?? []) !== []) {
+                $draft = $this->chatbotAiAdapter->grounded($normalizedMessage, $answer['context'], $language, scopeChecked: isset($scope));
+                if ($draft['successful']) {
+                    return ['category' => ChatbotQueryCategory::Product, 'message' => $draft['text'], 'source' => 'gemini'];
+                }
+            }
+
+            return $this->fallback(ChatbotQueryCategory::Product, $answer['message'], $answer['context']);
+        }
+
         if ($routing['choices'] !== []) {
             return $this->fallback($category, $this->routeChatbotQuery->clarification($routing['choices']));
         }
@@ -97,6 +152,21 @@ class ChatbotOrchestrationService
                 return $this->fallback($category, self::UNSUPPORTED_INQUIRY);
             }
             $intent = ChatbotIntentAgent::INTENTS[$inferred['intent']];
+            if (config('ai_integration.advice_enabled') && in_array($inferred['intent'], ['catalog_recommendation', 'component_compatibility'], true)) {
+                $answer = $advice->answer($intent['query'].' '.$normalizedMessage, $componentReferences);
+                if ($answer['context'] !== []) {
+                    $remember?->__invoke(ChatbotQueryCategory::Product, $answer['context']);
+                }
+                if (config('ai_integration.enabled')
+                    && ($answer['context']['products'] ?? []) !== []) {
+                    $draft = $this->chatbotAiAdapter->grounded($normalizedMessage, $answer['context'], $language, scopeChecked: true);
+                    if ($draft['successful']) {
+                        return ['category' => ChatbotQueryCategory::Product, 'message' => $draft['text'], 'source' => 'gemini'];
+                    }
+                }
+
+                return $this->fallback(ChatbotQueryCategory::Product, $answer['message'], $answer['context']);
+            }
             $category = ChatbotQueryCategory::from($intent['category']);
             $classification['rule_topic'] = $intent['rule'];
             $intentMessage = $intent['query'].' '.$intentMessage;
@@ -125,15 +195,25 @@ class ChatbotOrchestrationService
             return $this->fallback($category, 'Live inventory information covers the Sagay branch only. I cannot confirm stock at the other branches. Please ask about Sagay availability or contact the branch.');
         }
 
-        if ($category === ChatbotQueryCategory::Product && preg_match('/\b(?:what products (?:do you have|are available)|what do you (?:sell|have)|browse (?:the )?catalog)\b/iu', $intentMessage) === 1) {
+        if (! config('ai_integration.enabled') && $category === ChatbotQueryCategory::Product && preg_match('/\b(?:what products (?:do you have|are available)|what do you (?:sell|have)|browse (?:the )?catalog)\b/iu', $intentMessage) === 1) {
             return $this->fallback($category, 'Browse the Products catalog to see available products and filter by category or brand. Please provide a product name or model if you would like its current price or Sagay availability.');
+        }
+
+        if (config('ai_integration.enabled') && (int) config('ai_integration.gemini.max_calls', 1) >= 3
+            && $category === ChatbotQueryCategory::Product && ! $classifiedByAi && ! $this->resolveProductContext->isShortSearch($normalizedMessage)
+            && ! $this->resolveProductContext->isCatalogSearch($normalizedMessage)) {
+            $scope = $this->chatbotAiAdapter->classify($normalizedMessage);
+            if ($scope === null || $scope['outcome'] !== 'supported' || $scope['category'] !== 'product') {
+                return $this->fallback($category, self::FAQ_INFORMATION_UNAVAILABLE);
+            }
+            $classifiedByAi = true;
         }
 
         $context = $productId !== null && $category === ChatbotQueryCategory::Product
             ? $this->resolveProductContext->forProduct($productId)
             : ($classification['rule_topic'] !== null && $category === ChatbotQueryCategory::Faq
                 ? $this->ruleGuidance->execute($classification['rule_topic'])
-                : $this->resolveContext($category, $category === ChatbotQueryCategory::Order ? $intentMessage : $normalizedMessage, $customer));
+                : $this->resolveContext($category, $category === ChatbotQueryCategory::Order ? $intentMessage : $normalizedMessage, $customer, $language));
 
         if ($category === ChatbotQueryCategory::Product && ($context['resolution'] ?? null) === 'needs_details') {
             $clarification = str_contains(Str::lower($normalizedMessage), 'facebook')
@@ -144,7 +224,7 @@ class ChatbotOrchestrationService
         }
 
         if ($category === ChatbotQueryCategory::Faq && count($context['knowledge'] ?? []) > 1) {
-            return $this->fallback($category, $this->renderChatbotFallback->execute($category, $intentMessage, $context) ?? self::FAQ_INFORMATION_UNAVAILABLE);
+            return $this->fallback($category, $this->renderChatbotFallback->execute($category, $intentMessage, $context) ?? self::FAQ_INFORMATION_UNAVAILABLE, $context);
         }
 
         if ($this->hasNoContext($category, $context)) {
@@ -157,21 +237,46 @@ class ChatbotOrchestrationService
         unset($context['resolution']);
         $remember?->__invoke($category, $context);
 
-        if (count($context['products'] ?? []) > 1 || count($context['branches'] ?? []) > 1
-            || ($context['orders'][0]['support']['needs_clarification'] ?? false)) {
-            return $this->fallback($category, $this->renderChatbotFallback->execute($category, $intentMessage, $context) ?? self::FAQ_INFORMATION_UNAVAILABLE);
+        if (isset($context['search_query'])) {
+            $cards = array_map(fn (array $product): array => [
+                'id' => $product['id'], 'name' => $product['name'],
+                'price' => $product['discount_price'] ?? $product['price'],
+                'stock' => str_replace('_', ' ', $product['inventory']['status']),
+                'notice' => $product['demo_notice'] ?? null,
+            ], $context['products']);
+            $intro = 'Matching Battlefront products:';
+            $followUp = 'Narrow your search by brand, model, or capacity. Stock information covers Sagay only.';
+            $text = $intro;
+            foreach ($cards as $card) {
+                $text .= "\n\n".$card['name']."\nPHP ".number_format((float) $card['price'], 2).' · '.$card['stock'];
+                if ($card['notice'] !== null) {
+                    $text .= "\n".$card['notice'];
+                }
+            }
+
+            return ['category' => $category, 'message' => $text."\n\n".$followUp, 'source' => 'fallback',
+                'presentation' => ['intro' => $intro, 'products' => $cards, 'follow_up' => $followUp, 'query' => $context['search_query']]];
         }
 
-        if ($category === ChatbotQueryCategory::Faq || $classifiedByAi) {
+        if ((! config('ai_integration.enabled') && count($context['products'] ?? []) > 1) || count($context['branches'] ?? []) > 1
+            || ($context['orders'][0]['support']['needs_clarification'] ?? false)) {
+            return $this->fallback($category, $this->renderChatbotFallback->execute($category, $intentMessage, $context) ?? self::FAQ_INFORMATION_UNAVAILABLE, $context);
+        }
+
+        if ($category === ChatbotQueryCategory::Faq || ($classifiedByAi && (int) config('ai_integration.gemini.max_calls', 1) === 1)
+            || (config('ai_integration.enabled') && $category !== ChatbotQueryCategory::Product)) {
             return $this->fallback(
                 $category,
                 $this->renderChatbotFallback->execute($category, $intentMessage, $context) ?? self::FAQ_INFORMATION_UNAVAILABLE,
+                $context,
             );
         }
 
-        $result = $language === 'en'
+        $result = config('ai_integration.enabled')
+            ? $this->chatbotAiAdapter->grounded($normalizedMessage, $context, $language, scopeChecked: $classifiedByAi)
+            : ($language === 'en'
             ? $this->chatbotAiAdapter->generate($normalizedMessage, $context)
-            : $this->chatbotAiAdapter->generate($normalizedMessage, $context, $language);
+            : $this->chatbotAiAdapter->generate($normalizedMessage, $context, $language));
 
         if ($result['successful']) {
             return [
@@ -186,6 +291,7 @@ class ChatbotOrchestrationService
             $this->renderChatbotFallback->execute($category, $intentMessage, $context) ?? ($result['failure'] === 'timeout'
                 ? self::PROVIDER_TIMEOUT
                 : self::PROVIDER_UNAVAILABLE),
+            $context,
         );
     }
 
@@ -208,12 +314,13 @@ class ChatbotOrchestrationService
         ChatbotQueryCategory $category,
         string $message,
         ?User $customer,
+        string $language = 'en',
     ): array {
         return match ($category) {
             ChatbotQueryCategory::Product => $this->resolveProductContext->execute($message),
             ChatbotQueryCategory::Order => $this->resolveOrderContext->execute($customer, $message),
             ChatbotQueryCategory::Store => $this->resolveStoreContext->execute($message),
-            ChatbotQueryCategory::Faq => $this->resolveFaqContext->execute($message),
+            ChatbotQueryCategory::Faq => $this->resolveFaqContext->execute($message, $language),
             ChatbotQueryCategory::Unsupported => [],
         };
     }
@@ -253,14 +360,23 @@ class ChatbotOrchestrationService
     }
 
     /**
-     * @return array{category: ChatbotQueryCategory, message: string, source: 'fallback'}
+     * @param  array<string, mixed>  $context
+     * @return array{category: ChatbotQueryCategory, message: string, source: 'fallback', protected: list<mixed>, response_context: array<string, mixed>}
      */
-    private function fallback(ChatbotQueryCategory $category, string $message): array
+    private function fallback(ChatbotQueryCategory $category, string $message, array $context = []): array
     {
         return [
             'category' => $category,
             'message' => $message,
             'source' => 'fallback',
+            'response_context' => $context,
+            'protected' => [
+                ...array_column($context['products'] ?? [], 'name'),
+                ...array_column($context['products'] ?? [], 'description'),
+                ...array_column($context['branches'] ?? [], 'address'),
+                ...array_column($context['branches'] ?? [], 'city'),
+                ...array_column($context['knowledge'] ?? [], 'response_template'),
+            ],
         ];
     }
 }
