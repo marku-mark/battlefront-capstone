@@ -35,6 +35,12 @@ class ChatbotDiagnostics extends Command
             $rows[] = [$metric, Cache::get($prefix.$metric, 0)];
         }
         $this->table(['Today: duration buckets are exclusive', 'Count'], $rows);
+        $failures = DB::table('chatbot_failure_events')->where('delete_after', '>', now());
+        $this->table(['Private failure review', 'Value'], [
+            ['Retained cases', (clone $failures)->count()],
+            ['Open cases', (clone $failures)->where('status', 'open')->count()],
+            ['Review command', 'php artisan chatbot:failures'],
+        ]);
 
         return self::SUCCESS;
     }

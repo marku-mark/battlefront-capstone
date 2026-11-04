@@ -3,7 +3,11 @@
 namespace App\Services\Chatbot;
 
 use App\Actions\Chatbot\Context\ResolveProductContext;
+use App\Actions\Chatbot\RenderChatbotFallback;
+use App\Enums\ChatbotQueryCategory;
 use App\Models\Product;
+use App\Repositories\Catalog\CatalogSearchIntent;
+use App\Repositories\Catalog\ProductCatalogRepository;
 use App\Services\PcBuilder\CompatibilityEngine;
 
 class ChatbotCatalogAdvice
@@ -29,6 +33,19 @@ class ChatbotCatalogAdvice
         $query = $this->language->canonical($message);
         if (preg_match('/\b(?:compatible|compatibility|work with|fit with)\b/iu', $query) === 1) {
             return $this->compatibilityAnswer($message, $references);
+        }
+        $price = app(ChatbotPriceIntent::class)->resolve($query);
+        $catalogIntent = app(CatalogSearchIntent::class)->resolve($price['query']);
+        if (($catalogIntent !== null && app(ProductCatalogRepository::class)->hasChatbotCategory($price['query'])) || $price['sort'] !== null) {
+            preg_match_all('/\b(?:not|without|exclude|except)\s+([\p{L}\p{N}-]+)\b/iu', $query, $excluded);
+            $context = app(ChatbotCatalogSelection::class)->select($message, [
+                'intent' => 'recommendation', 'category_key' => ChatbotProductRanking::FAMILIES[$catalogIntent['category'] ?? ''] ?? 'other',
+                'search_query' => $price['query'], 'product_mentions' => [], 'reference' => 'new', 'position' => 0,
+                'maximum_php' => null, 'excluded_brands' => $excluded[1], 'brand' => '', 'capacity' => '', 'use_case' => '',
+            ]);
+            $text = app(RenderChatbotFallback::class)->execute(ChatbotQueryCategory::Product, $message, $context);
+
+            return ['message' => $text ?? 'I could not find an available catalog option matching those constraints.', 'context' => $context];
         }
         $maximum = null;
         preg_match_all('/\b(?:not|without|exclude|except)\s+(intel|amd|nvidia)\b/iu', $query, $exclusions);
@@ -67,7 +84,7 @@ class ChatbotCatalogAdvice
         if ($maximum !== null) {
             $products = $products->filter(fn (array $product): bool => (float) ($product['discount_price'] ?? $product['price']) <= $maximum);
         }
-        $products = $products->sortBy(fn (array $product): float => (float) ($product['discount_price'] ?? $product['price']))->take(3)->values()->all();
+        $products = array_slice(app(ChatbotProductRanking::class)->order($products->values()->all(), $price['sort'], app(ChatbotProductRanking::class)->accessoryRequest($message)), 0, 6);
         $context = ['products' => $products, 'conversation_focus' => 'recommendation'];
         if ($products === []) {
             return ['message' => $maximum !== null && trim($query) !== ''
@@ -76,7 +93,7 @@ class ChatbotCatalogAdvice
         }
         $facts = app(ChatbotGroundedResponse::class)->evidence($context);
 
-        return ['message' => "These available catalog options match your search, ordered by current price. Performance and compatibility require verified specifications.\n".implode("\n", $facts), 'context' => $context];
+        return ['message' => "These available catalog options match your search. Performance and compatibility require verified specifications.\n\n".implode("\n\n", $facts), 'context' => $context];
     }
 
     /** @return array{products: list<array<string, mixed>>} */

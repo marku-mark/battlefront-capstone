@@ -2,6 +2,8 @@
 
 namespace App\Services\Chatbot;
 
+use Illuminate\Support\Facades\Log;
+
 class ChatbotGroundedResponse
 {
     /** @param array<string, mixed> $context
@@ -9,6 +11,9 @@ class ChatbotGroundedResponse
     public function conversationalEvidence(array $context): array
     {
         $evidence = $this->evidence($context);
+        if (isset($context['price_selection'])) {
+            $evidence['selection:ranking'] = 'Authoritative selection order and PHP price scope; catalog extrema apply only to the matching eligible catalog, selected_products only to the referenced selection: '.json_encode($context['price_selection'], JSON_THROW_ON_ERROR);
+        }
         foreach (array_slice($context['branches'] ?? [], 0, 6) as $index => $branch) {
             $evidence['branch:'.$index] = 'Published branch information: '.json_encode($branch, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
         }
@@ -51,7 +56,15 @@ class ChatbotGroundedResponse
             return null;
         }
         $references = $this->render($evidence, ['evidence_ids' => $selection['evidence_ids']]);
+        if ($references === null) {
+            return null;
+        }
         $answer = trim($selection['answer']);
+        if (! $this->validPriceSelection($answer, $evidence, $selection['evidence_ids'], $intent['price_selection'] ?? null)) {
+            Log::notice('Chatbot ranking validation rejected.', ['status' => 'order_or_price_claim_mismatch']);
+
+            return null;
+        }
         if (preg_match('/\b(?:complete|ready[- ]to[- ]use|fully assembled)\b/iu', $answer) === 1) {
             foreach ($selection['evidence_ids'] as $id) {
                 if (is_string($id) && preg_match('/\b(?:barebone|barebones)\b/iu', $evidence[$id] ?? '') === 1) {
@@ -122,7 +135,87 @@ class ChatbotGroundedResponse
             return null;
         }
 
-        return $answer;
+        return $this->spaceProductEntries($answer, $productFacts);
+    }
+
+    /** @param array<string, float> $products */
+    private function spaceProductEntries(string $answer, array $products): string
+    {
+        if ($products !== []) {
+            $names = implode('|', array_map(fn (string $name): string => preg_quote($name, '/'), array_keys($products)));
+            $answer = preg_replace('/(?<=\S)[\t ]+(?=(?:[-*•]|\d+[.)])[\t ]+(?:\*\*)?(?:'.$names.'))/iu', "\n\n", $answer) ?? $answer;
+        }
+        $lines = preg_split('/\R/u', $answer) ?: [];
+        $formatted = [];
+        $previous = null;
+        foreach ($lines as $line) {
+            $named = array_values(array_filter(array_keys($products), fn (string $name): bool => mb_stripos($line, $name) !== false));
+            if (count($named) === 1) {
+                if ($previous !== null && $previous !== $named[0] && trim(end($formatted) ?: '') !== '') {
+                    $formatted[] = '';
+                }
+                $previous = $named[0];
+            }
+            $formatted[] = $line;
+        }
+
+        return implode("\n", $formatted);
+    }
+
+    /** @param array<string, string> $evidence
+     * @param list<string> $references
+     * @param array<string, mixed>|null $selection */
+    private function validPriceSelection(string $answer, array $evidence, array $references, ?array $selection): bool
+    {
+        $superlatives = '/\b(?:cheapest|least expensive|lowest[- ]priced|most expensive|highest[- ]priced|pinakamura|pinakabarato|pinakabaratu|pinakamahal)\b/iu';
+        if ($selection === null) {
+            return true;
+        }
+        $names = $selection['names'] ?? [];
+        $seen = [];
+        foreach ($selection['ordered_ids'] as $position => $id) {
+            $offset = isset($names[$id]) ? mb_stripos($answer, $names[$id]) : false;
+            if ($offset !== false) {
+                $seen[$position] = $offset;
+            }
+        }
+        $offsets = array_values($seen);
+        $ordered = $offsets;
+        sort($ordered);
+        if ($offsets !== $ordered) {
+            return false;
+        }
+        if (preg_match($superlatives, $answer) !== 1) {
+            return true;
+        }
+        if (($selection['sort'] ?? null) === null && $selection['scope'] !== 'selected_products') {
+            return false;
+        }
+        $prices = array_intersect_key($selection['prices'], array_flip($selection['comparison_ids'] ?? $selection['ordered_ids']));
+        foreach (preg_split('/\n+|(?<=[.!?])\s+(?=[\p{L}])/u', $answer) ?: [] as $sentence) {
+            if (preg_match($superlatives, $sentence) !== 1) {
+                continue;
+            }
+            $expensive = preg_match('/\b(?:most expensive|highest[- ]priced|pinakamahal)\b/iu', $sentence) === 1;
+            if ($selection['scope'] !== 'selected_products' && $selection['sort'] !== ($expensive ? 'desc' : 'asc')) {
+                return false;
+            }
+            $named = array_keys(array_filter($names, fn (string $name): bool => mb_stripos($sentence, $name) !== false));
+            if (count($named) !== 1 || ! isset($prices[$named[0]]) || ! in_array('product:'.$named[0], $references, true)) {
+                return false;
+            }
+            foreach ($prices as $price) {
+                $comparison = bccomp($prices[$named[0]], $price, 2);
+                if (($expensive && $comparison < 0) || (! $expensive && $comparison > 0)) {
+                    return false;
+                }
+            }
+            if ($selection['scope'] === 'selected_products' && preg_match('/\b(?:entire catalog|whole catalog|in the catalog|in the store)\b/iu', $sentence)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /** @param array<string, mixed> $context
@@ -175,6 +268,6 @@ class ChatbotGroundedResponse
             return null;
         }
 
-        return implode("\n", array_map(fn (string $id): string => $evidence[$id], $ids));
+        return implode("\n\n", array_map(fn (string $id): string => $evidence[$id], $ids));
     }
 }

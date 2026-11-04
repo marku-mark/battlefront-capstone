@@ -21,7 +21,7 @@ class SemanticCatalogCandidates
     ) {}
 
     /** @return list<int> */
-    public function ids(string $query): array
+    public function ids(string $query, array $constraints = []): array
     {
         $started = hrtime(true);
         if (config('ai_integration.offline') || ! config('ai_integration.enabled') || ! config('ai_integration.qdrant.enabled')
@@ -45,11 +45,16 @@ class SemanticCatalogCandidates
                     $filters['category_id'] = (int) $categoryId;
                 }
             }
-            $key = 'chatbot:catalog:candidates:v2:'.hash('sha256', json_encode([
+            foreach (['product_family', 'product_role'] as $field) {
+                if (is_string($constraints[$field] ?? null) && $constraints[$field] !== 'any' && $constraints[$field] !== 'unknown') {
+                    $filters[$field] = $constraints[$field];
+                }
+            }
+            $key = 'chatbot:catalog:candidates:v3:'.hash('sha256', json_encode([
                 config('ai_integration.embedding.model'), config('ai_integration.embedding.dimensions'),
                 config('ai_integration.qdrant.collection'), $query, $filters,
             ], JSON_THROW_ON_ERROR));
-            $rows = Cache::remember($key, 60, fn (): array => $this->vectors->search($this->embeddings->embed($query), filters: $filters));
+            $rows = Cache::remember($key, 60, fn (): array => $this->vectors->search($this->embeddings->embed($query), limit: 20, filters: $filters));
             $ids = [];
             $rows = array_slice($rows, 0, 20);
             $products = Product::query()->customerAvailable()->whereIn('id', array_column($rows, 'product_id'))
@@ -68,7 +73,7 @@ class SemanticCatalogCandidates
 
             Log::info('Chatbot retrieval completed.', ['provider' => 'qdrant', 'duration_ms' => (int) ((hrtime(true) - $started) / 1_000_000), 'candidates' => count($rows), 'accepted' => count($ids), 'status' => $ids === [] ? 'no_current_match' : 'matched']);
 
-            return array_slice(array_values(array_unique($ids)), 0, 6);
+            return array_slice(array_values(array_unique($ids)), 0, 20);
         } catch (\Throwable) {
             Log::warning('Chatbot retrieval failed.', ['provider' => 'qdrant', 'duration_ms' => (int) ((hrtime(true) - $started) / 1_000_000), 'status' => 'unavailable']);
             try {

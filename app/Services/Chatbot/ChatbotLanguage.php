@@ -23,6 +23,8 @@ class ChatbotLanguage
         '\b(?:(?:ang|yung|katong) )?(?:mas barato|mas mura)\b' => 'cheaper',
         '\b(?:barato|mura|abot kaya)\b' => 'affordable',
         '\b(?:ubos sa|ilalom sa|mas mababa sa|mas manubo sa|indi maglapaw sa|dili molapas sa|hindi lalampas sa)\b' => 'under',
+        '\b(?:pasok|kasya|sulod) sa (?:budget(?: na| nga)? )?((?:PHP\s*|\x{20B1}\s*)?[\d,]+(?:\.\d{1,2})?)\b' => 'budget up to $1',
+        '\bbudget (?:nako|natin|namin|naton) (?:ay|nga|na)?\s*((?:PHP\s*|\x{20B1}\s*)?[\d,]+(?:\.\d{1,2})?)\b' => 'budget up to $1',
         '\b(?:ayaw|dili|indi|huwag|hindi)\s+(?:ug |sang |ng )?(intel|amd|nvidia)\b' => 'not $1',
         '\b(?:para sa|alang sa)\b' => 'for',
         '\b(?:ikumpara|itandi|ikump ara)\b' => 'compare',
@@ -32,7 +34,20 @@ class ChatbotLanguage
         '\b(?:paano (?:ko )?(?:makikita|tingnan|i check)|diin (?:ko )?makita|asa (?:nako )?makita) (?:ang )?(?:akon |akong |aking |my )?order (?:history|status)\b' => 'how can i check my order status',
         '\b(?:paano|unsaon) (?:mag search|maghanap|mangita) (?:ng |ug |og |sang )?(?:products|produkto)\b' => 'how do i search for products',
         '\b(?:what do you sell|what can i buy|what do you have for sale)\b' => 'what products do you have',
-        '\b(?:pila|magkano|tagpila) (?:ang )?(?:delivery|shipping|pagpadala)(?: fee| cost)?\b' => 'delivery fee',
+        '\bhow much (?:is|for) (?:the )?(?:delivery|shipping)(?: fee| cost)?(?: (?:to|in) [\p{L}\p{N}-]+(?: [\p{L}\p{N}-]+){0,2})?\b' => 'delivery fee',
+        '\b(?:pila|magkano|tagpila)(?: ang| po ang| po)? (?:delivery|shipping|pagpadala)(?: fee| cost)?(?: (?:sa|to) [\p{L}\p{N}-]+(?: [\p{L}\p{N}-]+){0,2})?\b' => 'delivery fee',
+        '\b(?:can (?:you|we|i) (?:get|have) delivery|can you deliver|do you deliver|is delivery available)(?: (?:to|in|sa) ([\p{L}\p{N}-]+(?: [\p{L}\p{N}-]+){0,2}))?\b' => 'do you deliver to $1',
+        '\b(?:what areas|where) do you deliver(?: to)?\b' => 'delivery options',
+        '\bhow does delivery work\b' => 'delivery options',
+        '\b(?:may|meron|mayroon) (?:ba )?(?:kayo(?:ng)? )?(?:delivery|pagdeliver|pag-deliver)(?: (?:sa|to) ([\p{L}\p{N}-]+(?: [\p{L}\p{N}-]+){0,2}))?\b' => 'do you deliver to $1',
+        '\b(?:may|meron|mayroon) delivery (?:ba )?(?:kayo(?:ng)? )?(?:sa|to) ([\p{L}\p{N}-]+(?: [\p{L}\p{N}-]+){0,2})\b' => 'do you deliver to $1',
+        '\bmay (.+?) ba kayo\b' => 'available $1',
+        '\bmay (.+?) ba\b' => 'available $1',
+        '\bmay (.+?) kayo\b' => 'available $1',
+        '\b(?:pwede|puwede|mahimo)(?: po)? (?:ba|bang) (?:magpa-?deliver|i-?deliver|delivery)(?: kayo)? (?:sa|to) ([\p{L}\p{N}-]+(?: [\p{L}\p{N}-]+){0,2})\b' => 'do you deliver to $1',
+        '\b(?:pwede|puwede|mahimo)(?: po)? ba (?:i-?lalamove|magpa-?lalamove)(?: ngayon| karon| subong)?\b' => 'do you deliver via lalamove today',
+        '\b(?:naa|naay|aduna) (?:ba )?(?:moy|mo )?delivery(?: (?:sa|to) ([\p{L}\p{N}-]+(?: [\p{L}\p{N}-]+){0,2}))?\b' => 'do you deliver to $1',
+        '\b(?:may ara|ara) (?:ba )?(?:kamo )?delivery(?: (?:sa|sang|to) ([\p{L}\p{N}-]+(?: [\p{L}\p{N}-]+){0,2}))?\b' => 'do you deliver to $1',
         '\b(?:diin|asa|nasaan|saan) (?:na )?(?:ang )?(?:akon|akong|aking) (?:order|gin order)\b' => 'my order status',
         '\b(?:diin|asa|nasaan|saan) (?:na )?(?:ang )?order (?:ko|nako)\b' => 'my order status',
         '\b(order|payment|refund|return) (?:ko|nako)\b' => 'my $1',
@@ -46,7 +61,10 @@ class ChatbotLanguage
         '\b(?:anong oras|ano oras|ano nga oras|unsang orasa) (?:kamo |mo |kayo )?(?:magbukas|bukas|mag abri|abri|moabli|abli)\b' => 'opening hours',
         '\b(?:anong oras|ano nga oras|unsang orasa) (?:kamo |mo |kayo )?(?:magsara|mag sara|mosira|sirado)\b' => 'closing hours',
         '\b(?:ano|unsa) (?:ang )?(?:inyo|inyong) (?:contact|numero|number)\b' => 'contact number',
-        '\b(?:may ara (?:pa )?(?:kamo|kamo sang)|may stock pa|may stock ba|naa (?:pa )?moy|naa pa ba|(?:meron|mayroon) (?:(?:pa|rin|din) )?ba (?:kayong|kayo))\b' => 'available',
+        '\b(?:(?:do you|does your (?:shop|store)) (?:carry|sell|stock)|have you got|(?:have you )?got any)\b' => 'available',
+        '\b(?:may stock(?: (?:pa|ba))*(?: (?:kayo|kayong|kamo))?(?: (?:ng|sang))?|naay stock(?: sa)?|may ara(?: (?:pa|gid|bala))*(?: kamo)?(?: sang| nga)?|ara kamo(?: sang)?|(?:naa|aduna)(?: pa)?(?: ba)? (?:moy|mo)|(?:meron|mayroon)(?: (?:pa|rin|din))?(?: ba)? (?:kayong|kayo))\b' => 'available',
+        '\b(?:merong|mayroong|naay)\b' => 'available',
+        '\bba kayo\b' => 'available',
         '\b(?:may ara pa|ara pa|naa pa)\b' => 'available',
         '\b(?:ano (?:ang )?(?:mga )?(?:baligya|produkto) (?:ninyo|niyo)|unsa inyong (?:baligya|mga produkto)|anong (?:mga )?products (?:meron|mayroon) kayo)\b' => 'what products do you have',
         '\b(?:tagpila|magkano|pila)(?: (?:ang|po|sang|ka))?\b' => 'price',
@@ -125,8 +143,11 @@ class ChatbotLanguage
 
     public function detect(string $message): ?string
     {
+        if (preg_match('/\b(?:meron|merong|mayroon)\b|\bmay\b(?!\s+ara\b).*\b(?:ba|kayo|kayong)\b/iu', $message) === 1) {
+            return 'tl';
+        }
         $matches = [];
-        foreach (['hil' => 'may ara|diin|kag|sang|akon|sini|subong|indi|kagina', 'ceb' => 'naa|moy|asa|unsa|unsaon|akong|nako|inyong|kana|karon|dili|ganiha|rekomendahi', 'tl' => 'magkano|paano|nasaan|meron|mayroon|aking|kayong|niyan|po|hindi|irekomenda|mura'] as $language => $words) {
+        foreach (['hil' => 'may ara|ara kamo|diin|kag|sang|akon|sini|subong|indi|kagina', 'ceb' => 'naa|naay|aduna|moy|asa|unsa|unsaon|akong|nako|inyong|kana|karon|dili|ganiha|rekomendahi', 'tl' => 'magkano|paano|nasaan|meron|merong|mayroon|mayroong|ba kayo|aking|kayong|niyan|po|hindi|irekomenda|mura'] as $language => $words) {
             $score = preg_match_all('/\b(?:'.$words.')\b/iu', $message);
             if ($score > 0) {
                 $matches[$language] = $score;
@@ -143,7 +164,7 @@ class ChatbotLanguage
             return $scores[0] > ($scores[1] ?? $scores[0]) ? array_key_first($matches) : null;
         }
 
-        return preg_match('/\b(?:how|where|what|which|is the|do you|can i|recommend|compare|show me|help me)\b/iu', $message) === 1 ? 'en' : null;
+        return preg_match('/\b(?:how|where|what|which|is the|do you|have you|got any|can i|recommend|compare|show me|help me)\b/iu', $message) === 1 ? 'en' : null;
     }
 
     public function select(string $message, ?string $previous = null): string

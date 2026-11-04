@@ -5,7 +5,16 @@ import AuthLayout from '@/layouts/AuthLayout.vue';
 import SettingsLayout from '@/layouts/settings/Layout.vue';
 import { initializeFlashToast } from '@/lib/flashToast';
 const appName = import.meta.env.VITE_APP_NAME || 'Battlefront Computer Trading';
+const pages = import.meta.glob('./pages/**/*.vue');
 void createInertiaApp({
+    resolve: async (name) => {
+        const loadPage = pages[`./pages/${name}.vue`];
+        if (!loadPage) {
+            throw new Error(`Inertia page not found: ${name}`);
+        }
+
+        return loadPage();
+    },
     withApp: (_app, { page }) => {
         initializeTheme(page.props);
     },

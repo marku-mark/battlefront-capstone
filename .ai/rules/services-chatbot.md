@@ -29,3 +29,9 @@ The developer approved adaptive Gemini stages: deterministic single-product fact
 
 ## Model-led public chatbot remains grounded
 When CHATBOT_MODEL_LED_ENABLED and CHATBOT_AI_INTEGRATION_ENABLED are on, eligible public turns use one bounded understanding call, MySQL/approved context, grounded generation and review within a shared three-call budget. Never send private order data to the interpreter or treat model output as catalog authority. Preserve deterministic private-order authorization, PHP compatibility verdicts, current stock/price, and fallback on provider or review failure. Live activation and fluent-speaker evaluation remain separate release gates.
+
+## Rank catalog products by intent and verify price scope
+Use the shared chatbot catalog selection and ranking policy: main products lead broad/device searches; explicit accessories lead accessory searches. Calculate cheapest/most expensive over all eligible matching MySQL rows using discounted selling price before limits; cloud candidates alone cannot establish extrema. Persist only bounded structured constraints, never prior user questions in provider context. Qdrant/Neo4j family-role projections are derived and require current hashes; PHP retains compatibility authority.
+
+## Keep failure review separate from customer memory and catalog knowledge
+The developer-approved failure review stores only encrypted allowlisted public diagnostic samples; unknown/private scope gets metadata only and explicit unsupported scope is excluded. Successful deterministic fallback replies are not failures. Keep capture bounded and best effort, expire samples within seven days, and never send them upstream or use them in customer retrieval. Local CLI review proposes investigations; human resolution links a regression test and never automatically edits prompts, code or facts.

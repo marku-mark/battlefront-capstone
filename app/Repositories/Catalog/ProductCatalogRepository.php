@@ -5,6 +5,7 @@ namespace App\Repositories\Catalog;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\Tag;
+use App\Services\Chatbot\ChatbotProductRanking;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -71,16 +72,93 @@ class ProductCatalogRepository
     }
 
     /** @return EloquentCollection<int, Product> */
-    public function chatbotSearch(string $search, bool $useProvider = true): EloquentCollection
+    public function chatbotSearch(string $search, bool $useProvider = true, ?string $priceSort = null, ?string $minimum = null, ?string $maximum = null, bool $minimumInclusive = true, bool $maximumInclusive = true, array $excludedBrands = []): EloquentCollection
     {
+        return $this->chatbotCandidates($search, ['sort' => $priceSort, 'minimum' => $minimum, 'maximum' => $maximum,
+            'minimum_inclusive' => $minimumInclusive, 'maximum_inclusive' => $maximumInclusive, 'excluded_brands' => $excludedBrands], useProvider: $useProvider);
+    }
+
+    /** @param array<string, mixed> $constraints
+     * @param list<int>|null $ids
+     * @return EloquentCollection<int, Product> */
+    public function chatbotCandidates(string $search, array $constraints = [], ?array $ids = null, bool $useProvider = false): EloquentCollection
+    {
+        $priceSort = $constraints['sort'] ?? null;
+        $minimum = $constraints['minimum'] ?? null;
+        $maximum = $constraints['maximum'] ?? null;
+        $minimumInclusive = $constraints['minimum_inclusive'] ?? true;
+        $maximumInclusive = $constraints['maximum_inclusive'] ?? true;
         $intent = app(CatalogSearchIntent::class)->resolve($search);
+        $computerType = null;
+        if (($intent['category'] ?? null) === 'Laptops & Desktops' && preg_match('/^(laptop|desktop)(?:\s|$)/u', $intent['query'], $subtype)) {
+            $computerType = $subtype[1];
+            $intent['query'] = trim(substr($intent['query'], strlen($computerType)));
+        }
         $query = $this->catalogQuery(['q' => $search], $intent, $useProvider)->customerAvailable()
             ->with('inventory:id,product_id,quantity,reorder_level');
+        if ($computerType !== null) {
+            $patterns = $computerType === 'laptop' ? ['%laptop%', '%notebook%', '%macbook%'] : ['%desktop%', '%system unit%', '%pc%', '%cpu%'];
+            $query->where(function (Builder $computer) use ($patterns): void {
+                foreach ($patterns as $pattern) {
+                    $computer->orWhereRaw('LOWER(products.name) LIKE ?', [$pattern]);
+                }
+            });
+        }
+        $ranking = app(ChatbotProductRanking::class);
+        $accessory = ($constraints['product_role'] ?? null) === 'accessory' || $ranking->accessoryRequest($search);
+        if ($ids !== null) {
+            $query->whereIn('products.id', array_slice($ids, 0, 80));
+        }
+        $query->whereRaw('LOWER(products.name) NOT LIKE ?', ['[demo]%'])
+            ->where(fn (Builder $product): Builder => $product->whereNull('image_path')->orWhere('image_path', 'not like', 'images/demo-products/%'));
         if ($intent !== null) {
             $this->prioritizePrimaryProducts($query, $intent, onlyPrimary: true);
+            if (! $accessory && isset(ChatbotProductRanking::FAMILIES[$intent['category']])) {
+                $query->whereRaw($ranking->primarySql());
+            }
+        }
+        if ($search === '' && ($constraints['product_role'] ?? null) !== 'any') {
+            $ranking->prioritize($query);
+        }
+        foreach (['brand', 'capacity'] as $field) {
+            if (($constraints[$field] ?? '') !== '') {
+                $term = $field === 'capacity' ? str_replace(' ', '', $constraints[$field]) : $constraints[$field];
+                $pattern = '%'.strtr(mb_strtolower($term), ['!' => '!!', '%' => '!%', '_' => '!_']).'%';
+                if ($field === 'brand') {
+                    $query->where(fn (Builder $product): Builder => $product->whereRaw("LOWER(COALESCE(brand, '')) LIKE ? ESCAPE '!'", [$pattern])
+                        ->orWhereRaw("LOWER(products.name) LIKE ? ESCAPE '!'", [$pattern]));
+                } else {
+                    $query->whereRaw("REPLACE(LOWER(products.name), ' ', '') LIKE ? ESCAPE '!'", [$pattern]);
+                }
+            }
         }
 
-        return $query->orderByDesc('is_featured')->orderBy('name')->orderBy('id')->limit(3)->get();
+        foreach ($constraints['excluded_brands'] ?? [] as $brand) {
+            if ($brand !== '') {
+                $pattern = '%'.strtr(mb_strtolower($brand), ['!' => '!!', '%' => '!%', '_' => '!_']).'%';
+                $query->whereRaw("LOWER(COALESCE(brand, '')) NOT LIKE ? ESCAPE '!' AND LOWER(products.name) NOT LIKE ? ESCAPE '!'", [$pattern, $pattern]);
+            }
+        }
+        if ($minimum !== null) {
+            $query->whereRaw('COALESCE(discount_price, price) '.($minimumInclusive ? '>=' : '>').' CAST(? AS DECIMAL(12, 2))', [$minimum]);
+        }
+        if ($maximum !== null) {
+            $query->whereRaw('COALESCE(discount_price, price) '.($maximumInclusive ? '<=' : '<').' CAST(? AS DECIMAL(12, 2))', [$maximum]);
+        }
+        if ($constraints['diversify'] ?? false) {
+            $representativeQuery = clone $query;
+            if (($constraints['product_role'] ?? 'main') === 'main') {
+                $representativeQuery->whereRaw($ranking->primarySql());
+            }
+            $representatives = $representativeQuery->reorder()->select('category_id')->selectRaw('MIN(products.id) AS representative_id')
+                ->groupBy('category_id')->limit(20)->toBase()->get()->pluck('representative_id')->all();
+            $query->whereIn('products.id', $representatives);
+        }
+        if (in_array($priceSort, ['asc', 'desc'], true)) {
+            $query->orderByRaw('CAST(COALESCE(discount_price, price) AS DECIMAL(12, 2)) '.$priceSort)->orderBy('products.id');
+        }
+
+        return $query->orderByDesc('is_featured')->orderBy('products.id')->limit($ids === null ? 20 : 80)->get();
     }
 
     public function hasChatbotCategory(string $search): bool
@@ -99,13 +177,13 @@ class ProductCatalogRepository
     {
         $intent = $search === null ? null : app(CatalogSearchIntent::class)->resolve($search);
         $query = $this->catalogQuery($search === null ? [] : ['q' => $search], $intent, useProvider: false)
-            ->customerAvailable()->whereIn('products.id', array_slice($ids, 0, 6))
+            ->customerAvailable()->whereIn('products.id', array_slice($ids, 0, 20))
             ->with('inventory:id,product_id,quantity,reorder_level');
         if ($intent !== null) {
             $this->prioritizePrimaryProducts($query, $intent, onlyPrimary: true);
         }
 
-        return $query->limit(6)->get()->sortBy(fn (Product $product): int => (int) array_search($product->id, $ids, true))->values();
+        return $query->limit(20)->get()->sortBy(fn (Product $product): int => (int) array_search($product->id, $ids, true))->values();
     }
 
     public function findEligibleOrFail(int $productId): Product

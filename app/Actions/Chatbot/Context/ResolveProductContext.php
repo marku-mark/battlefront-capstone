@@ -6,7 +6,10 @@ use App\Models\Product;
 use App\Models\Tag;
 use App\Repositories\Catalog\CatalogSearchIntent;
 use App\Repositories\Catalog\ProductCatalogRepository;
+use App\Services\Chatbot\ChatbotCatalogSelection;
 use App\Services\Chatbot\ChatbotLanguage;
+use App\Services\Chatbot\ChatbotPriceIntent;
+use App\Services\Chatbot\ChatbotProductRanking;
 use App\Services\Chatbot\ChatbotProviderBudget;
 use App\Services\Chatbot\SemanticCatalogCandidates;
 use Illuminate\Database\Eloquent\Collection;
@@ -17,7 +20,7 @@ class ResolveProductContext
     /** @var list<string> */
     private const QUERY_WORDS = [
         'and', 'also', 'plus', 'still', 'about', 'much', 'thanks', 'thank',
-        'rin', 'din',
+        'rin', 'din', 'today', 'now', 'ngayon', 'karon', 'subong',
         'ang', 'sang', 'sa', 'ng', 'mga', 'ba', 'bala', 'gid', 'bi', 'palihog', 'nga', 'pud', 'sad', 'naman', 'lang', 'na', 'man', 'pa', 'po', 'kamo', 'kayo', 'ninyo', 'niyo', 'inyong', 'inyo', 'ko', 'nako', 'it', 'there', 'inquiry', 'pila', 'magkano', 'tagpila', 'may', 'ara', 'naa', 'moy', 'meron', 'mayroon', 'kayong',
         'a',
         'an',
@@ -91,12 +94,19 @@ class ResolveProductContext
      */
     public function execute(string $message, ?string $semanticMessage = null): array
     {
-        if (config('ai_integration.enabled') && preg_match('/^\s*(?:what products (?:do you have|are available)|what do you (?:sell|have)|browse (?:the )?catalog)\s*[?.!]*$/iu', $message) === 1) {
-            $products = Product::query()->customerAvailable()->with(['category', 'inventory', 'tags'])
-                ->orderBy('price')->orderBy('id')->limit(6)->get();
-            $products->loadMissing('componentProfile.currentApprovedRevision');
+        $price = app(ChatbotPriceIntent::class)->resolve($message);
+        $broad = preg_match('/^\s*(?:what products (?:do you have|are available)|what do you (?:sell|have)|browse (?:the )?catalog|(?:cheapest|most expensive) (?:products|items)(?: including accessories)?)\s*[?.!]*$/iu', $message) === 1;
+        if ($price['sort'] !== null || $price['has_minimum'] || $price['has_maximum'] || $price['error'] !== null || ($broad && config('ai_integration.enabled'))) {
+            $catalogIntent = app(CatalogSearchIntent::class)->resolve($price['query']);
+            $category = $catalogIntent === null ? 'other' : (ChatbotProductRanking::FAMILIES[$catalogIntent['category']] ?? 'other');
+            $mentions = $this->namedProducts($message)->pluck('name')->all();
+            $selection = app(ChatbotCatalogSelection::class)->select($message, [
+                'intent' => 'discovery', 'category_key' => $category, 'search_query' => $price['query'],
+                'product_mentions' => $mentions, 'reference' => 'new', 'position' => 0, 'maximum_php' => null,
+                'excluded_brands' => [], 'brand' => '', 'capacity' => '', 'use_case' => '',
+            ]);
 
-            return ['resolution' => $products->isEmpty() ? 'not_found' : 'matched', 'products' => array_values($products->map(fn (Product $product): array => $this->mapProduct($product))->all())];
+            return ['resolution' => ($selection['products'] ?? []) === [] ? 'not_found' : 'matched', ...$selection];
         }
         $catalogQuery = $this->catalogSearchQuery($message);
         $useCatalogIntent = $catalogQuery !== null && ! $this->namesProduct($message);
@@ -116,7 +126,7 @@ class ResolveProductContext
                     $matches->loadMissing('componentProfile.currentApprovedRevision');
                 }
 
-                return ['resolution' => 'matched', 'search_query' => $search, 'products' => array_values($matches->map(fn (Product $product): array => ['id' => $product->id, ...$this->mapProduct($product)])->all())];
+                return ['resolution' => 'matched', 'search_query' => $search, 'products' => array_values($matches->take(3)->map(fn (Product $product): array => ['id' => $product->id, ...$this->mapProduct($product)])->all())];
             }
             if (! $this->namedProducts($message)->contains(fn (Product $product): bool => ($product->inventory->quantity ?? 0) === 0)) {
                 $catalogFallback = $useCatalogIntent ? $search : null;
@@ -164,19 +174,22 @@ class ResolveProductContext
             $products = $products->merge($semanticProducts)->unique('id')
                 ->sort(function (Product $first, Product $second) use ($scores): int {
                     return ($scores[$second->id] <=> $scores[$first->id]) ?: ($first->id <=> $second->id);
-                })->take(6);
+                });
         }
 
         if (config('ai_integration.enabled')) {
             $products->loadMissing('componentProfile.currentApprovedRevision');
         }
+        $mapped = array_values($products->map(fn (Product $product): array => $this->mapProduct($product))->all());
+        if ($namedProducts->isEmpty()) {
+            $ranking = app(ChatbotProductRanking::class);
+            $mapped = $ranking->order($mapped, accessories: $ranking->accessoryRequest($message));
+        }
 
         return [
             'resolution' => $products->isEmpty() ? 'not_found' : 'matched',
             ...($catalogFallback !== null && $products->isNotEmpty() ? ['search_query' => $catalogFallback] : []),
-            'products' => array_values($products
-                ->map(fn (Product $product): array => $this->mapProduct($product))
-                ->all()),
+            'products' => array_slice($mapped, 0, 6),
         ];
     }
 
@@ -190,6 +203,22 @@ class ResolveProductContext
         }
 
         return ['resolution' => $product === null ? 'not_found' : 'matched', 'products' => $product === null ? [] : [$this->mapProduct($product)]];
+    }
+
+    /** @param list<int> $ids
+     * @return list<array<string, mixed>> */
+    public function forProducts(array $ids): array
+    {
+        $products = Product::query()->customerEligible()->whereIn('id', array_slice($ids, 0, 80))
+            ->with(['category', 'inventory', 'tags', 'componentProfile.currentApprovedRevision'])->get()->keyBy('id');
+        $facts = [];
+        foreach (array_slice(array_values(array_unique($ids)), 0, 80) as $id) {
+            if ($products->has($id)) {
+                $facts[] = $this->mapProduct($products[$id]);
+            }
+        }
+
+        return $facts;
     }
 
     public function isShortSearch(string $message): bool

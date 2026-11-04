@@ -9,6 +9,11 @@ return [
     'advice_enabled' => env('CHATBOT_CATALOG_ADVICE_ENABLED', false),
     'localized_answers' => [],
     'localization_enabled' => env('CHATBOT_LOCALIZATION_ENABLED', true),
+    'failure_review' => [
+        'enabled' => env('CHATBOT_FAILURE_REVIEW_ENABLED', true),
+        'retention_days' => 7,
+        'max_records' => 1000,
+    ],
     'memory' => [
         'enabled' => env('CHATBOT_MEMORY_ENABLED', false),
         'retention_days' => 7,

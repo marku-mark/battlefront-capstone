@@ -105,6 +105,8 @@ class ChatbotOrchestrationService
         $language = in_array($language, ChatbotLanguage::LANGUAGES, true) ? $language : $this->language->select($message);
         $intentMessage = $this->language->canonical($normalizedMessage);
         $classifiedByAi = false;
+        $trace = app(ChatbotFailureTrace::class);
+        $trace->scope = $category === ChatbotQueryCategory::Order ? 'private' : ($category === ChatbotQueryCategory::Unsupported ? 'unknown' : 'public');
 
         if ($normalizedMessage === '') {
             return $this->fallback($category, self::EMPTY_MESSAGE);
@@ -121,9 +123,12 @@ class ChatbotOrchestrationService
         $advice = app(ChatbotCatalogAdvice::class);
         if ($advice->supports($normalizedMessage)
             && ! preg_match('/\b(?:ignore|instructions|system prompt|password|api key|execute|sql|cypher)\b/iu', $normalizedMessage)) {
+            $trace->publicScopeConfirmed = true;
             if (! config('ai_integration.adaptive') && config('ai_integration.enabled') && (int) config('ai_integration.gemini.max_calls', 1) >= 3) {
                 $scope = $this->chatbotAiAdapter->classify($normalizedMessage);
                 if ($scope === null || $scope['outcome'] !== 'supported' || ! in_array($scope['intent'], ['catalog_recommendation', 'component_compatibility'], true)) {
+                    $trace->record('understanding_failed', 'scope');
+
                     return $this->fallback(ChatbotQueryCategory::Product, 'Which component are you choosing, what will you use it for, and what is your budget in PHP?');
                 }
             }
@@ -144,6 +149,8 @@ class ChatbotOrchestrationService
         }
 
         if ($routing['choices'] !== []) {
+            $trace->record('clarification', 'scope');
+
             return $this->fallback($category, $this->routeChatbotQuery->clarification($routing['choices']));
         }
 
@@ -154,9 +161,13 @@ class ChatbotOrchestrationService
             $inferred = $this->chatbotAiAdapter->classify($message);
             $classifiedByAi = true;
             if ($inferred === null || $inferred['outcome'] === 'uncertain') {
+                $trace->record($inferred === null ? 'understanding_failed' : 'clarification', 'scope');
+
                 return $this->fallback($category, 'Could you clarify whether you need product information, an order update, branch details, or payment, delivery, cancellation, return or refund guidance?');
             }
             if ($inferred['outcome'] === 'unsupported') {
+                $trace->scope = 'unsupported';
+
                 return $this->fallback($category, self::UNSUPPORTED_INQUIRY);
             }
             $intent = ChatbotIntentAgent::INTENTS[$inferred['intent']];
@@ -224,6 +235,7 @@ class ChatbotOrchestrationService
                 : $this->resolveContext($category, $category === ChatbotQueryCategory::Order ? $intentMessage : $normalizedMessage, $customer, $language));
 
         if ($category === ChatbotQueryCategory::Product && ($context['resolution'] ?? null) === 'needs_details') {
+            $trace->record('clarification', 'retrieval');
             $clarification = str_contains(Str::lower($normalizedMessage), 'facebook')
                 ? 'Please provide the product name, model, or identifying text from the Facebook post so I can check its current price and Sagay availability.'
                 : 'Please provide a product name or model so I can check its current price and Sagay availability.';
@@ -236,6 +248,8 @@ class ChatbotOrchestrationService
         }
 
         if ($this->hasNoContext($category, $context)) {
+            $trace->record('no_match', 'retrieval');
+
             return $this->fallback(
                 $category,
                 $this->missingContextMessage($category, $customer),
@@ -268,6 +282,8 @@ class ChatbotOrchestrationService
 
         if ((! config('ai_integration.enabled') && count($context['products'] ?? []) > 1) || count($context['branches'] ?? []) > 1
             || ($context['orders'][0]['support']['needs_clarification'] ?? false)) {
+            $trace->record('clarification', 'retrieval');
+
             return $this->fallback($category, $this->renderChatbotFallback->execute($category, $intentMessage, $context) ?? self::FAQ_INFORMATION_UNAVAILABLE, $context);
         }
 
@@ -280,10 +296,12 @@ class ChatbotOrchestrationService
             );
         }
 
-        if (config('ai_integration.adaptive') && $category === ChatbotQueryCategory::Product
+        if (($category === ChatbotQueryCategory::Product
             && count($context['products'] ?? []) === 1
-            && preg_match('/\b(?:price|stock|availability|specs|specifications|details)\b/iu', $this->language->canonical($normalizedMessage)) === 1
-            && preg_match('/\b(?:compare|recommend|suggest|compatible|compatibility|versus|vs)\b/iu', $this->language->canonical($normalizedMessage)) !== 1) {
+            && (preg_match('/\b(?:price|stock|availability|specs|specifications|details)\b/iu', $this->language->canonical($normalizedMessage)) === 1
+                || preg_match('/(?:PHP\s*|\x{20B1}\s*)[\d,]+(?:\.\d{1,2})?\s*ba\b/iu', $this->language->canonical($normalizedMessage)) === 1)
+            && preg_match('/\b(?:compare|recommend|suggest|compatible|compatibility|versus|vs)\b/iu', $this->language->canonical($normalizedMessage)) !== 1)
+            && (config('ai_integration.adaptive') || $this->isClosedProductFactQuestion($normalizedMessage))) {
             return $this->fallback($category, $this->renderChatbotFallback->execute($category, $intentMessage, $context) ?? self::FAQ_INFORMATION_UNAVAILABLE, $context);
         }
 
@@ -299,6 +317,10 @@ class ChatbotOrchestrationService
                 'message' => $result['text'],
                 'source' => 'gemini',
             ];
+        }
+
+        if ($trace->event === null) {
+            $trace->record($result['failure'] ?? 'provider_unavailable', ($result['failure'] ?? null) === 'validation_failed' ? 'validation' : 'generation');
         }
 
         return $this->fallback(
@@ -320,6 +342,14 @@ class ChatbotOrchestrationService
             return $city !== Str::lower(Str::before((string) config('battlefront.operational_branch_city', 'Sagay City'), ' City'))
                 && str_contains(' '.$message.' ', ' '.$city.' ');
         });
+    }
+
+    private function isClosedProductFactQuestion(string $message): bool
+    {
+        $query = $this->language->canonical($message);
+
+        return preg_match('/\A(?:is|are|do|does|have|has|can|available|stock)\b/u', $query) === 1
+            || preg_match('/(?:PHP\s*|\x{20B1}\s*)[\d,]+(?:\.\d{1,2})?\s*ba\b/iu', $query) === 1;
     }
 
     /**

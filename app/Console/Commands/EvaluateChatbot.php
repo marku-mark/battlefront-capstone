@@ -98,13 +98,15 @@ class EvaluateChatbot extends Command
                 $hash = hash('sha256', json_encode(['messages' => $case['messages'], 'turns' => array_map(
                     fn (array $turn): array => ['message' => $turn['message'], 'language' => $turn['language'], 'source' => $turn['source']], $turns,
                 )], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
-                $passed = $response['language'] === $case['language'] && $routingPass && $attributesPass && $clarificationPass;
-                foreach ($case['contains'] ?? [] as $needle) {
-                    $passed = $passed && str_contains($answer, $needle);
-                }
-                foreach ($case['not_contains'] ?? [] as $needle) {
-                    $passed = $passed && ! str_contains($answer, $needle);
-                }
+                $checks = [
+                    'language' => $response['language'] === $case['language'],
+                    'routing' => isset($case['expected_category']) ? $routingPass : null,
+                    'attributes' => isset($case['expected_attributes']) ? $attributesPass : null,
+                    'clarification' => isset($case['expected_clarification']) ? $clarificationPass : null,
+                    'required_text' => array_all($case['contains'] ?? [], fn (string $needle): bool => str_contains($answer, $needle)),
+                    'forbidden_text' => array_all($case['not_contains'] ?? [], fn (string $needle): bool => ! str_contains($answer, $needle)),
+                ];
+                $passed = ! in_array(false, $checks, true);
                 $allPassed = $allPassed && $passed;
                 $review = $reviews[$case['id']] ?? null;
                 $reviewed = is_array($review) && ($review['answer_hash'] ?? null) === $hash
@@ -125,7 +127,7 @@ class EvaluateChatbot extends Command
                     $summary[$language]['privacy_failures'] += (int) ! $review['privacy_pass'];
                     $summary[$language]['language_score_total'] += $review['language_score'];
                 }
-                $results[] = ['id' => $case['id'], 'language' => $language, 'passed' => $passed, 'duration_ms' => (int) ((hrtime(true) - $started) / 1_000_000), 'answer_hash' => $hash, 'human_reviewed' => $reviewed, 'turns' => $turns];
+                $results[] = ['id' => $case['id'], 'language' => $language, 'passed' => $passed, 'checks' => $checks, 'duration_ms' => (int) ((hrtime(true) - $started) / 1_000_000), 'answer_hash' => $hash, 'human_reviewed' => $reviewed, 'turns' => $turns];
             }
         } finally {
             config(['ai_integration' => $original]);
@@ -150,7 +152,7 @@ class EvaluateChatbot extends Command
                 && $metrics['privacy_failures'] === 0 && $metrics['average_language_score'] >= 4;
         }
         unset($metrics);
-        $this->line(json_encode(['mode' => $this->option('live') ? 'live' : 'offline', 'automated_checks' => ['response language metadata', 'case-specific required and forbidden text'], 'human_review_required' => true, 'summary' => $summary, 'results' => $results], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR));
+        $this->line(json_encode(['mode' => $this->option('live') ? 'live' : 'offline', 'automated_checks' => ['response language metadata', 'labeled routing, attributes and clarification', 'case-specific required and forbidden text'], 'human_review_required' => true, 'summary' => $summary, 'results' => $results], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR));
 
         return $allPassed ? self::SUCCESS : self::FAILURE;
     }

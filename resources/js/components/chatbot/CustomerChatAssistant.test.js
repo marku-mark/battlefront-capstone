@@ -278,3 +278,33 @@ test('product cards compile with escaped Vue text and route helpers', () => {
     assert.ok(compiled.code.includes('toDisplayString(product.name)'));
     assert.ok(!compiled.code.includes('innerHTML'));
 });
+
+test('product links follow their full descriptions without duplicating the bottom link list', () => {
+    const context = {};
+    runInNewContext(`${functionSource('messageParagraphs')}; ${functionSource('remainingActions')}; this.paragraphs = messageParagraphs; this.remaining = remainingActions;`, context);
+    for (const stock of ['Low stock at Sagay', 'Kaunti na lang ang stock sa Sagay', 'Gamay na lang ang stock sa Sagay', 'Diutay na lang ang stock sa Sagay']) {
+        const first = { kind: 'product', id: 7, label: 'BIOSTAR H610M Motherboard' };
+        const second = { kind: 'product', id: 8, label: 'Atlas SSD' };
+        const browse = { kind: 'catalog', label: 'Browse products' };
+        const message = { presentation: {
+            intro: `Here are BIOSTAR H610M Motherboard and Atlas SSD.\n\nBIOSTAR H610M Motherboard — PHP 3,600.00. ${stock}.\n\nAtlas SSD — PHP 1,000.00.`,
+            actions: [first, second, browse],
+        } };
+        const paragraphs = context.paragraphs(message);
+        assert.equal(paragraphs[0].actions.length, 0);
+        assert.equal(paragraphs[1].text, `BIOSTAR H610M Motherboard — PHP 3,600.00. ${stock}.`);
+        assert.equal(paragraphs[1].actions[0], first);
+        assert.equal(paragraphs[2].actions[0], second);
+        assert.equal(context.remaining(message).length, 1);
+        assert.equal(context.remaining(message)[0], browse);
+    }
+    assert.equal(context.paragraphs({ content: 'Hello' })[0].text, 'Hello');
+    assert.match(descriptor.template.content, /v-for="action in entry.actions"[\s\S]*?>\{\{ action.label \}\}<\/Link>/);
+    const url = runInNewContext(`(${functionSource('actionUrl')})`, {
+        ProductCatalogController: { show: { url: (id) => `/products/${id}` } },
+    });
+    for (const name of ['Atlas SSD', 'Produkto', 'Mga produkto', '<script>']) {
+        assert.equal(url({ kind: 'product', id: 7, label: name }), '/products/7');
+    }
+    assert.equal(url({ kind: 'product', id: -1 }), null);
+});

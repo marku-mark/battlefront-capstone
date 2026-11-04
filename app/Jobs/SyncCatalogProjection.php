@@ -57,7 +57,7 @@ class SyncCatalogProjection implements ShouldQueue
             try {
                 if (config('ai_integration.qdrant.enabled') && $projection->qdrant_revision < $projection->revision) {
                     if ($document) {
-                        $qdrant->upsert($this->productId, $embeddings->embed($document['text'], true), ['product_id' => $this->productId, 'revision' => $projection->revision, 'category_id' => $document['category_id'], 'brand' => $document['brand'], 'component_type' => $document['component_type'], 'source_hash' => $document['hash']]);
+                        $qdrant->upsert($this->productId, $embeddings->embed($document['text'], true), ['product_id' => $this->productId, 'revision' => $projection->revision, 'category_id' => $document['category_id'], 'product_family' => $document['product_family'], 'product_role' => $document['product_role'], 'brand' => $document['brand'], 'component_type' => $document['component_type'], 'source_hash' => $document['hash']]);
                     } else {
                         $qdrant->delete($this->productId);
                     }

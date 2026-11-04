@@ -3,6 +3,7 @@
 namespace App\Actions\Chatbot;
 
 use App\Enums\ChatbotQueryCategory;
+use App\Services\Chatbot\ChatbotGroundedResponse;
 use App\Services\Chatbot\ChatbotLanguage;
 use Illuminate\Support\Str;
 
@@ -11,6 +12,17 @@ class RenderChatbotFallback
     /** @param array<string, mixed> $context */
     public function execute(ChatbotQueryCategory $category, string $message, array $context): ?string
     {
+        if ($category === ChatbotQueryCategory::Product && isset($context['clarification'])) {
+            return $context['clarification'];
+        }
+        if ($category === ChatbotQueryCategory::Product && isset($context['price_selection']) && ($context['products'] ?? []) !== []) {
+            $scope = $context['price_selection']['scope'] === 'selected_products' ? 'these selected products' : 'the matching available catalog products';
+            $direction = match ($context['price_selection']['sort']) {
+                'asc' => 'lowest to highest current selling price', 'desc' => 'highest to lowest current selling price', default => 'relevance, with main products first',
+            };
+
+            return 'Here are '.$scope.', ordered by '.$direction.'.'."\n\n".implode("\n\n", app(ChatbotGroundedResponse::class)->evidence($context));
+        }
         $message = (new ChatbotLanguage)->canonical($message);
 
         return match ($category) {
@@ -81,8 +93,20 @@ class RenderChatbotFallback
         if ($product['is_demo']) {
             $parts[] = $product['demo_notice'];
         }
+        if (preg_match('/(?:PHP\s*|\x{20B1}\s*)([\d,]+(?:\.\d{1,2})?)/iu', $message, $priceQuestion) === 1
+            && (preg_match('/\bba\b/u', $message) === 1
+                || preg_match('/\A(?:is|are)\b.*\b(?:it|this|that)\b/u', $message) === 1)) {
+            $askedPrice = str_replace(',', '', $priceQuestion[1]);
+            $currentPrice = (string) ($product['discount_price'] ?? $product['price']);
+            $answer = bccomp($askedPrice, $currentPrice, 2) === 0
+                ? 'Yes. Current selling price: PHP '.number_format((float) $currentPrice, 2).'.'
+                : 'No. Current selling price: PHP '.number_format((float) $currentPrice, 2).'.';
+
+            return implode("\n\n", [...$parts, $answer]);
+        }
         $price = preg_match('/\b(?:price|prices|pricing|cost|much)\b/iu', $message) === 1;
-        $stock = preg_match('/\b(?:stock|stocks|available|availability|have|sell)\b/iu', $message) === 1;
+        $stock = preg_match('/\b(?:stock|stocks|available|availability|have|sell)\b/iu', $message) === 1
+            || preg_match('/\A(?:may|meron|merong|mayroon|naa|naay|aduna|ara)\b/u', $message) === 1;
         if ($price) {
             $parts[] = 'Listed price: PHP '.number_format((float) $product['price'], 2).'.';
             if ($product['discount_price'] !== null) {
@@ -90,10 +114,13 @@ class RenderChatbotFallback
             }
         }
         if ($stock) {
+            $closedAvailabilityQuestion = preg_match('/\A(?:is|are|do|does|have|has|can|available|stock|may|meron|merong|mayroon|naa|naay|aduna|ara)\b/u', $message) === 1;
             $parts[] = match ($product['inventory']['status']) {
-                'in_stock', 'low_stock' => 'Sagay stock: '.$product['inventory']['quantity'].' available.',
-                'out_of_stock' => 'Currently out of stock at Sagay.',
-                default => 'Sagay stock information is unavailable.',
+                'in_stock', 'low_stock' => ($closedAvailabilityQuestion ? 'Yes. ' : '').'Sagay stock: '.$product['inventory']['quantity'].' available.',
+                'out_of_stock' => ($closedAvailabilityQuestion ? 'No. ' : '').'Currently out of stock at Sagay.',
+                default => $closedAvailabilityQuestion
+                    ? 'I cannot confirm Sagay stock right now.'
+                    : 'Sagay stock information is unavailable.',
             };
         }
         if (! $price && ! $stock) {

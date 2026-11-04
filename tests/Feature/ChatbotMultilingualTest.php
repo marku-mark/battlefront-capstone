@@ -7,6 +7,7 @@ use App\Ai\Agents\ChatbotResponseAgent;
 use App\Enums\ChatbotCategory;
 use App\Enums\ChatbotQueryCategory;
 use App\Models\Branch;
+use App\Models\Category;
 use App\Models\ChatbotKnowledge;
 use App\Models\Order;
 use App\Models\Product;
@@ -20,6 +21,88 @@ use Laravel\Ai\Exceptions\AiException;
 use Laravel\Ai\Prompts\AgentPrompt;
 
 beforeEach(fn () => Http::preventStrayRequests());
+
+test('availability wording selects its language even after a different prior language', function (string $question, string $language) {
+    expect(app(ChatbotLanguage::class)->select($question, $language === 'tl' ? 'ceb' : 'tl'))->toBe($language);
+})->with([
+    ['Have you got motherboard?', 'en'],
+    ['Got any motherboard?', 'en'],
+    ['Merong motherboard?', 'tl'],
+    ['Mayroong motherboard?', 'tl'],
+    ['May motherboard ba kayo?', 'tl'],
+    ['Naay stock sa motherboard?', 'ceb'],
+    ['Aduna ba moy motherboard?', 'ceb'],
+    ['Ara kamo sang motherboard?', 'hil'],
+]);
+
+test('natural availability variations preserve product identity and current stock', function (string $pattern, string $name) {
+    config(['ai_integration.enabled' => false, 'ai_integration.model_led' => false]);
+    $product = Product::factory()->available()->create(['name' => $name]);
+    $product->inventory->update(['quantity' => 3]);
+    Product::factory()->available()->create(['name' => 'Unrelated Webcam']);
+    $question = sprintf($pattern, $name);
+    ChatbotResponseAgent::fake(fn () => throw new AiException('offline'))->preventStrayPrompts();
+
+    $result = app(ChatbotOrchestrationService::class)->respond($question);
+
+    expect($result['category'])->toBe(ChatbotQueryCategory::Product);
+    expect($result['message'])->toContain($name, '3')->not->toContain('Unrelated Webcam');
+    expect(app(ChatbotLanguage::class)->interpret($question)['attributes'])->toContain('stock');
+    Http::assertNothingSent();
+})->with([
+    'English carry' => ['Do you carry %s?', 'BIOSTAR H610M Motherboard'],
+    'English got' => ['Have you got %s?', 'Atlas SSD'],
+    'English sell' => ['Do you sell %s?', 'Logitech G502 Mouse'],
+    'English stock' => ['Is %s in stock?', 'Atlas Monitor'],
+    'English any' => ['Got any %s?', 'Atlas SSD'],
+    'Tagalog may' => ['May %s ba kayo?', 'BIOSTAR H610M Motherboard'],
+    'Tagalog mayroon' => ['Mayroon pa ba kayong %s?', 'Atlas SSD'],
+    'Tagalog merong' => ['Merong %s?', 'Logitech G502 Mouse'],
+    'Tagalog stock' => ['May stock pa ba kayo ng %s?', 'Atlas Monitor'],
+    'Tagalog availability' => ['Available pa ba ang %s?', 'Atlas SSD'],
+    'Cebuano naa ba moy' => ['Naa ba moy %s?', 'BIOSTAR H610M Motherboard'],
+    'Cebuano naa pa ba' => ['Naa pa ba moy %s?', 'Atlas SSD'],
+    'Cebuano naa mo' => ['Naa mo %s?', 'Logitech G502 Mouse'],
+    'Cebuano aduna' => ['Aduna ba moy %s?', 'Atlas Monitor'],
+    'Cebuano stock' => ['Naay stock sa %s?', 'Atlas SSD'],
+    'Hiligaynon ara bala' => ['May ara bala kamo sang %s?', 'BIOSTAR H610M Motherboard'],
+    'Hiligaynon ara pa' => ['May ara pa kamo nga %s?', 'Atlas SSD'],
+    'Hiligaynon ara kamo' => ['Ara kamo sang %s?', 'Logitech G502 Mouse'],
+    'Hiligaynon stock' => ['May stock pa kamo sang %s?', 'Atlas Monitor'],
+    'Hiligaynon politeness' => ['May ara gid bala kamo sang %s?', 'Atlas SSD'],
+]);
+
+test('polite Tagalog availability questions find motherboard catalog products', function (string $question) {
+    config(['ai_integration.enabled' => false, 'ai_integration.model_led' => false]);
+    $category = Category::factory()->create(['name' => 'Motherboard']);
+    Product::factory()->available()->for($category)->create(['name' => 'BIOSTAR H610M Motherboard', 'price' => '3600.00', 'discount_price' => null]);
+
+    expect(app(ChatbotLanguage::class)->canonical($question))->toBe('available motherboard?');
+    $result = app(ChatbotOrchestrationService::class)->respond($question);
+
+    expect($result['category'])->toBe(ChatbotQueryCategory::Product);
+    expect($result['message'])->toContain('BIOSTAR H610M Motherboard');
+    ChatbotResponseAgent::assertNeverPrompted();
+    Http::assertNothingSent();
+})->with(['meron po kayo motherboard?', 'meron kayo motherboard?', 'mayroon po kayong motherboard?', 'meron po ba kayong motherboard?']);
+
+test('availability variations report named products that are out of stock', function (string $question) {
+    config(['ai_integration.enabled' => false, 'ai_integration.model_led' => false, 'ai_integration.localization_enabled' => false]);
+    $product = Product::factory()->available()->create(['name' => 'BIOSTAR H610M Motherboard']);
+    $product->inventory->update(['quantity' => 0]);
+    ChatbotResponseAgent::fake(fn () => throw new AiException('offline'))->preventStrayPrompts();
+
+    $result = app(ChatbotOrchestrationService::class)->respond($question);
+
+    expect($result['category'])->toBe(ChatbotQueryCategory::Product);
+    expect($result['message'])->toContain('BIOSTAR H610M Motherboard', 'Currently out of stock at Sagay.');
+    Http::assertNothingSent();
+})->with([
+    'Do you carry BIOSTAR H610M Motherboard?',
+    'Merong BIOSTAR H610M Motherboard?',
+    'Naa ba moy BIOSTAR H610M Motherboard?',
+    'May ara bala kamo sang BIOSTAR H610M Motherboard?',
+]);
 
 test('multilingual price questions use current facts without AI classification', function (string $message) {
     Product::factory()->available()->create(['name' => 'Logitech G502 Mouse', 'price' => '899.00', 'discount_price' => null]);

@@ -13,6 +13,7 @@ use App\Models\User;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Throwable;
 
 class ChatbotConversation
 {
@@ -29,6 +30,25 @@ class ChatbotConversation
 
     /** @return array{message: string, source: string, context_token: string|null, language: string, presentation: array<string, mixed>} */
     public function respond(string $message, ?User $customer, ?string $token, string $contextScope): array
+    {
+        $trace = app(ChatbotFailureTrace::class);
+        $trace->reset();
+        $started = hrtime(true);
+        try {
+            $response = $this->respondWithPresentation($message, $customer, $token, $contextScope);
+        } catch (Throwable $exception) {
+            $trace->record('application_error', 'application');
+            app(ChatbotFailureRecorder::class)->capture($message, '', $this->language->select($message), [], (int) ((hrtime(true) - $started) / 1_000_000));
+            throw $exception;
+        }
+        $state = $this->tokens->decode($response['context_token'], $contextScope.':'.($customer?->getKey() ?? 'guest'));
+        app(ChatbotFailureRecorder::class)->capture($message, $response['message'], $response['language'], $state['references']['product'] ?? [], (int) ((hrtime(true) - $started) / 1_000_000));
+
+        return $response;
+    }
+
+    /** @return array{message: string, source: string, context_token: string|null, language: string, presentation: array<string, mixed>} */
+    private function respondWithPresentation(string $message, ?User $customer, ?string $token, string $contextScope): array
     {
         $response = $this->respondToMessage($message, $customer, $token, $contextScope);
         $subject = $contextScope.':'.($customer?->getKey() ?? 'guest');

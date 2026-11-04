@@ -1,6 +1,8 @@
 <?php
 
+use App\Actions\Chatbot\RenderChatbotFallback;
 use App\Ai\Agents\ChatbotIntentAgent;
+use App\Enums\ChatbotQueryCategory;
 use App\Services\Chatbot\ChatbotConversation;
 use App\Services\Chatbot\ChatbotLanguage;
 use App\Services\Chatbot\ChatbotLocalizedResponse;
@@ -26,6 +28,35 @@ test('localized facts preserve exact monetary values and references', function (
     $text = app(ChatbotLocalizedResponse::class)->text('BF000041: Order status: Pending. Atlas SSD. Listed price: PHP 2,500.00. Currently out of stock at Sagay.', $language);
     expect($text)->toContain('BF000041', 'Pending', 'Atlas SSD', 'PHP 2,500.00')->not->toContain('Currently out of stock');
 })->with(['ceb', 'tl', 'hil']);
+
+test('catalog introductions follow the question language and preserve product facts', function (string $question, string $expected) {
+    config(['ai_integration.localization_enabled' => true]);
+    $language = app(ChatbotLanguage::class)->select($question);
+    foreach (['selected_products', 'catalog'] as $scope) {
+        foreach ([null, 'asc', 'desc'] as $sort) {
+            $context = [
+                'price_selection' => ['scope' => $scope, 'sort' => $sort],
+                'products' => [['id' => 7, 'name' => 'BIOSTAR H610M Motherboard', 'price' => '3600.00', 'inventory' => ['status' => 'low_stock']]],
+            ];
+            $fallback = app(RenderChatbotFallback::class)->execute(ChatbotQueryCategory::Product, $question, $context);
+
+            $reply = app(ChatbotLocalizedResponse::class)->text($fallback, $language, ['BIOSTAR H610M Motherboard']);
+
+            expect($reply)->toStartWith($expected)->toContain("\n\nBIOSTAR H610M Motherboard — PHP 3,600.00.");
+            if ($language !== 'en') {
+                expect($reply)->not->toContain('Here are', 'ordered by', 'relevance', 'current selling price');
+            }
+        }
+    }
+})->with([
+    'English' => ['What products do you have? Reply in English.', 'Here are'],
+    'Tagalog' => ['Anong mga produkto ang meron kayo? Sagot sa Tagalog.', 'Narito'],
+    'Cebuano' => ['Unsa inyong mga produkto? Reply in Cebuano.', 'Ania'],
+    'Hiligaynon' => ['Ano nga mga produkto ang ara? Sabat sa Hiligaynon.', 'Ari'],
+    'detected Tagalog' => ['Meron ba kayong motherboard?', 'Narito'],
+    'detected Cebuano' => ['Naa moy motherboard?', 'Ania'],
+    'detected Hiligaynon' => ['May ara kamo motherboard?', 'Ari'],
+]);
 
 test('web responses expose the selected language without changing the response source contract', function () {
     config(['ai_integration.localization_enabled' => true]);

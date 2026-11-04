@@ -149,7 +149,7 @@ class ClassifyChatbotInquiry
         if (preg_match('/\b(?:payment|paymnt|pay|cash|card|gcash|maya|paymongo|qr ph|qrph|bank transfer|online banking)\b/u', $text) === 1) {
             return preg_match('/\b(?:proof|proofs|verify|verified|verifying|verification)\b/u', $text) === 1 ? 'payment_proof' : 'payment_methods';
         }
-        if (preg_match('/\b(?:pick up|pickup|fulfillment|do you deliver|delivery options?|delivry|choose.*delivery|delivery or pickup)\b/u', $text) === 1) {
+        if (preg_match('/\b(?:pick up|pickup|fulfillment|do you deliver|can you deliver|delivery (?:to|in)|deliver to|delivery options?|is delivery available|lalamove|delivry|choose.*delivery|delivery or pickup)\b/u', $text) === 1) {
             return 'fulfillment';
         }
 

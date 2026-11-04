@@ -2,6 +2,7 @@
 
 Schedule::command('chatbot:prune-memory')->daily()->withoutOverlapping()
     ->when(fn (): bool => (bool) config('ai_integration.memory.enabled'));
+Schedule::command('chatbot:failures --prune')->hourly()->withoutOverlapping();
 Schedule::command('chatbot:reconcile-catalog')->hourly()->withoutOverlapping()
     ->when(fn (): bool => (bool) config('ai_integration.sync_enabled'));
 

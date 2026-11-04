@@ -34,9 +34,14 @@ export default defineConfig({
         watch: {
             ignored: [
                 '**/.agents/**',
+                '**/.codex/**',
                 '**/.claude/**',
                 '**/.cursor/**',
                 '**/.junie/**',
+                '**/graphify-out/**',
+                '**/storage',
+                '**/storage/**',
+                '**/bootstrap/cache/**',
                 '**/vendor/**',
             ],
         },

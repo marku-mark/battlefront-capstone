@@ -18,7 +18,7 @@ function understood(array $overrides = []): array
 
 test('model understanding switches from computers to processors across Tagalog turns', function () {
     config(['ai_integration.enabled' => true, 'ai_integration.model_led' => true, 'ai_integration.adaptive' => true,
-        'ai_integration.qdrant.enabled' => false, 'scout.driver' => 'null', 'ai_integration.gemini.tokens_per_minute' => 30000, 'ai_integration.gemini.max_calls' => 3]);
+        'ai_integration.qdrant.enabled' => false, 'scout.driver' => 'null', 'ai_integration.gemini.tokens_per_minute' => 60000, 'ai_integration.gemini.max_calls' => 3]);
     Http::preventStrayRequests();
     $pc = Product::factory()->available()->for(Category::factory()->state(['name' => 'Laptops & Desktops']))->create(['name' => 'Atlas Desktop PC']);
     $cpu = Product::factory()->available()->for(Category::factory()->state(['name' => 'Processor']))->create(['name' => 'Atlas CPU']);
@@ -143,4 +143,34 @@ test('barebones evidence cannot support a complete ready to use PC claim', funct
 
     expect($evidence['product:12'])->toContain('confirm missing components');
     expect($renderer->draft($evidence, ['answer' => 'Atlas Barebones PC is a complete ready-to-use PC.', 'evidence_ids' => ['product:12']]))->toBeNull();
+});
+
+test('model led price extrema use the full matching catalog and preserve presentation order', function () {
+    config(['ai_integration.enabled' => true, 'ai_integration.model_led' => true, 'ai_integration.qdrant.enabled' => false,
+        'ai_integration.gemini.max_calls' => 3, 'ai_integration.gemini.tokens_per_minute' => 60000, 'scout.driver' => 'null']);
+    Http::preventStrayRequests();
+    $category = Category::factory()->create(['name' => 'Processor']);
+    Product::factory()->available()->for($category)->count(8)->sequence(fn ($sequence) => ['name' => 'Atlas CPU '.$sequence->index])->create(['price' => '5000.00', 'discount_price' => null]);
+    $cheap = Product::factory()->available()->for($category)->create(['name' => 'Discounted Processor', 'price' => '20000.00', 'discount_price' => '1000.00']);
+    $expensive = Product::factory()->available()->for($category)->create(['name' => 'Premium Processor', 'price' => '10000.00', 'discount_price' => null]);
+    ChatbotUnderstandingAgent::fake([understood(['category_key' => 'processor', 'search_query' => 'Processor', 'sort' => 'price_asc']), understood(['category_key' => 'processor', 'search_query' => 'Processor', 'sort' => 'price_desc'])])->preventStrayPrompts();
+    ChatbotEvidenceAgent::fake([
+        ['answer' => 'Discounted Processor is the cheapest matching processor.', 'evidence_ids' => ['product:'.$cheap->id]],
+        ['answer' => 'Premium Processor is the most expensive matching processor.', 'evidence_ids' => ['product:'.$expensive->id]],
+    ])->preventStrayPrompts();
+    ChatbotValidationAgent::fake([['verdict' => 'approve'], ['verdict' => 'approve']])->preventStrayPrompts();
+    $this->postJson('/chatbot', ['message' => 'cheapest processor'])->assertOk()->assertJsonPath('source', 'gemini')->assertJsonPath('presentation.actions.0.id', $cheap->id);
+    $this->postJson('/chatbot', ['message' => 'most expensive processor'])->assertOk()->assertJsonPath('source', 'gemini')->assertJsonPath('presentation.actions.0.id', $expensive->id);
+    Http::assertNothingSent();
+});
+
+test('unsupported price currency clarifies without generation or review', function () {
+    config(['ai_integration.enabled' => true, 'ai_integration.model_led' => true]);
+    ChatbotUnderstandingAgent::fake([understood(['category_key' => 'processor', 'search_query' => 'Processor'])])->preventStrayPrompts();
+    ChatbotEvidenceAgent::fake()->preventStrayPrompts();
+    ChatbotValidationAgent::fake()->preventStrayPrompts();
+    $this->postJson('/chatbot', ['message' => 'processor under USD 500'])->assertOk()->assertJsonPath('source', 'fallback')
+        ->assertJson(fn ($json) => $json->where('message', fn (string $text): bool => str_contains($text, 'PHP'))->etc());
+    ChatbotEvidenceAgent::assertNeverPrompted();
+    ChatbotValidationAgent::assertNeverPrompted();
 });

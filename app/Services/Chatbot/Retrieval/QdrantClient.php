@@ -22,7 +22,7 @@ class QdrantClient
         } elseif (($existing['result']['config']['params']['vectors']['size'] ?? null) !== $dimensions || ($existing['result']['config']['params']['vectors']['distance'] ?? null) !== 'Cosine') {
             throw new RuntimeException('Existing collection does not match embedding configuration.');
         }
-        $fields = $this->collection === null ? ['category_id' => 'integer', 'brand' => 'keyword', 'component_type' => 'keyword']
+        $fields = $this->collection === null ? ['category_id' => 'integer', 'brand' => 'keyword', 'component_type' => 'keyword', 'product_family' => 'keyword', 'product_role' => 'keyword']
             : ['faq_id' => 'integer', 'language' => 'keyword', 'source_hash' => 'keyword'];
         foreach ($fields as $field => $type) {
             $this->request('put', '/index?wait=true', ['field_name' => $field, 'field_schema' => $type]);
@@ -50,7 +50,7 @@ class QdrantClient
     public function searchDocuments(array $vector, int $limit = 10, array $filters = []): array
     {
         $must = [];
-        foreach (['category_id', 'brand', 'component_type'] as $field) {
+        foreach (['category_id', 'brand', 'component_type', 'product_family', 'product_role'] as $field) {
             if (isset($filters[$field]) && (is_string($filters[$field]) || is_int($filters[$field]))) {
                 $must[] = ['key' => $field, 'match' => ['value' => $filters[$field]]];
             }

@@ -8,6 +8,11 @@ class ChatbotLocalizedResponse
      * @var array<string, array{string, string, string}>
      */
     private const MESSAGES = [
+        'Yes. ' => ['Oo. ', 'Oo. ', 'Huo. '],
+        'No. ' => ['Dili. ', 'Hindi. ', 'Indi. '],
+        'Current selling price: PHP ' => ['Kasamtangang baligya: PHP ', 'Kasalukuyang presyo: PHP ', 'Kasamtangan nga baligya: PHP '],
+        'I cannot confirm Sagay stock right now.' => ['Dili pa nako makumpirma ang stock sa Sagay karon.', 'Hindi ko makumpirma ang stock sa Sagay ngayon.', 'Indi ko makumpirma ang stock sa Sagay subong.'],
+        'Delivery availability, fees and timing depend on the destination and selected products; review the checkout estimate before placing the order. Ask staff to confirm destinations or couriers not shown there; same-day third-party service is not confirmed by this chatbot.' => ['Nagdepende sa destinasyon ug piniling produkto ang delivery availability, bayad ug oras; susiha ang estimate sa checkout sa dili pa mo-order. Pangutan-a ang staff bahin sa destinasyon o courier nga wala didto; dili makumpirma sa chatbot ang same-day nga third-party service.', 'Nakadepende sa destinasyon at mga piniling produkto ang availability, bayad, at oras ng delivery; tingnan ang estimate sa checkout bago mag-order. Magtanong sa staff tungkol sa destinasyon o courier na hindi nakalista roon; hindi makukumpirma ng chatbot ang same-day na third-party service.', 'Nagadepende sa destinasyon kag pinili nga mga produkto ang availability, bayad kag oras sang delivery; usisaa ang estimate sa checkout antes mag-order. Pamangkuta ang staff parte sa destinasyon ukon courier nga wala didto; indi makumpirma sang chatbot ang same-day nga third-party service.'],
         'Local delivery estimates include preparation and travel time.' => ['Ang lokal nga delivery estimate naglakip sa pagpangandam ug oras sa pagbiyahe.', 'Kasama sa lokal na delivery estimate ang paghahanda at oras ng biyahe.', 'Ang lokal nga delivery estimate nagalakip sang pagpanghanda kag oras sang biyahe.'],
         'Other destinations require staff arrangements; an automatic delivery date or shipment tracking may be unavailable.' => ['Ang ubang destinasyon kinahanglan sabuton sa staff; mahimong walay awtomatikong petsa sa delivery o tracking.', 'Kailangang makipag-ayos sa staff para sa ibang destinasyon; maaaring walang awtomatikong petsa ng delivery o tracking.', 'Ang iban nga destinasyon kinahanglan isugpon sa staff; mahimo wala sing awtomatiko nga petsa sang delivery ukon tracking.'],
         'If pricing for your region is unavailable, checkout cannot provide a delivery quote.' => ['Kung walay presyo alang sa imong rehiyon, dili makahatag ang checkout og delivery quote.', 'Kung walang presyo para sa iyong rehiyon, hindi makakapagbigay ang checkout ng delivery quote.', 'Kon wala sing presyo para sa imo rehiyon, indi makahatag ang checkout sang delivery quote.'],
@@ -70,6 +75,18 @@ class ChatbotLocalizedResponse
         $replacements = [];
         foreach (self::MESSAGES as $source => $translations) {
             $replacements[$source] = $translations[$index];
+        }
+        foreach ([
+            'these selected products' => ['Ania ang imong napiling mga produkto', 'Narito ang mga napili mong produkto', 'Ari ang imo napilian nga mga produkto'],
+            'the matching available catalog products' => ['Ania ang available nga mga produkto nga mohaom sa imong gipangita', 'Narito ang mga available na produktong tugma sa hinahanap mo', 'Ari ang available nga mga produkto nga nagaigo sa imo ginapangita'],
+        ] as $scope => $introductions) {
+            foreach ([
+                'relevance, with main products first' => ['giuna ang labing haom ug ang pangunang mga produkto', 'inuuna ang pinakatugma at ang mga pangunahing produkto', 'ginauna ang pinakanagaigo kag ang panguna nga mga produkto'],
+                'lowest to highest current selling price' => ['gikan sa pinakaubos ngadto sa pinakataas nga kasamtangang presyo', 'mula sa pinakamababa hanggang sa pinakamataas na kasalukuyang presyo', 'halin sa pinakamanubo pakadto sa pinakamataas nga kasamtangan nga presyo'],
+                'highest to lowest current selling price' => ['gikan sa pinakataas ngadto sa pinakaubos nga kasamtangang presyo', 'mula sa pinakamataas hanggang sa pinakamababang kasalukuyang presyo', 'halin sa pinakamataas pakadto sa pinakamanubo nga kasamtangan nga presyo'],
+            ] as $direction => $orderings) {
+                $replacements['Here are '.$scope.', ordered by '.$direction.'.'] = $introductions[$index].', '.$orderings[$index].'.';
+            }
         }
         foreach ([
             'Pickup orders support ' => ['Ang pickup orders modawat og ', 'Tumatanggap ang pickup orders ng ', 'Ang pickup orders nagabaton sang '],

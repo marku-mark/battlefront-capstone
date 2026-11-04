@@ -230,6 +230,22 @@ async function chooseQuickQuestion(item) {
     await submitMessage(item.question);
 }
 
+function messageParagraphs(message) {
+    const paragraphs = (message.presentation?.intro ?? message.content).split(/\n\s*\n/);
+    const actions = message.presentation?.actions ?? [];
+    return paragraphs.map((text, index) => ({
+        text,
+        actions: actions.filter((action) => action.kind === 'product'
+            && text.includes(action.label)
+            && !paragraphs.slice(index + 1).some((paragraph) => paragraph.includes(action.label))),
+    }));
+}
+
+function remainingActions(message) {
+    const placed = messageParagraphs(message).flatMap((paragraph) => paragraph.actions);
+    return (message.presentation?.actions ?? []).filter((action) => !placed.includes(action));
+}
+
 function actionUrl(action) {
     switch (action.kind) {
         case 'product':
@@ -471,16 +487,13 @@ async function submitMessage(quickQuestion = null, freshContext = true) {
                                 <div
                                     class="mt-1 space-y-3 text-sm leading-6 [overflow-wrap:anywhere]"
                                 >
-                                    <template
-                                        v-for="(paragraph, index) in (
-                                            message.presentation?.intro ??
-                                            message.content
-                                        ).split(/\n\s*\n/)"
+                                    <div
+                                        v-for="(entry, index) in messageParagraphs(message)"
                                         :key="index"
                                     >
                                         <ul
                                             v-if="
-                                                paragraph
+                                                entry.text
                                                     .trim()
                                                     .startsWith('- ')
                                             "
@@ -489,7 +502,7 @@ async function submitMessage(quickQuestion = null, freshContext = true) {
                                             <li
                                                 v-for="(
                                                     line, lineIndex
-                                                ) in paragraph
+                                                ) in entry.text
                                                     .trim()
                                                     .split('\n')"
                                                 :key="lineIndex"
@@ -498,9 +511,15 @@ async function submitMessage(quickQuestion = null, freshContext = true) {
                                             </li>
                                         </ul>
                                         <p v-else class="whitespace-pre-wrap">
-                                            {{ paragraph }}
+                                            {{ entry.text }}
                                         </p>
-                                    </template>
+                                        <Link
+                                            v-for="action in entry.actions"
+                                            :key="action.id"
+                                            :href="actionUrl(action)"
+                                            class="text-primary-ink focus-visible:ring-ring block underline focus-visible:ring-2"
+                                        >{{ action.label }}</Link>
+                                    </div>
                                     <template v-if="message.presentation">
                                         <dl
                                             v-if="
@@ -548,14 +567,9 @@ async function submitMessage(quickQuestion = null, freshContext = true) {
                                                 {{ product.notice }}
                                             </p>
                                             <Link
-                                                :href="
-                                                    ProductCatalogController.show.url(
-                                                        product.id,
-                                                    )
-                                                "
-                                                class="text-primary-ink focus-visible:ring-ring underline focus-visible:ring-2"
-                                                >View product</Link
-                                            >
+                                                :href="ProductCatalogController.show.url(product.id)"
+                                                class="text-primary-ink focus-visible:ring-ring block underline focus-visible:ring-2"
+                                            >View product</Link>
                                         </div>
                                         <p>
                                             {{ message.presentation.follow_up }}
@@ -577,16 +591,14 @@ async function submitMessage(quickQuestion = null, freshContext = true) {
                                             >Browse matching products</Link
                                         >
                                         <template
-                                            v-for="(action, index) in message
-                                                .presentation.actions ?? []"
+                                            v-for="(action, index) in remainingActions(message)"
                                             :key="`action-${index}`"
                                         >
-                                            <Link
-                                                v-if="actionUrl(action)"
-                                                :href="actionUrl(action)"
-                                                class="text-primary-ink focus-visible:ring-ring block underline focus-visible:ring-2"
-                                                >{{ action.label }}</Link
-                                            >
+                                                <Link
+                                                    v-if="actionUrl(action)"
+                                                    :href="actionUrl(action)"
+                                                    class="text-primary-ink focus-visible:ring-ring block underline focus-visible:ring-2"
+                                                >{{ action.label }}</Link>
                                         </template>
                                         <Button
                                             v-for="(choice, index) in message

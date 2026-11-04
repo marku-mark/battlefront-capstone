@@ -1,6 +1,7 @@
 ---
 paths:
-    - '**'
+  - '**'
+  - vite.config.js
 ---
 
 # General
@@ -17,3 +18,6 @@ The latest developer-approved forecasting revision and completed EXT-40/42/43/45
 ## Forecasting selector readiness is convenience only
 
 EXT-84 lists only products currently ready under the shared EXT-42 monthly preparation rules, including covered all-zero and eligible inactive products. Search and pagination count only ready products; evaluate candidates in bounded batches before forming visible pages. Generation must independently prepare fresh history and recheck readiness before calculating or persisting; never trust selector results or weaken coverage/sparse eligibility. Preserve saved review for stale selections and legacy records.
+
+## Exclude generated data from Vite watching
+Keep storage directories (including public storage links), bootstrap/cache, .codex and graphify-out out of server.watch. CPU profiling traced Windows SSR transport timeouts to watcher setup for 40k storage files. Keep SSR enabled; test that application sources remain watched and that a fresh SSR warm-up completes. A manual optimizeDeps dependency list is not required.

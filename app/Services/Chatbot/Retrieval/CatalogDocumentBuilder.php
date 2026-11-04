@@ -3,6 +3,7 @@
 namespace App\Services\Chatbot\Retrieval;
 
 use App\Models\Product;
+use App\Services\Chatbot\ChatbotProductRanking;
 
 class CatalogDocumentBuilder
 {
@@ -15,8 +16,13 @@ class CatalogDocumentBuilder
         $revision = $profile?->review_status === 'approved'
             ? $profile->currentApprovedRevision
             : null;
+        $classification = app(ChatbotProductRanking::class)->classify($product->category->name, $product->name);
+        if ($classification['product_family'] === 'unknown' && $revision !== null) {
+            $classification = ['product_family' => $profile->component_type, 'product_role' => 'main'];
+        }
         $data = [
-            'schema_version' => 1,
+            ...$classification,
+            'schema_version' => 2,
             'embedding_model' => (string) config('ai_integration.embedding.model'),
             'embedding_dimensions' => (int) config('ai_integration.embedding.dimensions'),
             'product_id' => (int) $product->id,
