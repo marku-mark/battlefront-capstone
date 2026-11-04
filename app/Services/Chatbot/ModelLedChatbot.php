@@ -40,6 +40,8 @@ class ModelLedChatbot
         $source = 'fallback';
         $text = 'The chatbot is temporarily unavailable. Please try again later.';
         try {
+            $pendingCatalog = $state['pending_catalog'] ?? null;
+            unset($state['pending_catalog']);
             $previous = Product::query()->customerEligible()->whereIn('id', array_slice($state['references']['product'] ?? [], 0, 6))->get(['id', 'name'])->keyBy('id');
             $publicProducts = [];
             foreach (array_slice($state['references']['product'] ?? [], 0, 6) as $id) {
@@ -49,7 +51,18 @@ class ModelLedChatbot
             }
             $publicConstraints = array_intersect_key($state['model_constraints'] ?? [], array_flip(['category_key', 'product_role', 'brand', 'capacity', 'use_case', 'excluded_brands', 'price']));
             $public = ['language' => $language, 'language_preference' => $state['language_preference'] ?? null, 'products' => $publicProducts, 'constraints' => $publicConstraints];
-            $intent = $this->ai->understand($message, $public);
+            $intent = $this->resolvePendingCpuClarification($message, $state);
+            if ($intent === null) {
+                unset($state['pending_clarification']);
+                $intent = $this->ai->understand($message, $public);
+            }
+            if ($intent !== null && is_array($pendingCatalog)) {
+                $resumed = $this->resumePendingCatalog($message, $intent, $pendingCatalog);
+                if ($resumed !== null) {
+                    $message = $resumed['message'];
+                    $intent = $resumed['intent'];
+                }
+            }
             if ($intent === null && $trace->event === null) {
                 $trace->record('understanding_failed', 'scope');
             }
@@ -61,6 +74,11 @@ class ModelLedChatbot
                     $text = 'I can only help with Battlefront products, your orders, store information, payment methods, pickup, and delivery.';
                 } elseif ($intent['outcome'] === 'clarify' || $intent['clarification'] !== 'none') {
                     $trace->record('clarification', 'scope');
+                    if ($intent['clarification'] === 'cpu_meaning') {
+                        $state['pending_clarification'] = 'cpu_meaning';
+                    } else {
+                        unset($state['pending_clarification']);
+                    }
                     $text = $intent['clarification'] === 'cpu_meaning'
                         ? 'By CPU, do you mean a processor or a complete desktop system unit?'
                         : 'Please provide a product name or model, or clarify your Battlefront question.';
@@ -82,6 +100,10 @@ class ModelLedChatbot
                     }
                     if (isset($context['clarification'])) {
                         $trace->record('clarification', 'retrieval');
+                        $pending = $this->pendingCatalog($message, $intent, $context['clarification']);
+                        if ($pending !== null) {
+                            $state['pending_catalog'] = $pending;
+                        }
                     } elseif (($context['products'] ?? []) === [] && ($context['branches'] ?? []) === [] && ($context['knowledge'] ?? []) === [] && ! isset($context['guidance'])) {
                         $trace->record('no_match', 'retrieval');
                     }
@@ -104,6 +126,9 @@ class ModelLedChatbot
                 }
                 if ($intent['reference'] === 'new' && ! isset($context['clarification'])) {
                     unset($state['references']['product'], $state['model_constraints']);
+                }
+                if ($intent['clarification'] === 'none') {
+                    unset($state['pending_clarification']);
                 }
                 if ($intent['outcome'] === 'supported' && ! isset($context['clarification'])) {
                     $state['model_constraints'] = $context['selection_constraints'] ?? array_intersect_key($intent, array_flip(['category_key', 'maximum_php', 'excluded_brands', 'brand', 'capacity', 'use_case']));
@@ -144,5 +169,110 @@ class ModelLedChatbot
         }
 
         return app(ChatbotCatalogSelection::class)->select($message, $intent, $state);
+    }
+
+    /** @param array<string, mixed> $state
+     * @return array<string, mixed>|null
+     */
+    private function resolvePendingCpuClarification(string $message, array $state): ?array
+    {
+        if (($state['pending_clarification'] ?? null) !== 'cpu_meaning') {
+            return null;
+        }
+
+        $answer = $this->language->normalized($message);
+        $category = match (true) {
+            preg_match('/\A(?:(?:a|ang|the) )?processor\z/u', $answer) === 1 => 'processor',
+            preg_match('/\A(?:(?:a|the|complete) )?(?:desktop|system unit|desktop system unit)\z/u', $answer) === 1 => 'desktop',
+            default => null,
+        };
+        if ($category === null) {
+            return null;
+        }
+
+        return [
+            'outcome' => 'supported',
+            'intent' => 'discovery',
+            'language' => $state['language_preference'] ?? $state['language'] ?? 'en',
+            'category_key' => $category,
+            'search_query' => $category === 'processor' ? 'processor' : 'desktop',
+            'product_mentions' => [],
+            'attributes' => ['stock'],
+            'sort' => 'relevance',
+            'minimum_php' => null,
+            'minimum_inclusive' => true,
+            'maximum_inclusive' => true,
+            'price_scope' => 'catalog',
+            'product_role' => 'main',
+            'maximum_php' => null,
+            'excluded_brands' => [],
+            'brand' => '',
+            'capacity' => '',
+            'use_case' => '',
+            'reference' => 'new',
+            'position' => 0,
+            'clarification' => 'none',
+        ];
+    }
+
+    /** @param array<string, mixed> $intent
+     * @return array{intent: array<string, mixed>, message: string}|null
+     */
+    private function resumePendingCatalog(string $message, array $intent, array $pending): ?array
+    {
+        $original = $pending['intent'] ?? null;
+        if (! is_array($original)
+            || $intent['outcome'] !== 'supported'
+            || ! in_array($intent['intent'], ['discovery', 'facts', 'comparison', 'recommendation', 'compatibility'], true)
+            || ! is_array($intent['product_mentions'] ?? null)) {
+            return null;
+        }
+
+        $mentions = array_values(array_filter($intent['product_mentions'], fn (mixed $mention): bool => is_string($mention)
+            && $mention !== '' && mb_stripos($message, $mention) !== false));
+        if ($mentions === [] || ($original['intent'] !== 'compatibility' && $intent['category_key'] !== $original['category_key'])) {
+            return null;
+        }
+
+        $selectedMentions = ($pending['alternatives'] ?? false) === true
+            ? $mentions
+            : array_values(array_unique([...($original['product_mentions'] ?? []), ...$mentions]));
+        $resumedIntent = [...$original,
+            'outcome' => 'supported',
+            'product_mentions' => $selectedMentions,
+            'reference' => 'new',
+            'position' => 0,
+            'clarification' => 'none',
+            'language' => $intent['language'],
+        ];
+
+        if ($original['intent'] === 'compatibility') {
+            $query = 'compatible '.implode(' and ', $selectedMentions);
+        } elseif (($pending['alternatives'] ?? false) === true) {
+            $prefix = ($pending['cheaper'] ?? false) ? 'cheaper alternatives to ' : 'alternatives to ';
+            $query = $prefix.implode(' and ', $selectedMentions);
+        } else {
+            $query = trim($original['search_query'].' '.implode(' ', $selectedMentions));
+        }
+
+        return ['intent' => $resumedIntent, 'message' => $query];
+    }
+
+    /** @param array<string, mixed> $intent
+     * @return array{intent: array<string, mixed>, alternatives: bool, cheaper: bool}|null
+     */
+    private function pendingCatalog(string $message, array $intent, string $clarification): ?array
+    {
+        $requiresProduct = str_contains(mb_strtolower($clarification), 'which product do you mean')
+            || str_contains(mb_strtolower($clarification), 'identify one exact product for alternatives');
+        if (! $requiresProduct) {
+            return null;
+        }
+
+        return [
+            'intent' => $intent,
+            'alternatives' => preg_match('/\b(?:alternatives?|similar to|cheaper|more affordable|mas mura|mas barato|mas baratu)\b/iu', $message) === 1,
+            'cheaper' => preg_match('/\b(?:cheaper|more affordable|mas mura|mas barato|mas baratu)\b/iu', $message) === 1,
+        ];
     }
 }
