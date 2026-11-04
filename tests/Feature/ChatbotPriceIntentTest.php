@@ -3,6 +3,7 @@
 use App\Models\Category;
 use App\Models\Product;
 use App\Repositories\Catalog\ProductCatalogRepository;
+use App\Services\Chatbot\ChatbotCatalogSelection;
 use App\Services\Chatbot\ChatbotPriceIntent;
 
 test('price requests preserve ranges and distinguish strict bounds', function () {
@@ -47,3 +48,18 @@ test('invalid price requests ask for clarification', function (string $message) 
 test('best value does not silently request the cheapest product', function () {
     expect(app(ChatbotPriceIntent::class)->resolve('best value laptop')['sort'])->toBeNull();
 });
+
+test('regional budget removal restores products excluded by a prior limit', function (string $message) {
+    config(['ai_integration.qdrant.enabled' => false, 'scout.driver' => 'null']);
+    $category = Category::factory()->create(['name' => 'Laptops & Desktops']);
+    $product = Product::factory()->available()->for($category)->create(['name' => 'Atlas Laptop Pro', 'price' => '9000.00']);
+    $intent = ['intent' => 'discovery', 'reference' => 'previous', 'category_key' => 'laptop', 'search_query' => 'laptop',
+        'product_mentions' => [], 'position' => 0, 'excluded_brands' => [], 'brand' => '', 'capacity' => '', 'use_case' => ''];
+    $state = ['model_constraints' => ['category_key' => 'laptop', 'search_query' => 'laptop', 'product_role' => 'main',
+        'price' => ['maximum' => '5000.00', 'maximum_inclusive' => true]]];
+
+    $result = app(ChatbotCatalogSelection::class)->select($message, $intent, $state);
+
+    expect(array_column($result['products'], 'id'))->toContain($product->id);
+    expect($result['selection_constraints']['price']['maximum'])->toBeNull();
+})->with(['walay budget limit laptop', 'wala nang budget limit laptop', 'wala na sang budget limit laptop']);

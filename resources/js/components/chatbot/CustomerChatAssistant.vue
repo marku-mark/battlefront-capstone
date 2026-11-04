@@ -244,8 +244,23 @@ async function chooseQuickQuestion(item) {
 }
 
 function messageParagraphs(message) {
-    const paragraphs = (message.presentation?.intro ?? message.content).split(/\n\s*\n/);
     const actions = message.presentation?.actions ?? [];
+    const paragraphs = (message.presentation?.intro ?? message.content)
+        .split(/\n\s*\n/)
+        .reduce((groups, text) => {
+            const previous = groups.at(-1);
+            const belongsToProduct = previous && actions.some((action) =>
+                action.kind === 'product' && previous.includes(action.label));
+            const repeatsProductName = previous && actions.some((action) =>
+                action.kind === 'product' && previous.trim().replace(/[.!]$/, '') === action.label
+                    && text.trim().replace(/[.!]$/, '') === action.label);
+            if ((belongsToProduct && /^(?:Listed price|Discount price|Presyo|Sagay stock|Stock sa Sagay|Currently out of stock)/i.test(text.trim())) || repeatsProductName) {
+                groups[groups.length - 1] += `\n${text}`;
+            } else {
+                groups.push(text);
+            }
+            return groups;
+        }, []);
     return paragraphs.map((text, index) => ({
         text,
         actions: actions.filter((action) => action.kind === 'product'

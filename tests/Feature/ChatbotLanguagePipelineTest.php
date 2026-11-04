@@ -127,7 +127,7 @@ test('the separate language corpus runs offline with explicit human review gaps'
     expect(array_values(array_filter($report['results'], fn (array $case): bool => ! $case['passed'])))->toBe([]);
     expect($exitCode)->toBe(0);
     foreach ($report['summary'] as $language => $metrics) {
-        expect($metrics['cases'])->toBe(4);
+        expect($metrics['cases'])->toBe(5);
         expect($metrics['pass_rate'])->toBe(1);
         expect($metrics['average_language_score'])->toBeNull();
         expect($metrics['release_gate_passed'])->toBeFalse();

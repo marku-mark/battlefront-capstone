@@ -45,12 +45,13 @@ class ModelLedChatbot
      * @return array<string, mixed> */
     public function respond(string $message, array $state, ?User $customer): array
     {
+        $explicitLanguage = $this->language->explicit($message);
         $trace = app(ChatbotFailureTrace::class);
         $trace->path = 'model_led';
         $budget = app(ChatbotProviderBudget::class);
         $budget->reset();
         $started = hrtime(true);
-        $language = $this->language->explicit($message) ?? $state['language_preference'] ?? $this->language->select($message, $state['language'] ?? null);
+        $language = $explicitLanguage ?? $state['language_preference'] ?? $this->language->select($message, $state['language'] ?? null);
         $context = [];
         $category = ChatbotQueryCategory::Product;
         $source = 'fallback';
@@ -89,7 +90,7 @@ class ModelLedChatbot
             if ($intent !== null) {
                 $trace->scope = $intent['outcome'] === 'unsupported' ? 'unsupported' : ($intent['intent'] === 'private' ? 'private' : 'public');
                 $trace->publicScopeConfirmed = $trace->scope === 'public';
-                $language = $this->language->explicit($message) ?? $state['language_preference'] ?? ($intent['language'] === 'und' ? $language : $intent['language']);
+                $language = $explicitLanguage ?? $state['language_preference'] ?? ($intent['language'] === 'und' ? $language : $intent['language']);
                 if ($intent['outcome'] === 'unsupported') {
                     $text = 'I can only help with Battlefront products, your orders, store information, payment methods, pickup, and delivery.';
                 } elseif ($intent['outcome'] === 'clarify' || $intent['clarification'] !== 'none') {
@@ -120,7 +121,7 @@ class ModelLedChatbot
                     }
                     if (isset($context['clarification'])) {
                         $trace->record('clarification', 'retrieval');
-                        $pending = $this->pendingCatalog($message, $intent, $context['clarification']);
+                        $pending = $this->pendingCatalog($message, $intent, $context['clarification_code'] ?? null);
                         if ($pending !== null) {
                             $state['pending_catalog'] = $pending;
                         }
@@ -155,7 +156,7 @@ class ModelLedChatbot
                 }
             }
             $state['language'] = $language;
-            if ($this->language->explicit($message) !== null) {
+            if ($explicitLanguage !== null) {
                 $state['language_preference'] = $language;
             }
             $state['active'] = $category->value;
@@ -282,11 +283,9 @@ class ModelLedChatbot
     /** @param array<string, mixed> $intent
      * @return array{intent: array<string, mixed>, alternatives: bool, cheaper: bool}|null
      */
-    private function pendingCatalog(string $message, array $intent, string $clarification): ?array
+    private function pendingCatalog(string $message, array $intent, ?string $clarificationCode): ?array
     {
-        $requiresProduct = str_contains(mb_strtolower($clarification), 'which product do you mean')
-            || str_contains(mb_strtolower($clarification), 'identify one exact product for alternatives');
-        if (! $requiresProduct) {
+        if (! in_array($clarificationCode, ['identify_product', 'identify_alternative_anchor'], true)) {
             return null;
         }
 

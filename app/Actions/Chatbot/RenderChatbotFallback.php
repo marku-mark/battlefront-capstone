@@ -104,7 +104,7 @@ class RenderChatbotFallback
                 ? 'Yes. Current selling price: PHP '.number_format((float) $currentPrice, 2).'.'
                 : 'No. Current selling price: PHP '.number_format((float) $currentPrice, 2).'.';
 
-            return implode("\n\n", [...$parts, $answer]);
+            return implode("\n", [...$parts, $answer]);
         }
         $price = preg_match('/\b(?:price|prices|pricing|cost|much)\b/iu', $message) === 1;
         $stock = preg_match('/\b(?:stock|stocks|available|availability|have|sell)\b/iu', $message) === 1
@@ -129,14 +129,14 @@ class RenderChatbotFallback
             $parts[] = preg_match('/\b(?:specs|specifications|details|description)\b/iu', $message) === 1
                 ? 'Product details: '.($product['description'] ?: 'unavailable').'.'
                 : 'Listed price: PHP '.number_format((float) ($product['discount_price'] ?? $product['price']), 2).'.'
-                    ."\n\n".match ($product['inventory']['status']) {
+                    ."\n".match ($product['inventory']['status']) {
                         'in_stock', 'low_stock' => 'Sagay stock: '.$product['inventory']['quantity'].' available.',
                         'out_of_stock' => 'Currently out of stock at Sagay.',
                         default => 'Sagay stock information is unavailable.',
                     };
         }
 
-        return implode("\n\n", $parts);
+        return implode("\n", $parts);
     }
 
     /** @param list<string> $names */

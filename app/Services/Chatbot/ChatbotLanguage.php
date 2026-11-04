@@ -10,6 +10,8 @@ class ChatbotLanguage
 
     /** Phrase aliases affect matching only; original messages remain available to entity resolvers. */
     private const ALIASES = [
+        '\b(?:walay budget limit|walay limit sa budget|dili na limitahan ang budget|wala nang budget limit|walang budget limit|wala na sang budget limit|wala na limit sa budget)\b' => 'no budget',
+        '\b(?:bisan ano nga presyo|kahit anong presyo|bisan ano nga price)\b' => 'any price',
         '\bcpu(?:s)?\b(?!-|\s+(?:cooler|fan|cooling|thermal|paste|holder|stand|case)\b)' => 'processor',
         '\b(?:paano|unsaon) (?:gamitin|gamiton|paggamit|paggamit sa|gamiton ang|gamitin ang|paggamit sa ang) (?:ang |sa )?pc builder\b(?!\s+templates)' => 'how do i use pc builder',
         '\b(?:paano|unsaon) (?:pumili|magpili|pagpili) (?:ng |sang |og )?components (?:sa|in) pc builder\b' => 'how do i select components in pc builder',

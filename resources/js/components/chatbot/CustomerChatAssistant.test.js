@@ -334,6 +334,36 @@ test('product links follow their full descriptions without duplicating the botto
         assert.equal(context.remaining(message)[0], browse);
     }
     assert.equal(context.paragraphs({ content: 'Hello' })[0].text, 'Hello');
+    const compact = context.paragraphs({ presentation: {
+        intro: 'PRINTER CANON PIXMA E410.\nPresyo: PHP 3,900.00.\nStock sa Sagay: 1 ang available.\n\nPRINTER EPSON ECOTANK L121.\nPresyo: PHP 5,495.00.\nStock sa Sagay: 17 ang available.',
+        actions: [
+            { kind: 'product', id: 1, label: 'PRINTER CANON PIXMA E410' },
+            { kind: 'product', id: 2, label: 'PRINTER EPSON ECOTANK L121' },
+        ],
+    } });
+    assert.equal(compact.length, 2);
+    assert.equal(compact[0].actions[0].id, 1);
+    assert.equal(compact[1].actions[0].id, 2);
+    const separated = context.paragraphs({ presentation: {
+        intro: 'PRINTER CANON PIXMA E410.\n\nPresyo: PHP 3,900.00.\n\nStock sa Sagay: 1 ang available.\n\nPRINTER EPSON ECOTANK L121.\n\nPresyo: PHP 5,495.00.\n\nStock sa Sagay: 17 ang available.',
+        actions: [
+            { kind: 'product', id: 1, label: 'PRINTER CANON PIXMA E410' },
+            { kind: 'product', id: 2, label: 'PRINTER EPSON ECOTANK L121' },
+        ],
+    } });
+    assert.equal(separated.length, 2);
+    assert.equal(separated[0].text, 'PRINTER CANON PIXMA E410.\nPresyo: PHP 3,900.00.\nStock sa Sagay: 1 ang available.');
+    assert.equal(separated[0].actions[0].id, 1);
+    assert.equal(separated[1].actions[0].id, 2);
+    const repeated = context.paragraphs({ presentation: {
+        intro: 'PRINTER CANON PIXMA E410.\n\nPRINTER CANON PIXMA E410\n\nPresyo: PHP 3,900.00.\n\nStock sa Sagay: 1 ang available.\n\nPRINTER EPSON ECOTANK L121.\n\nPresyo: PHP 5,495.00.',
+        actions: [
+            { kind: 'product', id: 1, label: 'PRINTER CANON PIXMA E410' },
+            { kind: 'product', id: 2, label: 'PRINTER EPSON ECOTANK L121' },
+        ],
+    } });
+    assert.equal(repeated.length, 2);
+    assert.equal(repeated[0].actions[0].id, 1);
     assert.match(descriptor.template.content, /v-for="action in entry.actions"[\s\S]*?>\{\{ action.label \}\}<\/Link>/);
     const url = runInNewContext(`(${functionSource('actionUrl')})`, {
         ProductCatalogController: { show: { url: (id) => `/products/${id}` } },

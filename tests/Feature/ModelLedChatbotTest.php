@@ -7,6 +7,7 @@ use App\Models\Category;
 use App\Models\Product;
 use App\Services\Chatbot\ChatbotGroundedResponse;
 use App\Services\Chatbot\ChatbotProviderBudget;
+use App\Services\Chatbot\ModelLedChatbot;
 use Illuminate\Support\Facades\Http;
 
 function understood(array $overrides = []): array
@@ -81,6 +82,26 @@ test('a missing ordinal reference cannot resolve an unrelated product', function
     $response = $this->postJson('/chatbot', ['message' => 'How much is the second one?'])->assertOk();
     expect($response->json('source'))->toBe('fallback');
     ChatbotEvidenceAgent::assertNeverPrompted();
+});
+
+test('a multilingual product clarification resumes from a structured reason', function () {
+    config(['ai_integration.enabled' => true, 'ai_integration.model_led' => true, 'ai_integration.qdrant.enabled' => false,
+        'scout.driver' => 'null', 'ai_integration.gemini.tokens_per_minute' => 60000, 'ai_integration.gemini.max_calls' => 3]);
+    $product = Product::factory()->available()->create(['name' => 'Atlas SSD X100']);
+    ChatbotUnderstandingAgent::fake([
+        understood(['intent' => 'facts', 'category_key' => 'other', 'search_query' => 'price', 'attributes' => ['price'], 'reference' => 'previous', 'language' => 'ceb']),
+        understood(['intent' => 'facts', 'category_key' => 'other', 'search_query' => 'Atlas SSD X100', 'product_mentions' => ['Atlas SSD X100'], 'attributes' => ['price'], 'language' => 'ceb']),
+    ])->preventStrayPrompts();
+    ChatbotEvidenceAgent::fake([['answer' => 'Ang Atlas SSD X100 kay PHP '.number_format($product->price, 2).'.', 'evidence_ids' => ['product:'.$product->id]]])->preventStrayPrompts();
+    ChatbotValidationAgent::fake([['verdict' => 'approve']])->preventStrayPrompts();
+
+    $chatbot = app(ModelLedChatbot::class);
+    $first = $chatbot->respond('Tagpila kana?', [], null);
+    $second = $chatbot->respond('Tagpila ang Atlas SSD X100? Sagot sa Tagalog.', $first['state'], null);
+
+    expect($first['state']['pending_catalog'])->toHaveKey('intent');
+    expect($second['message'])->toContain('Atlas SSD X100');
+    expect($second['state']['language_preference'])->toBe('tl');
 });
 
 test('model led path preserves private order authorization', function () {

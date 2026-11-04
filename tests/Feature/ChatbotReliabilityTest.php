@@ -1,7 +1,9 @@
 <?php
 
+use App\Actions\Chatbot\RenderChatbotFallback;
 use App\Ai\Agents\ChatbotResponseAgent;
 use App\Enums\ChatbotCategory;
+use App\Enums\ChatbotQueryCategory;
 use App\Models\Branch;
 use App\Models\ChatbotKnowledge;
 use App\Models\Inventory;
@@ -89,8 +91,8 @@ test('provider outage returns catalog price and preserves demo notice', function
 
     ChatbotResponseAgent::assertPromptedTimes(1);
 })->with([
-    'real' => ['Aurelius Mouse', "Aurelius Mouse.\n\nListed price: PHP 1,200.00.\n\nDiscount price: PHP 1,000.00."],
-    'demo' => ['[DEMO] Aurelius Mouse', "[DEMO] Aurelius Mouse.\n\nDemo item only; listed prices are samples and Battlefront stock is unconfirmed.\n\nListed price: PHP 1,200.00.\n\nDiscount price: PHP 1,000.00."],
+    'real' => ['Aurelius Mouse', "Aurelius Mouse.\nListed price: PHP 1,200.00.\nDiscount price: PHP 1,000.00."],
+    'demo' => ['[DEMO] Aurelius Mouse', "[DEMO] Aurelius Mouse.\nDemo item only; listed prices are samples and Battlefront stock is unconfirmed.\nListed price: PHP 1,200.00.\nDiscount price: PHP 1,000.00."],
 ]);
 
 test('provider outage distinguishes unknown stock from zero stock', function (?int $quantity, string $expected) {
@@ -122,6 +124,19 @@ test('provider outage lists matching product prices without forced selection', f
 
     expect($response->json('message'))->toContain('Aurelius Mouse', 'Aurelius Keyboard', 'PHP')->not->toContain('Which product');
     ChatbotResponseAgent::assertNeverPrompted();
+});
+
+test('product replies keep details together and separate products with one blank line', function () {
+    $products = array_map(fn (string $name, string $price, int $quantity): array => [
+        'name' => $name, 'price' => $price, 'discount_price' => null, 'is_demo' => false,
+        'inventory' => ['status' => 'in_stock', 'quantity' => $quantity],
+    ], ['PRINTER CANON PIXMA E410', 'PRINTER EPSON ECOTANK L121'], ['3900.00', '5495.00'], [1, 17]);
+
+    $message = app(RenderChatbotFallback::class)->execute(
+        ChatbotQueryCategory::Product, 'printers', ['products' => $products],
+    );
+
+    expect($message)->toBe("PRINTER CANON PIXMA E410.\nListed price: PHP 3,900.00.\nSagay stock: 1 available.\n\nPRINTER EPSON ECOTANK L121.\nListed price: PHP 5,495.00.\nSagay stock: 17 available.");
 });
 
 test('provider outage returns owned payment status without private order fields', function () {

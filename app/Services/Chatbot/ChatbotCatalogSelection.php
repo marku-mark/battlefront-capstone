@@ -14,7 +14,7 @@ class ChatbotCatalogSelection
 
     /** @param array<string, mixed> $intent
      * @param  array<string, mixed>  $state
-     * @return array{products: list<array<string, mixed>>, clarification?: string, search_query?: string,
+     * @return array{products: list<array<string, mixed>>, clarification?: string, clarification_code?: string, search_query?: string,
      *     price_selection?: array<string, mixed>, selection_constraints?: array<string, mixed>} */
     public function select(string $message, array $intent, array $state = []): array
     {
@@ -41,15 +41,17 @@ class ChatbotCatalogSelection
                 $intent['category_key'] = $previous['category_key'] ?? 'other';
             }
         }
-        if (preg_match('/\b(?:no budget|any price|remove (?:the )?(?:budget|price limit))\b/iu', $message)) {
+        $canonical = app(ChatbotLanguage::class)->canonical($message);
+        if (preg_match('/\b(?:no budget|any price|remove (?:the )?(?:budget|price limit))\b/iu', $canonical)) {
             $price['minimum'] = $price['maximum'] = null;
+            $price['query'] = trim(preg_replace('/\b(?:no budget|any price|remove (?:the )?(?:budget|price limit))\b/iu', '', $canonical) ?? $canonical);
         }
         if ($price['minimum'] !== null && $price['maximum'] !== null && (bccomp($price['minimum'], $price['maximum'], 2) > 0
             || (bccomp($price['minimum'], $price['maximum'], 2) === 0 && (! $price['minimum_inclusive'] || ! $price['maximum_inclusive'])))) {
             $price['error'] = 'Please provide a price range whose minimum is below its maximum.';
         }
         if ($price['error'] !== null) {
-            return ['products' => [], 'clarification' => $price['error']];
+            return ['products' => [], 'clarification' => $price['error'], 'clarification_code' => 'invalid_price_range'];
         }
         $constraints = [...$intent, ...$price];
         $constraints['product_role'] = $this->ranking->accessoryRequest($message) ? 'accessory' : ($intent['product_role'] ?? ($followUp ? ($previous['product_role'] ?? 'main') : 'main'));
@@ -72,7 +74,7 @@ class ChatbotCatalogSelection
             $ids = array_values(array_map('intval', Product::query()->customerEligible()->where(fn ($query) => $query->whereIn('name', $mentions)->orWhereIn('product_code', $mentions))->limit(6)->pluck('id')->all()));
         }
         if (($explicitPrevious || $scope === 'named') && ! $alternatives && ($ids === [] || $ids === null)) {
-            return ['products' => [], 'clarification' => 'Which product do you mean? Please provide its catalog name.'];
+            return ['products' => [], 'clarification' => 'Which product do you mean? Please provide its catalog name.', 'clarification_code' => 'identify_product'];
         }
         $category = array_search($intent['category_key'], ChatbotProductRanking::FAMILIES, true);
         $query = in_array($intent['category_key'], ['laptop', 'desktop'], true) ? $intent['category_key'] : ($category ?: $intent['search_query']);
@@ -93,11 +95,11 @@ class ChatbotCatalogSelection
         $anchors = $ids ?? ($alternatives ? ($intent['position'] > 0 ? (isset($previousIds[$intent['position'] - 1]) ? [$previousIds[$intent['position'] - 1]] : []) : $previousIds) : []);
         if ($alternatives) {
             if (count($anchors) !== 1) {
-                return ['products' => [], 'clarification' => 'Please identify one exact product for alternatives.'];
+                return ['products' => [], 'clarification' => 'Please identify one exact product for alternatives.', 'clarification_code' => 'identify_alternative_anchor'];
             }
             $anchor = $this->facts->forProduct($anchors[0])['products'][0] ?? null;
             if ($anchor === null) {
-                return ['products' => [], 'clarification' => 'The referenced product is no longer available in the catalog.'];
+                return ['products' => [], 'clarification' => 'The referenced product is no longer available in the catalog.', 'clarification_code' => 'product_unavailable'];
             }
             $query = $anchor['category'];
             $classification = $this->ranking->classify($anchor['category'], $anchor['name']);
