@@ -71,11 +71,6 @@ class ChatbotPresentation
                 $presentation['choices'][] = ['label' => $faq['question_pattern'], 'question' => $faq['question_pattern']];
             }
         }
-        if (count($context['branches'] ?? []) > 1) {
-            foreach (array_slice($context['branches'], 0, 5) as $branch) {
-                $presentation['choices'][] = ['label' => $branch['city'], 'question' => $question.' at '.$branch['city'].' branch'];
-            }
-        }
         $presentation['facts'] = array_values(array_filter($presentation['facts'], fn (array $fact): bool => ! str_contains($result['message'], $fact['value'])));
 
         return $presentation;

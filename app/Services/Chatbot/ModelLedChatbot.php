@@ -5,11 +5,13 @@ namespace App\Services\Chatbot;
 use App\Actions\Chatbot\ClassifyChatbotInquiry;
 use App\Actions\Chatbot\Context\ResolveChatbotRuleGuidance;
 use App\Actions\Chatbot\Context\ResolveFaqContext;
+use App\Actions\Chatbot\Context\ResolveProductContext;
 use App\Actions\Chatbot\Context\ResolveStoreContext;
 use App\Actions\Chatbot\RenderChatbotFallback;
 use App\Enums\ChatbotQueryCategory;
 use App\Models\Product;
 use App\Models\User;
+use App\Repositories\Catalog\CatalogSearchIntent;
 
 class ModelLedChatbot
 {
@@ -18,8 +20,22 @@ class ModelLedChatbot
     public function eligible(string $message): bool
     {
         $boundary = app(ClassifyChatbotInquiry::class);
+        $canonical = $this->language->canonical($message);
+        if (config('ai_integration.full_catalog_pipeline') && in_array($boundary->execute($message)['category'], [ChatbotQueryCategory::Faq, ChatbotQueryCategory::Store, ChatbotQueryCategory::Order], true)) {
+            return false;
+        }
+        if (config('ai_integration.full_catalog_pipeline') && preg_match('/^(?:hi|hello|hey|thanks|thank you)[.!?]*$/iu', trim($message))) {
+            return false;
+        }
+        $catalog = app(CatalogSearchIntent::class)->resolve(trim($canonical, " \t\n\r\0\x0B?.!"));
+        if (! config('ai_integration.full_catalog_pipeline') && $catalog !== null && preg_match('/\b(?:compare|recommend|suggest|compatible|compatibility|versus|vs|best|gaming|editing|streaming|not|dili|indi|hindi|wala|except|exclude|without|usd|dollars?|eur)\b|[$€]/iu', $canonical) !== 1) {
+            return false;
+        }
+        if ($boundary->execute($message)['category'] === ChatbotQueryCategory::Store) {
+            return false;
+        }
 
-        return config('ai_integration.enabled') && config('ai_integration.model_led')
+        return config('ai_integration.enabled') && (config('ai_integration.model_led') || config('ai_integration.full_catalog_pipeline'))
             && ! $boundary->containsSensitiveInput($message)
             && $boundary->execute($message)['category'] !== ChatbotQueryCategory::Order
             && preg_match('/\bbf[\s\W_]*\d+\b/iu', $message) !== 1;
@@ -62,6 +78,10 @@ class ModelLedChatbot
                     $message = $resumed['message'];
                     $intent = $resumed['intent'];
                 }
+            }
+            if ($intent === null && config('ai_integration.full_catalog_pipeline')) {
+                $context = app(ResolveProductContext::class)->execute($message);
+                $text = app(RenderChatbotFallback::class)->execute(ChatbotQueryCategory::Product, $message, $context) ?? 'Please provide a product name or model.';
             }
             if ($intent === null && $trace->event === null) {
                 $trace->record('understanding_failed', 'scope');
@@ -216,6 +236,7 @@ class ModelLedChatbot
     }
 
     /** @param array<string, mixed> $intent
+     * @param  array<string, mixed>  $pending
      * @return array{intent: array<string, mixed>, message: string}|null
      */
     private function resumePendingCatalog(string $message, array $intent, array $pending): ?array

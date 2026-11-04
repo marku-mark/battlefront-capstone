@@ -13,8 +13,9 @@ class ChatbotCatalogSelection
     public function __construct(private ProductCatalogRepository $catalog, private ResolveProductContext $facts, private ChatbotPriceIntent $prices, private ChatbotProductRanking $ranking) {}
 
     /** @param array<string, mixed> $intent
-     * @param array<string, mixed> $state
-     * @return array<string, mixed> */
+     * @param  array<string, mixed>  $state
+     * @return array{products: list<array<string, mixed>>, clarification?: string, search_query?: string,
+     *     price_selection?: array<string, mixed>, selection_constraints?: array<string, mixed>} */
     public function select(string $message, array $intent, array $state = []): array
     {
         $price = $this->prices->resolve($message, $intent);
@@ -56,7 +57,7 @@ class ChatbotCatalogSelection
             $constraints['product_role'] = 'accessory';
         }
         $mentions = $intent['product_mentions'];
-        $previousIds = array_slice($state['references']['product'] ?? [], 0, 6);
+        $previousIds = array_slice($this->productIds($state['references']['product'] ?? []), 0, 6);
         $prior = Product::query()->customerEligible()->whereIn('id', $previousIds)->get(['id', 'name', 'product_code']);
         $allowed = $message.' '.implode(' ', $prior->pluck('name')->all());
         $mentions = array_values(array_filter($mentions, fn (string $name): bool => mb_stripos($allowed, $name) !== false));
@@ -68,7 +69,7 @@ class ChatbotCatalogSelection
         if ($explicitPrevious && ! $alternatives) {
             $ids = $intent['position'] > 0 ? (isset($previousIds[$intent['position'] - 1]) ? [$previousIds[$intent['position'] - 1]] : []) : $previousIds;
         } elseif ($mentions !== []) {
-            $ids = Product::query()->customerEligible()->where(fn ($query) => $query->whereIn('name', $mentions)->orWhereIn('product_code', $mentions))->limit(6)->pluck('id')->all();
+            $ids = array_values(array_map('intval', Product::query()->customerEligible()->where(fn ($query) => $query->whereIn('name', $mentions)->orWhereIn('product_code', $mentions))->limit(6)->pluck('id')->all()));
         }
         if (($explicitPrevious || $scope === 'named') && ! $alternatives && ($ids === [] || $ids === null)) {
             return ['products' => [], 'clarification' => 'Which product do you mean? Please provide its catalog name.'];
@@ -113,18 +114,23 @@ class ChatbotCatalogSelection
         }
         $exact = $ids !== null;
         if ($exact) {
+            if (config('ai_integration.full_catalog_pipeline')) {
+                app(SemanticCatalogCandidates::class)->ids($query);
+                app(GraphCatalogCandidates::class)->forSeeds($ids);
+            }
             $context = ['products' => $this->facts->forProducts($ids)];
         } else {
             $local = $this->catalog->chatbotCandidates($query, $constraints);
-            $rankings = [$local->modelKeys()];
+            $localIds = array_map('intval', $local->modelKeys());
+            $rankings = [$localIds];
             $extreme = $price['sort'] !== null;
-            if (! $extreme && ($intent['intent'] === 'recommendation' || $intent['use_case'] !== '' || $local->isEmpty())) {
+            if (config('ai_integration.full_catalog_pipeline') || (! $extreme && ($intent['intent'] === 'recommendation' || $intent['use_case'] !== '' || $local->isEmpty()))) {
                 $semanticFilters = ['product_role' => $constraints['product_role']];
                 if (in_array($intent['category_key'], ['laptop', 'desktop'], true)) {
                     $semanticFilters['product_family'] = $intent['category_key'];
                 }
                 $rankings[] = app(SemanticCatalogCandidates::class)->ids(trim($query.' '.$intent['use_case']), $semanticFilters);
-                $seeds = $alternatives ? $anchors : array_slice($local->modelKeys(), 0, 2);
+                $seeds = $alternatives ? $anchors : array_slice($localIds, 0, 2);
                 $rankings[] = app(GraphCatalogCandidates::class)->forSeeds($seeds);
             }
             $candidateIds = array_values(array_unique(array_merge(...$rankings)));
@@ -139,10 +145,10 @@ class ChatbotCatalogSelection
             if (! $extreme) {
                 $current = $current->sort(fn (Product $a, Product $b): int => (($scores[$b->id] ?? 0) <=> ($scores[$a->id] ?? 0)) ?: ($a->id <=> $b->id));
             }
-            $context = ['products' => $this->facts->forProducts($current->modelKeys())];
+            $context = ['products' => $this->facts->forProducts(array_values($current->modelKeys()))];
             if ($broad && ! $extreme) {
                 $representatives = $this->catalog->chatbotCandidates('', [...$constraints, 'diversify' => true]);
-                $context['products'] = [...$context['products'], ...$this->facts->forProducts($representatives->modelKeys())];
+                $context['products'] = [...$context['products'], ...$this->facts->forProducts(array_values($representatives->modelKeys()))];
             }
         }
         $products = collect($context['products'])->unique('id')->filter(function (array $product) use ($price, $constraints, $exact, $intent, $alternatives, $anchors): bool {
@@ -161,6 +167,7 @@ class ChatbotCatalogSelection
             return $exact && ! in_array($intent['intent'], ['discovery', 'recommendation'], true)
                 || (! $product['is_demo'] && in_array($product['inventory']['status'], ['in_stock', 'low_stock'], true));
         })->values()->all();
+        $products = array_values($products);
         $ordered = $exact && $price['sort'] === null ? $products : $this->ranking->order($products, $price['sort'], $constraints['product_role'] === 'accessory', $broad, $constraints['product_role'] === 'any' || $exact);
         $products = array_slice($ordered, 0, 6);
         $scope = $exact ? 'selected_products' : ($broad ? ($constraints['product_role'] === 'any' ? 'catalog_all_products' : 'catalog_main_products') : 'matching_catalog');
@@ -183,5 +190,15 @@ class ChatbotCatalogSelection
                 'price' => array_intersect_key($price, array_flip(['sort', 'minimum', 'maximum', 'minimum_inclusive', 'maximum_inclusive'])),
                 'product_role' => $constraints['product_role'], 'brand' => $intent['brand'], 'capacity' => $intent['capacity'],
                 'excluded_brands' => $constraints['excluded_brands'], 'use_case' => $intent['use_case']]];
+    }
+
+    /** @return list<int> */
+    private function productIds(mixed $ids): array
+    {
+        if (! is_array($ids)) {
+            return [];
+        }
+
+        return array_values(array_filter($ids, fn (mixed $id): bool => is_int($id) && $id > 0));
     }
 }

@@ -355,17 +355,13 @@ class ChatbotConversation
                     }
                 }
                 unset($state['product_clarification']);
-                if (count($context['products']) > 1 && ! config('ai_integration.enabled')) {
+                if (count($context['products']) > 1) {
                     $text = $this->language->canonical($message);
                     $price = preg_match('/\b(?:price|prices|pricing|cost|how much)\b/iu', $text) === 1;
                     $stock = preg_match('/\b(?:stock|available|availability)\b/iu', $text) === 1;
-                    $state['product_clarification'] = match (true) {
-                        $price && $stock => 'price and stock availability',
-                        $price => 'price',
-                        $stock => 'stock availability',
-                        preg_match('/\b(?:specs|specifications|details|description)\b/iu', $text) === 1 => 'product details',
-                        default => 'product information',
-                    };
+                    if ($price || $stock) {
+                        $state['product_clarification'] = $price && $stock ? 'price and stock availability' : ($price ? 'price' : 'stock availability');
+                    }
                 }
             } elseif ($category === ChatbotQueryCategory::Store) {
                 $state['references']['store'] = array_slice(array_column($context['branches'], 'city'), 0, 5);

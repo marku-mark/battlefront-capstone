@@ -37,7 +37,7 @@ test('new product categories replace pending choices without description distrac
 
     $second = $chat->respond($query, null, $first['context_token'], 'switch');
 
-    expect($first['message'])->toContain('Which product');
+    expect($first['message'])->toContain('Atlas Laptop A1', 'Atlas Laptop A2')->not->toContain('Which product');
     expect($second['message'])->toContain('Helios')->not->toContain('Laptop');
     ChatbotResponseAgent::assertPromptedTimes(1);
     ChatbotIntentAgent::assertNeverPrompted();
@@ -66,7 +66,7 @@ test('ambiguous short queries show at most three relevant examples', function ()
     Product::factory()->available()->create(['name' => 'A Laptop', 'description' => 'External monitor supported']);
     $response = app(ChatbotConversation::class)->respond('monitor', null, null, 'examples');
 
-    expect($response['message'])->toContain('A100', 'B100', 'C100', 'brand')->not->toContain('D100', 'Laptop');
+    expect($response['message'])->toContain('A100', 'B100', 'C100')->not->toContain('D100', 'Laptop', 'Which product');
     ChatbotResponseAgent::assertNeverPrompted();
 });
 

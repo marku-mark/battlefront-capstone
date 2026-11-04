@@ -79,18 +79,8 @@ class ResolveProductContext
     /**
      * Resolve authoritative catalog and Sagay inventory facts for a product inquiry.
      *
-     * @return array{resolution: 'matched'|'needs_details'|'not_found', products: list<array{
-     *     name: string,
-     *     description: string|null,
-     *     brand: string|null,
-     *     category: string,
-     *     tags: list<string>,
-     *     price: string,
-     *     discount_price: string|null,
-     *     is_demo: bool,
-     *     demo_notice?: string,
-     *     inventory: array{quantity: int|null, status: 'unavailable'|'out_of_stock'|'low_stock'|'in_stock'}
-     * }>}
+     * @return array{resolution: 'matched'|'needs_details'|'not_found', products: list<array<string, mixed>>,
+     *     search_query?: string, clarification?: string, price_selection?: array<string, mixed>, selection_constraints?: array<string, mixed>}
      */
     public function execute(string $message, ?string $semanticMessage = null): array
     {
@@ -106,7 +96,7 @@ class ResolveProductContext
                 'excluded_brands' => [], 'brand' => '', 'capacity' => '', 'use_case' => '',
             ]);
 
-            return ['resolution' => ($selection['products'] ?? []) === [] ? 'not_found' : 'matched', ...$selection];
+            return ['resolution' => $selection['products'] === [] ? 'not_found' : 'matched', ...$selection];
         }
         $catalogQuery = $this->catalogSearchQuery($message);
         $useCatalogIntent = $catalogQuery !== null && ! $this->namesProduct($message);
@@ -116,7 +106,7 @@ class ResolveProductContext
             ? $this->products->chatbotSearch($catalogQuery, useProvider: false) : null;
         if (! $requiresReasoning && ($this->isShortSearch($message) || $useCatalogIntent)) {
             $search = $useCatalogIntent ? $catalogQuery : $message;
-            $useProvider = config('scout.driver') === 'algolia';
+            $useProvider = ! $useCatalogIntent && config('scout.driver') === 'algolia';
             $matches = $this->products->chatbotSearch($search, useProvider: $useProvider);
             if ($useProvider && $matches->isEmpty()) {
                 $matches = $this->products->chatbotSearch($search, useProvider: false);
@@ -205,7 +195,7 @@ class ResolveProductContext
         return ['resolution' => $product === null ? 'not_found' : 'matched', 'products' => $product === null ? [] : [$this->mapProduct($product)]];
     }
 
-    /** @param list<int> $ids
+    /** @param list<int|string> $ids
      * @return list<array<string, mixed>> */
     public function forProducts(array $ids): array
     {

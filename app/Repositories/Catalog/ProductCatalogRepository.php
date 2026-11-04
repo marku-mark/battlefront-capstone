@@ -8,6 +8,7 @@ use App\Models\Tag;
 use App\Services\Chatbot\ChatbotProductRanking;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
+use Illuminate\Database\Query\Expression;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use UnexpectedValueException;
@@ -71,7 +72,8 @@ class ProductCatalogRepository
             ));
     }
 
-    /** @return EloquentCollection<int, Product> */
+    /** @param list<string> $excludedBrands
+     * @return EloquentCollection<int, Product> */
     public function chatbotSearch(string $search, bool $useProvider = true, ?string $priceSort = null, ?string $minimum = null, ?string $maximum = null, bool $minimumInclusive = true, bool $maximumInclusive = true, array $excludedBrands = []): EloquentCollection
     {
         return $this->chatbotCandidates($search, ['sort' => $priceSort, 'minimum' => $minimum, 'maximum' => $maximum,
@@ -114,7 +116,7 @@ class ProductCatalogRepository
         if ($intent !== null) {
             $this->prioritizePrimaryProducts($query, $intent, onlyPrimary: true);
             if (! $accessory && isset(ChatbotProductRanking::FAMILIES[$intent['category']])) {
-                $query->whereRaw($ranking->primarySql());
+                $query->whereRaw(new Expression($ranking->primarySql()));
             }
         }
         if ($search === '' && ($constraints['product_role'] ?? null) !== 'any') {
@@ -148,14 +150,19 @@ class ProductCatalogRepository
         if ($constraints['diversify'] ?? false) {
             $representativeQuery = clone $query;
             if (($constraints['product_role'] ?? 'main') === 'main') {
-                $representativeQuery->whereRaw($ranking->primarySql());
+                $representativeQuery->whereRaw(new Expression($ranking->primarySql()));
             }
             $representatives = $representativeQuery->reorder()->select('category_id')->selectRaw('MIN(products.id) AS representative_id')
-                ->groupBy('category_id')->limit(20)->toBase()->get()->pluck('representative_id')->all();
+                ->groupBy('category_id')->limit(20)->toBase()->pluck('representative_id')->all();
             $query->whereIn('products.id', $representatives);
         }
-        if (in_array($priceSort, ['asc', 'desc'], true)) {
-            $query->orderByRaw('CAST(COALESCE(discount_price, price) AS DECIMAL(12, 2)) '.$priceSort)->orderBy('products.id');
+        $priceOrder = match ($priceSort) {
+            'asc' => 'CAST(COALESCE(discount_price, price) AS DECIMAL(12, 2)) asc',
+            'desc' => 'CAST(COALESCE(discount_price, price) AS DECIMAL(12, 2)) desc',
+            default => null,
+        };
+        if ($priceOrder !== null) {
+            $query->orderByRaw($priceOrder)->orderBy('products.id');
         }
 
         return $query->orderByDesc('is_featured')->orderBy('products.id')->limit($ids === null ? 20 : 80)->get();

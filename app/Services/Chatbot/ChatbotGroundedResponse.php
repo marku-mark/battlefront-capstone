@@ -72,7 +72,7 @@ class ChatbotGroundedResponse
                 }
             }
         }
-        if ($references === null || preg_match('~<[^>]+>|https?://~iu', $answer)
+        if (preg_match('~<[^>]+>|https?://~iu', $answer)
             || (! isset($evidence['compatibility:summary']) && preg_match('/\b(?:compatible|compatibility confirmed|will fit|will work|fully supported)\b/iu', $answer))) {
             return null;
         }

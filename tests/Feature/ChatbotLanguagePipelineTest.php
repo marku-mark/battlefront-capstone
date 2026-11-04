@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Log;
 use Laravel\Ai\Exceptions\AiException;
 
 test('model led multilingual interpretation preserves exclusions budget facts and reply language', function (string $question, string $language, string $answer) {
+    config(['ai_integration.full_catalog_pipeline' => true]);
     config(['ai_integration.enabled' => true, 'ai_integration.model_led' => true, 'ai_integration.localization_enabled' => true,
         'ai_integration.gemini.max_calls' => 3, 'ai_integration.gemini.tokens_per_minute' => 60000, 'scout.driver' => 'null']);
     $category = Category::factory()->create(['name' => 'Graphics Card']);
@@ -46,6 +47,7 @@ test('model led multilingual interpretation preserves exclusions budget facts an
 ]);
 
 test('invalid interpreter output logs only safe failure metadata and skips generation', function () {
+    config(['ai_integration.full_catalog_pipeline' => true]);
     config(['ai_integration.enabled' => true, 'ai_integration.model_led' => true, 'ai_integration.gemini.max_calls' => 3,
         'ai_integration.gemini.tokens_per_minute' => 60000]);
     Log::spy();
@@ -63,14 +65,16 @@ test('invalid interpreter output logs only safe failure metadata and skips gener
 });
 
 test('interpreter failure never starts generation or repeats the provider request', function () {
+    config(['ai_integration.full_catalog_pipeline' => true]);
+    Product::factory()->available()->create(['name' => 'Atlas Motherboard']);
     config(['ai_integration.enabled' => true, 'ai_integration.model_led' => true, 'ai_integration.gemini.max_calls' => 3,
         'ai_integration.gemini.tokens_per_minute' => 60000]);
     ChatbotUnderstandingAgent::fake(fn () => throw new AiException('synthetic provider failure'))->preventStrayPrompts();
     ChatbotEvidenceAgent::fake()->preventStrayPrompts();
     ChatbotValidationAgent::fake()->preventStrayPrompts();
 
-    $this->postJson('/chatbot', ['message' => 'Naa pa moy motherboard?'])->assertOk()->assertJsonPath('source', 'fallback')->assertJsonPath('language', 'ceb')
-        ->assertJsonPath('message', 'The chatbot is temporarily unavailable. Please try again later.');
+    $this->postJson('/chatbot', ['message' => 'Naa pa moy Atlas Motherboard?'])->assertOk()->assertJsonPath('source', 'fallback')->assertJsonPath('language', 'ceb')
+        ->assertSee('Atlas Motherboard')->assertDontSee('synthetic provider failure');
 
     ChatbotUnderstandingAgent::assertPromptedTimes(1);
     ChatbotEvidenceAgent::assertNeverPrompted();

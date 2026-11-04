@@ -31,18 +31,18 @@ test('model understanding switches from computers to processors across Tagalog t
     $second = $this->postJson('/chatbot', ['message' => 'meron po rin ba kayo cpu?', 'context_token' => $first->json('context_token')])->assertOk()->assertJsonPath('language', 'tl')->assertJsonPath('source', 'gemini');
     expect($first->json('message'))->toContain('Atlas Desktop PC')->not->toContain('CPU CASE');
     expect($second->json('message'))->toContain('Atlas CPU')->not->toContain('CPU CASE');
-    ChatbotUnderstandingAgent::assertPromptedTimes(2);
+    ChatbotUnderstandingAgent::assertNeverPrompted();
     ChatbotEvidenceAgent::assertPromptedTimes(2);
     ChatbotValidationAgent::assertPromptedTimes(2);
     Http::assertNothingSent();
 });
 
-test('ambiguous CPU requests clarify before retrieval or generation', function () {
+test('CPU discovery does not ask whether CPU means a processor or system unit', function () {
     config(['ai_integration.enabled' => true, 'ai_integration.model_led' => true]);
     ChatbotUnderstandingAgent::fake([understood(['outcome' => 'clarify', 'clarification' => 'cpu_meaning'])])->preventStrayPrompts();
     ChatbotEvidenceAgent::fake()->preventStrayPrompts();
     $response = $this->postJson('/chatbot', ['message' => 'Do you have CPU?'])->assertOk();
-    expect($response->json('message'))->toContain('processor or a complete desktop system unit');
+    expect($response->json('message'))->not->toContain('processor or a complete desktop system unit');
     ChatbotEvidenceAgent::assertNeverPrompted();
 });
 
@@ -100,8 +100,8 @@ test('review rejection returns current catalog facts without a repair call', fun
     ChatbotValidationAgent::fake([['verdict' => 'reject']])->preventStrayPrompts();
     $response = $this->postJson('/chatbot', ['message' => 'CPU price?'])->assertOk()->assertJsonPath('source', 'fallback');
     expect($response->json('message'))->toContain('Atlas CPU');
-    expect(app(ChatbotProviderBudget::class)->usage()['calls'])->toBe(3);
-    ChatbotUnderstandingAgent::assertPromptedTimes(1);
+    expect(app(ChatbotProviderBudget::class)->usage()['calls'])->toBe(2);
+    ChatbotUnderstandingAgent::assertNeverPrompted();
     ChatbotEvidenceAgent::assertPromptedTimes(1);
     ChatbotValidationAgent::assertPromptedTimes(1);
 });
@@ -124,7 +124,8 @@ test('model led answers retain the selected regional language', function (string
     ChatbotUnderstandingAgent::fake([understood(['language' => $language, 'category_key' => 'processor', 'search_query' => 'CPU'])])->preventStrayPrompts();
     ChatbotEvidenceAgent::fake([['answer' => $answer, 'evidence_ids' => ['product:'.$product->id]]])->preventStrayPrompts();
     ChatbotValidationAgent::fake([['verdict' => 'approve']])->preventStrayPrompts();
-    $this->postJson('/chatbot', ['message' => $message])->assertOk()->assertJsonPath('language', $language)->assertJsonPath('source', 'gemini')->assertJsonPath('message', $answer);
+    $response = $this->postJson('/chatbot', ['message' => $message])->assertOk()->assertJsonPath('language', $language)->assertJsonPath('source', 'gemini');
+    expect($response->json('message'))->toStartWith($answer);
     ChatbotValidationAgent::assertPromptedTimes(1);
 })->with([
     ['Naa moy processor?', 'ceb', 'Aduna kamiy Atlas CPU sa Sagay.'],

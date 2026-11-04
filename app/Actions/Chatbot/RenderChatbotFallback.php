@@ -5,6 +5,7 @@ namespace App\Actions\Chatbot;
 use App\Enums\ChatbotQueryCategory;
 use App\Services\Chatbot\ChatbotGroundedResponse;
 use App\Services\Chatbot\ChatbotLanguage;
+use App\Services\Chatbot\ChatbotPriceIntent;
 use Illuminate\Support\Str;
 
 class RenderChatbotFallback
@@ -54,7 +55,7 @@ class RenderChatbotFallback
     private function store(string $message, array $branches): ?string
     {
         if (count($branches) > 1) {
-            return 'Which branch do you mean? '.implode(', ', array_column($branches, 'city')).'.';
+            return implode("\n\n", array_map(fn (array $branch): string => $this->store($message, [$branch]), $branches));
         }
         if ($branches === []) {
             return null;
@@ -74,7 +75,7 @@ class RenderChatbotFallback
         }
 
         return $parts === []
-            ? 'Please specify whether you need the branch address, contact information, or operating hours.'
+            ? $branch['city'].': Address: '.($branch['address'] ?: 'unavailable').'. Phone: '.($branch['contact_number'] ?: 'unavailable').'. Email: '.($branch['email'] ?: 'unavailable').'. Operating hours: '.($branch['operating_hours'] ?: 'unavailable').'.'
             : $branch['city'].': '.implode(' ', $parts);
     }
 
@@ -82,7 +83,7 @@ class RenderChatbotFallback
     private function product(string $message, array $products): ?string
     {
         if (count($products) > 1) {
-            return $this->productClarification(array_column($products, 'name'));
+            return implode("\n\n", array_map(fn (array $product): string => $this->product($message, [$product]), array_slice($products, 0, 3)));
         }
         if ($products === []) {
             return null;
@@ -96,8 +97,9 @@ class RenderChatbotFallback
         if (preg_match('/(?:PHP\s*|\x{20B1}\s*)([\d,]+(?:\.\d{1,2})?)/iu', $message, $priceQuestion) === 1
             && (preg_match('/\bba\b/u', $message) === 1
                 || preg_match('/\A(?:is|are)\b.*\b(?:it|this|that)\b/u', $message) === 1)) {
-            $askedPrice = str_replace(',', '', $priceQuestion[1]);
-            $currentPrice = (string) ($product['discount_price'] ?? $product['price']);
+            $prices = app(ChatbotPriceIntent::class);
+            $askedPrice = $prices->money($priceQuestion[1]);
+            $currentPrice = $prices->money((string) ($product['discount_price'] ?? $product['price']));
             $answer = bccomp($askedPrice, $currentPrice, 2) === 0
                 ? 'Yes. Current selling price: PHP '.number_format((float) $currentPrice, 2).'.'
                 : 'No. Current selling price: PHP '.number_format((float) $currentPrice, 2).'.';

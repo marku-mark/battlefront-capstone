@@ -28,6 +28,8 @@ const isOpen = ref(false);
 const pendingMessage = ref('');
 const inputError = ref('');
 const requestError = ref('');
+const waitingLonger = ref(false);
+let waitingTimer;
 const conversation = ref(null);
 const composer = ref(null);
 const launcher = ref(null);
@@ -86,10 +88,21 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+    clearTimeout(waitingTimer);
     persistTranscript();
     conversationVersion++;
     clearTimeout(expiryTimer);
     window.removeEventListener('pagehide', persistTranscript);
+});
+
+watch(pendingMessage, (message) => {
+    clearTimeout(waitingTimer);
+    waitingLonger.value = false;
+    if (message) {
+        waitingTimer = setTimeout(() => {
+            waitingLonger.value = true;
+        }, 5000);
+    }
 });
 
 function scheduleExpiry() {
@@ -272,7 +285,7 @@ function actionUrl(action) {
 }
 
 async function submitMessage(quickQuestion = null, freshContext = true) {
-    if (inquiry.processing) {
+    if (inquiry.processing || pendingMessage.value) {
         return;
     }
 
@@ -298,6 +311,15 @@ async function submitMessage(quickQuestion = null, freshContext = true) {
     readerScrolledBack = false;
     const submittedVersion = conversationVersion;
     let receivedReply = false;
+    let timedOut = false;
+    const requestTimer = setTimeout(() => {
+        timedOut = true;
+        inquiry.cancel();
+        if (submittedVersion === conversationVersion) {
+            requestError.value = 'The connection is taking too long. Your question is saved; please try again.';
+            pendingMessage.value = '';
+        }
+    }, 30000);
     if (quickQuestion !== null) {
         inquiry.message = message;
         if (freshContext) inquiry.context_token = null;
@@ -316,7 +338,7 @@ async function submitMessage(quickQuestion = null, freshContext = true) {
             },
         });
 
-        if (!response || submittedVersion !== conversationVersion) {
+        if (timedOut || !response || submittedVersion !== conversationVersion) {
             return;
         }
 
@@ -343,6 +365,7 @@ async function submitMessage(quickQuestion = null, freshContext = true) {
                 'Unable to send your question. Please try again.';
         }
     } finally {
+        clearTimeout(requestTimer);
         if (submittedVersion === conversationVersion) {
             if (quickQuestion !== null) {
                 inquiry.message = draft;
@@ -640,7 +663,7 @@ async function submitMessage(quickQuestion = null, freshContext = true) {
                                     class="text-primary-ink size-4 animate-spin motion-reduce:animate-none"
                                     aria-hidden="true"
                                 />
-                                Responding…
+                                {{ waitingLonger ? 'Still checking your question…' : 'Responding…' }}
                             </div>
                         </li>
                     </ol>
@@ -726,6 +749,14 @@ async function submitMessage(quickQuestion = null, freshContext = true) {
                         {{ requestError }}
                     </p>
                     <div class="mt-2 flex items-center justify-end gap-2">
+                        <Button
+                            v-if="requestError && inquiry.message.trim()"
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            :disabled="inquiry.processing"
+                            @click="submitMessage()"
+                        >Retry</Button>
                         <Button
                             type="submit"
                             size="sm"

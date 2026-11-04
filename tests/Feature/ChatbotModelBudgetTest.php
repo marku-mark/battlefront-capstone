@@ -3,6 +3,16 @@
 use App\Services\Chatbot\ChatbotProviderBudget;
 use Illuminate\Support\Facades\Cache;
 
+it('bounds retrieval and generation by the same turn deadline', function () {
+    config(['ai_integration.gemini.deadline_seconds' => 2]);
+    $budget = new ChatbotProviderBudget;
+    $budget->reset();
+    expect($budget->retrievalTimeout())->toBeLessThanOrEqual(2);
+    config(['ai_integration.gemini.deadline_seconds' => 0]);
+    expect($budget->retrievalTimeout())->toBe(0)
+        ->and($budget->reserveGrounded('public products'))->toBeFalse();
+});
+
 it('rejects embeddings when the interactive deadline has expired', function () {
     config(['ai_integration.gemini.deadline_seconds' => 0]);
     $budget = new ChatbotProviderBudget;

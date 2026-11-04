@@ -84,7 +84,7 @@ class ChatbotCatalogAdvice
         if ($maximum !== null) {
             $products = $products->filter(fn (array $product): bool => (float) ($product['discount_price'] ?? $product['price']) <= $maximum);
         }
-        $products = array_slice(app(ChatbotProductRanking::class)->order($products->values()->all(), $price['sort'], app(ChatbotProductRanking::class)->accessoryRequest($message)), 0, 6);
+        $products = array_slice(app(ChatbotProductRanking::class)->order(array_values($products->values()->all()), $price['sort'], app(ChatbotProductRanking::class)->accessoryRequest($message)), 0, 6);
         $context = ['products' => $products, 'conversation_focus' => 'recommendation'];
         if ($products === []) {
             return ['message' => $maximum !== null && trim($query) !== ''

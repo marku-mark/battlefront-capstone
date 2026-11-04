@@ -2,10 +2,14 @@
 
 namespace App\Services\Chatbot;
 
+use InvalidArgumentException;
+
 class ChatbotPriceIntent
 {
     /** @param array<string, mixed> $model
-     * @return array<string, mixed> */
+     * @return array{sort: 'asc'|'desc'|null, minimum: numeric-string|null, maximum: numeric-string|null,
+     *     minimum_inclusive: bool, maximum_inclusive: bool, has_minimum: bool, has_maximum: bool,
+     *     cheaper: bool, scope: string, error: string|null, query: string} */
     public function resolve(string $message, array $model = []): array
     {
         $query = mb_strtolower($message);
@@ -27,8 +31,9 @@ class ChatbotPriceIntent
         $amount = '(?:PHP\s*|\x{20B1}\s*)?((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{1,2})?\s*k?)(?![\p{L}\p{N},.])';
         $minimum = isset($model['minimum_php']) ? $this->money((string) $model['minimum_php']) : null;
         $maximum = isset($model['maximum_php']) ? $this->money((string) $model['maximum_php']) : null;
-        $minimumInclusive = $model['minimum_inclusive'] ?? true;
-        $maximumInclusive = $model['maximum_inclusive'] ?? true;
+        $minimumInclusive = is_bool($model['minimum_inclusive'] ?? null) ? $model['minimum_inclusive'] : true;
+        $maximumInclusive = is_bool($model['maximum_inclusive'] ?? null) ? $model['maximum_inclusive'] : true;
+        $scope = is_string($model['price_scope'] ?? null) ? $model['price_scope'] : 'catalog';
         $hasMinimum = $minimum !== null;
         $hasMaximum = $maximum !== null;
         if (preg_match('/\bbetween\s+'.$amount.'\s+and\s+'.$amount.'/iu', $query, $match)) {
@@ -62,27 +67,30 @@ class ChatbotPriceIntent
             'minimum_inclusive' => $minimumInclusive, 'maximum_inclusive' => $maximumInclusive,
             'has_minimum' => $hasMinimum, 'has_maximum' => $hasMaximum,
             'cheaper' => preg_match('/\b(?:cheaper|more affordable|mas mura|mas barato|mas baratu)\b/iu', $message) === 1,
-            'scope' => $model['price_scope'] ?? 'catalog', 'error' => $error,
+            'scope' => $scope, 'error' => $error,
             'query' => trim(preg_replace('/\s+/u', ' ', $query))];
     }
 
+    /** @return numeric-string */
     public function money(string $value): string
     {
         $value = mb_strtolower(str_replace([',', ' '], '', $value));
+        $amount = $this->numericString(rtrim($value, 'k'));
+        $multiplier = $this->numericString(str_ends_with($value, 'k') ? '1000' : '1');
 
-        return bcmul(rtrim($value, 'k'), str_ends_with($value, 'k') ? '1000' : '1', 2);
+        return bcmul($amount, $multiplier, 2);
     }
 
     /** @param array<string, mixed> $price
      * @param array<string, mixed> $product */
     public function matches(array $price, array $product): bool
     {
-        $amount = (string) ($product['discount_price'] ?? $product['price']);
+        $amount = $this->numericString($product['discount_price'] ?? $product['price']);
         foreach (['minimum', 'maximum'] as $bound) {
             if ($price[$bound] === null) {
                 continue;
             }
-            $comparison = bccomp($amount, $price[$bound], 2);
+            $comparison = bccomp($amount, $this->numericString($price[$bound]), 2);
             if (($bound === 'minimum' && ($comparison < 0 || ($comparison === 0 && ! $price['minimum_inclusive'])))
                 || ($bound === 'maximum' && ($comparison > 0 || ($comparison === 0 && ! $price['maximum_inclusive'])))) {
                 return false;
@@ -90,5 +98,15 @@ class ChatbotPriceIntent
         }
 
         return true;
+    }
+
+    /** @return numeric-string */
+    private function numericString(mixed $value): string
+    {
+        if (! is_string($value) || ! is_numeric($value)) {
+            throw new InvalidArgumentException('A catalog price must be a numeric string.');
+        }
+
+        return $value;
     }
 }

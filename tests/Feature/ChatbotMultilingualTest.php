@@ -369,7 +369,7 @@ test('natural partial-name clarifications retain the availability question and r
 
     expect($selected['message'])->toContain('SAMSUNG LAPTOP RAM', 'out of stock at Sagay')->not->toContain('CHUWI', 'Please specify');
     ChatbotIntentAgent::assertNeverPrompted();
-    ChatbotResponseAgent::assertPromptedTimes(1);
+    ChatbotResponseAgent::assertNeverPrompted();
 })->with(['I mean Samsung laptop RAM?', 'Samsung laptop RAM', 'Ang pasabot nako Samsung laptop RAM']);
 
 test('a still ambiguous or unmatched model clarification never selects a product', function (string $clarification) {

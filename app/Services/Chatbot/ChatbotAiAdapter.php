@@ -47,7 +47,9 @@ class ChatbotAiAdapter
         try {
             $response = $agent->prompt($prompt, provider: $this->roleProvider('scope'), model: (string) config('ai_integration.gemini.model'), timeout: min(4, $budget->remainingSeconds()));
             $this->logUsage('scope', $response);
+            $budget->recordStage('scope', 'completed', (int) ((hrtime(true) - $started) / 1_000_000));
             if (! $response instanceof StructuredAgentResponse) {
+                $budget->recordStage('scope', 'failed');
                 app(ChatbotFailureTrace::class)->record('understanding_invalid_output', 'scope');
                 $this->logAttempt($started, 4, 'understanding_invalid_response');
 
@@ -77,6 +79,7 @@ class ChatbotAiAdapter
             ]);
 
             if ($validator->fails() || count($data) !== 21) {
+                $budget->recordStage('scope', 'failed');
                 app(ChatbotFailureTrace::class)->record('understanding_invalid_output', 'scope');
                 $this->logAttempt($started, 4, 'understanding_invalid_output');
 
@@ -85,6 +88,7 @@ class ChatbotAiAdapter
 
             return $validator->validated();
         } catch (Throwable $exception) {
+            $budget->recordStage('scope', 'failed', (int) ((hrtime(true) - $started) / 1_000_000));
             $details = $this->failureDetails($exception);
             app(ChatbotFailureTrace::class)->record($details['failure'], 'scope');
             $budget->recordFailure();
@@ -130,37 +134,40 @@ class ChatbotAiAdapter
         if (isset($context['interpreted_intent'])) {
             $intent = [...$intent, ...$context['interpreted_intent'], 'language' => $language];
         }
-        $message = config('ai_integration.model_led') ? mb_substr($message, 0, 1000) : app(PublicChatbotQuery::class)->minimize($message);
+        $message = (config('ai_integration.model_led') || config('ai_integration.full_catalog_pipeline')) ? mb_substr($message, 0, 1000) : app(PublicChatbotQuery::class)->minimize($message);
         $message = $message !== '' ? $message : 'product information';
         $prompt = $this->preparePrompt($message, ['evidence' => $evidence, 'intent' => $intent]);
         $budget = app(ChatbotProviderBudget::class);
-        if ((config('ai_integration.adaptive') || config('ai_integration.model_led')) ? ! $budget->reserveGrounded($prompt) : ! $budget->reserve($prompt)) {
+        if ((config('ai_integration.adaptive') || (config('ai_integration.model_led') || config('ai_integration.full_catalog_pipeline'))) ? ! $budget->reserveGrounded($prompt) : ! $budget->reserve($prompt)) {
             app(ChatbotFailureTrace::class)->record('budget_exhausted', 'generation');
 
             return ['successful' => false, 'text' => null, 'failure' => 'budget_exhausted'];
         }
         $started = hrtime(true);
-        $reviewAllowance = (config('ai_integration.adaptive') || config('ai_integration.model_led')) ? (int) config('ai_integration.gemini.validation_timeout_seconds', 5) : 0;
-        $responseTimeout = max(1, min(60, (int) config('ai_integration.gemini.response_timeout_seconds', 9), $budget->remainingSeconds() - $reviewAllowance));
+        $reviewAllowance = (config('ai_integration.adaptive') || (config('ai_integration.model_led') || config('ai_integration.full_catalog_pipeline'))) ? (config('ai_integration.full_catalog_pipeline') ? 5 : (int) config('ai_integration.gemini.validation_timeout_seconds', 5)) : 0;
+        $responseTimeout = max(1, min(60, (config('ai_integration.full_catalog_pipeline') ? 8 : (int) config('ai_integration.gemini.response_timeout_seconds', 9)), $budget->remainingSeconds() - $reviewAllowance));
         $currentStage = 'generation';
+        $stageStarted = hrtime(true);
         try {
-            $stageStarted = hrtime(true);
             $response = (new ChatbotEvidenceAgent)->prompt($prompt,
                 provider: $this->roleProvider('response'),
                 model: (string) config('ai_integration.gemini.model'), timeout: $responseTimeout);
             $this->logUsage('response', $response);
+            $budget->recordStage('generation', 'completed', (int) ((hrtime(true) - $stageStarted) / 1_000_000));
             Log::info('Chatbot stage completed.', ['role' => 'response', 'duration_ms' => (int) ((hrtime(true) - $stageStarted) / 1_000_000)]);
             $natural = $response instanceof StructuredAgentResponse && array_key_exists('answer', $response->structured);
             $text = $response instanceof StructuredAgentResponse
                 ? ($natural ? $renderer->draft($evidence, $response->structured, $intent) : $renderer->render($renderer->evidence($context), $response->structured)) : null;
             if ($text === null) {
+                $budget->recordStage('generation', 'failed');
                 app(ChatbotFailureTrace::class)->record('validation_failed', 'generation');
 
                 return $failure;
             }
-            if ($natural || config('ai_integration.gemini.validation_enabled')) {
+            if ($natural || config('ai_integration.full_catalog_pipeline') || config('ai_integration.gemini.validation_enabled')) {
                 $review = $this->preparePrompt($message, ['evidence' => $evidence, 'intent' => $intent, 'answer' => $text]);
                 if ($budget->remainingSeconds() === 0 || ! $budget->reserve($review)) {
+                    $budget->recordStage('validation', 'failed');
                     app(ChatbotFailureTrace::class)->record('budget_exhausted', 'validation');
 
                     return $failure;
@@ -169,10 +176,12 @@ class ChatbotAiAdapter
                 $currentStage = 'validation';
                 $verdict = (new ChatbotValidationAgent)->prompt($review,
                     provider: $this->roleProvider('validation'),
-                    model: (string) config('ai_integration.gemini.model'), timeout: max(1, min(60, (int) config('ai_integration.gemini.validation_timeout_seconds', 20), $budget->remainingSeconds())));
+                    model: (string) config('ai_integration.gemini.model'), timeout: max(1, min(60, (config('ai_integration.full_catalog_pipeline') ? 5 : (int) config('ai_integration.gemini.validation_timeout_seconds', 20)), $budget->remainingSeconds())));
                 $this->logUsage('validation', $verdict);
+                $budget->recordStage('validation', 'completed', (int) ((hrtime(true) - $stageStarted) / 1_000_000));
                 Log::info('Chatbot stage completed.', ['role' => 'validation', 'duration_ms' => (int) ((hrtime(true) - $stageStarted) / 1_000_000)]);
                 if (! $verdict instanceof StructuredAgentResponse || $verdict->structured !== ['verdict' => 'approve']) {
+                    $budget->recordStage('validation', 'failed');
                     app(ChatbotFailureTrace::class)->record('validation_failed', 'validation');
 
                     return $failure;
@@ -187,6 +196,7 @@ class ChatbotAiAdapter
             $budget->recordFailure();
             $this->logAttempt($started, $responseTimeout, $details['failure'], $details['status'], $exception::class);
             app(ChatbotFailureTrace::class)->record($details['failure'], $currentStage);
+            $budget->recordStage($currentStage, 'failed', (int) ((hrtime(true) - $stageStarted) / 1_000_000));
 
             return ['successful' => false, 'text' => null, 'failure' => $details['failure']];
         }
@@ -341,10 +351,14 @@ class ChatbotAiAdapter
         }
         $preparedPrompt = $this->preparePrompt($prompt, $context);
         $agent = new ChatbotResponseAgent($language);
+        $remaining = app(ChatbotProviderBudget::class)->remainingSeconds();
+        if ($remaining === 0) {
+            return ['successful' => false, 'text' => null, 'failure' => 'timeout'];
+        }
         $started = hrtime(true);
 
         try {
-            $text = trim($agent->prompt($preparedPrompt)->text);
+            $text = trim($agent->prompt($preparedPrompt, timeout: min($agent->timeout(), $remaining))->text);
         } catch (Throwable $exception) {
             $details = $this->failureDetails($exception);
             app(ChatbotFailureTrace::class)->record($details['failure'], 'generation');

@@ -71,6 +71,37 @@ function functionSource(name) {
     );
 }
 
+test('slow requests show waiting feedback after five seconds and clear it on completion', () => {
+    const pendingWatch = script.scriptSetupAst.find((node) =>
+        node.type === 'ExpressionStatement' && node.expression?.callee?.name === 'watch'
+        && node.expression.arguments[0]?.name === 'pendingMessage');
+    let callback;
+    let fire;
+    const waitingLonger = { value: false };
+    runInNewContext(descriptor.scriptSetup.content.slice(pendingWatch.start, pendingWatch.end), {
+        pendingMessage: {}, waitingLonger, waitingTimer: null,
+        watch: (_, handler) => { callback = handler; },
+        clearTimeout: () => { fire = null; },
+        setTimeout: (handler, delay) => { assert.equal(delay, 5000); fire = handler; return 1; },
+    });
+    callback('mouse');
+    assert.equal(waitingLonger.value, false);
+    fire();
+    assert.equal(waitingLonger.value, true);
+    callback('');
+    assert.equal(waitingLonger.value, false);
+    assert.equal(fire, null);
+});
+
+test('a pending submission prevents another request even before processing updates', async () => {
+    let sent = 0;
+    await runInNewContext(`(${functionSource('submitMessage')})`, {
+        inquiry: { processing: false, post: () => { sent++; } },
+        pendingMessage: { value: 'mouse' },
+    })();
+    assert.equal(sent, 0);
+});
+
 test('New chat clears transcript, token, errors and saved reading position', () => {
     const context = {
         clearChatContext() {},
@@ -132,6 +163,8 @@ for (const failure of [false, true]) {
                 clearErrors() {},
                 post: () => response,
             },
+            setTimeout,
+            clearTimeout,
             scrollToLatest() {},
             persistContext() {},
             showReply() {},
@@ -207,6 +240,8 @@ for (const succeeds of [true, false]) {
                     };
                 },
             },
+            setTimeout,
+            clearTimeout,
             scrollToLatest() {},
             persistContext() {},
             showReply() {},
@@ -307,4 +342,51 @@ test('product links follow their full descriptions without duplicating the botto
         assert.equal(url({ kind: 'product', id: 7, label: name }), '/products/7');
     }
     assert.equal(url({ kind: 'product', id: -1 }), null);
+});
+
+test("timeout preserves question and rejects a late response", async () => {
+let timeout;
+        let finish;
+        const response = new Promise((resolve, reject) => {
+            finish = resolve;
+        });
+        const context = {
+            transcriptExpiresAt: 0,
+            scheduleExpiry() {},
+            safePresentation,
+            conversationVersion: 1,
+            quickMenu: { value: 'main' },
+            showQuickQuestions: { value: true },
+            nextMessageId: 1,
+            readerScrolledBack: false,
+            messages: { value: [] },
+            pendingMessage: { value: '' },
+            inputError: { value: '' },
+            requestError: { value: '' },
+            inquiry: {
+                processing: false,
+                message: 'monitor',
+                clearErrors() {},
+                cancel() {},
+                post: () => response,
+            },
+            setTimeout(callback, delay) { assert.equal(delay, 30000); timeout = callback; return 1; },
+            clearTimeout() {},
+            scrollToLatest() {},
+            persistContext() {},
+            showReply() {},
+            ChatbotController: { store: { url: () => '/chatbot' } },
+        };
+        const submit = runInNewContext(
+            `(${functionSource('submitMessage')})`,
+            context,
+        );
+        const request = submit();
+        timeout();
+        finish({ message: "late", context_token: "late" });
+        await request;
+        assert.equal(context.messages.value.length, 0);
+        assert.match(context.requestError.value, /taking too long/);
+        assert.equal(context.inquiry.message, 'monitor');
+        assert.equal(context.pendingMessage.value, '');
 });

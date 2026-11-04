@@ -2,6 +2,7 @@
 
 return [
     'offline' => false,
+    'full_catalog_pipeline' => env('CHATBOT_FULL_CATALOG_PIPELINE', false),
     'model_led' => env('CHATBOT_MODEL_LED_ENABLED', false),
     'adaptive' => env('CHATBOT_ADAPTIVE_PIPELINE', false),
     'enabled' => env('CHATBOT_AI_INTEGRATION_ENABLED', false),
@@ -28,7 +29,7 @@ return [
         'max_calls' => (int) env('CHATBOT_MAX_GEMINI_CALLS', 3),
         'max_concurrent_turns' => (int) env('CHATBOT_MAX_CONCURRENT_TURNS', 2),
         'deadline_seconds' => (int) env('CHATBOT_TURN_DEADLINE_SECONDS', 25),
-        'response_timeout_seconds' => (int) env('CHATBOT_RESPONSE_TIMEOUT_SECONDS', 9),
+        'response_timeout_seconds' => (int) env('CHATBOT_RESPONSE_TIMEOUT_SECONDS', 8),
         'validation_timeout_seconds' => (int) env('CHATBOT_VALIDATION_TIMEOUT_SECONDS', 5),
         'project_budget_key' => env('GEMINI_PROJECT_BUDGET_KEY', 'battlefront'),
         'requests_per_minute' => (int) env('GEMINI_REQUESTS_PER_MINUTE', 15),

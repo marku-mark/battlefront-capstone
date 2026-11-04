@@ -95,9 +95,7 @@ class ChatbotOrchestrationService
      * @return array{category: ChatbotQueryCategory, message: string, source: 'gemini'|'fallback', protected?: list<mixed>, presentation?: array<string, mixed>, response_context?: array<string, mixed>} */
     private function respondInLanguage(string $message, ?User $customer, ?Closure $remember, ?int $productId, ?string $language, array $componentReferences): array
     {
-        if (config('ai_integration.enabled')) {
-            $this->chatbotAiAdapter->beginTurn();
-        }
+        app(ChatbotProviderBudget::class)->reset();
         $normalizedMessage = Str::of($message)->trim()->squish()->toString();
         $routing = $this->routeChatbotQuery->execute($normalizedMessage, resolveCatalogTerms: true);
         $category = $routing['category'];
@@ -260,6 +258,12 @@ class ChatbotOrchestrationService
         $remember?->__invoke($category, $context);
 
         if (isset($context['search_query'])) {
+            if (config('ai_integration.enabled')) {
+                $answer = $this->chatbotAiAdapter->grounded($normalizedMessage, $context, $language, scopeChecked: true);
+                if ($answer['successful']) {
+                    return ['category' => $category, 'message' => $answer['text'], 'source' => 'gemini'];
+                }
+            }
             $cards = array_map(fn (array $product): array => [
                 'id' => $product['id'], 'name' => $product['name'],
                 'price' => $product['discount_price'] ?? $product['price'],
@@ -267,7 +271,7 @@ class ChatbotOrchestrationService
                 'notice' => $product['demo_notice'] ?? null,
             ], $context['products']);
             $intro = 'Matching Battlefront products:';
-            $followUp = 'Narrow your search by brand, model, or capacity. Stock information covers Sagay only.';
+            $followUp = '';
             $text = $intro;
             foreach ($cards as $card) {
                 $text .= "\n\n".$card['name']."\nPHP ".number_format((float) $card['price'], 2).' · '.$card['stock'];
@@ -276,7 +280,7 @@ class ChatbotOrchestrationService
                 }
             }
 
-            return ['category' => $category, 'message' => $text."\n\n".$followUp, 'source' => 'fallback',
+            return ['category' => $category, 'message' => $text."\n\nStock information covers Sagay only.", 'source' => 'fallback',
                 'presentation' => ['intro' => $intro, 'products' => $cards, 'follow_up' => $followUp, 'query' => $context['search_query']]];
         }
 

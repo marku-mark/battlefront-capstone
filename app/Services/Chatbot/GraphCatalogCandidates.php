@@ -28,10 +28,14 @@ class GraphCatalogCandidates
     {
         $started = hrtime(true);
         if (config('ai_integration.offline') || ! config('ai_integration.enabled') || ! config('ai_integration.neo4j.enabled')) {
+            app(ChatbotProviderBudget::class)->recordStage('neo4j', 'disabled');
+
             return [];
         }
         try {
             if (Cache::has('chatbot:graph:open')) {
+                app(ChatbotProviderBudget::class)->recordStage('neo4j', 'circuit_open');
+
                 return [];
             }
             $seeds = Product::query()->customerEligible()->with(['category', 'tags', 'componentProfile.currentApprovedRevision'])
@@ -39,10 +43,13 @@ class GraphCatalogCandidates
             $seedProjections = CatalogProjection::query()->whereIn('product_id', $seeds->modelKeys())->get()->keyBy('product_id');
             $seeds = $seeds->filter(fn (Product $seed): bool => $seedProjections->has($seed->id) && $this->current($seed, $seedProjections[$seed->id]));
             if ($seeds->isEmpty()) {
+                app(ChatbotProviderBudget::class)->recordStage('neo4j', 'no_current_seeds');
+
                 return [];
             }
-            $versions = $seeds->map(fn (Product $seed): array => ['id' => $seed->id, 'revision' => $seedProjections[$seed->id]->revision])->values()->all();
-            $rows = array_slice($this->graph->candidates($seeds->modelKeys(), $seeds->count() === 1 ? $versions[0]['revision'] : null, $versions), 0, 20);
+            $versions = array_values($seeds->map(fn (Product $seed): array => ['id' => (int) $seed->id, 'revision' => $seedProjections[$seed->id]->revision])->all());
+            $seedIds = array_values(array_map('intval', $seeds->modelKeys()));
+            $rows = array_slice($this->graph->candidates($seedIds, $seeds->count() === 1 ? $versions[0]['revision'] : null, $versions), 0, 20);
             $products = Product::query()->customerAvailable()->whereIn('id', array_column($rows, 'product_id'))
                 ->whereNotIn('id', $seeds->modelKeys())->with(['category', 'tags', 'componentProfile.currentApprovedRevision'])->get()->keyBy('id');
             $projections = CatalogProjection::query()->whereIn('product_id', $products->modelKeys())->get()->keyBy('product_id');
@@ -53,14 +60,16 @@ class GraphCatalogCandidates
                 if ($product !== null && $projection !== null && $projection->revision === $row['revision']
                     && $seeds->contains(fn (Product $seed): bool => $this->sameFamily($product, $seed))
                     && $this->current($product, $projection)) {
-                    $ids[] = $product->id;
+                    $ids[] = (int) $product->id;
                 }
             }
 
+            app(ChatbotProviderBudget::class)->recordStage('neo4j', 'completed', (int) ((hrtime(true) - $started) / 1_000_000));
             Log::info('Chatbot retrieval completed.', ['provider' => 'neo4j', 'duration_ms' => (int) ((hrtime(true) - $started) / 1_000_000), 'candidates' => count($rows), 'accepted' => count($ids), 'status' => $ids === [] ? 'no_current_match' : 'matched']);
 
             return array_slice(array_values(array_unique($ids)), 0, 20);
         } catch (Throwable) {
+            app(ChatbotProviderBudget::class)->recordStage('neo4j', 'failed', (int) ((hrtime(true) - $started) / 1_000_000));
             Log::warning('Chatbot retrieval failed.', ['provider' => 'neo4j', 'duration_ms' => (int) ((hrtime(true) - $started) / 1_000_000), 'status' => 'unavailable']);
             try {
                 Cache::put('chatbot:graph:open', true, 60);

@@ -20,21 +20,28 @@ class SemanticCatalogCandidates
         private CatalogDocumentBuilder $documents,
     ) {}
 
-    /** @return list<int> */
+    /** @param array{product_family?: string, product_role?: string} $constraints
+     * @return list<int> */
     public function ids(string $query, array $constraints = []): array
     {
         $started = hrtime(true);
         if (config('ai_integration.offline') || ! config('ai_integration.enabled') || ! config('ai_integration.qdrant.enabled')
             || strlen($query) > 1000 || str_contains($query, '@')
             || preg_match('/\b(?:order|password|secret|address|phone|token|api key)\b/iu', $query)) {
+            app(ChatbotProviderBudget::class)->recordStage('qdrant', config('ai_integration.offline') || ! config('ai_integration.enabled') || ! config('ai_integration.qdrant.enabled') ? 'disabled' : 'unsafe_query');
+
             return [];
         }
         try {
             $query = app(PublicChatbotQuery::class)->minimize($query);
             if ($query === '') {
+                app(ChatbotProviderBudget::class)->recordStage('qdrant', 'empty_query');
+
                 return [];
             }
             if (Cache::has('chatbot:retrieval:open')) {
+                app(ChatbotProviderBudget::class)->recordStage('qdrant', 'circuit_open');
+
                 return [];
             }
             $filters = [];
@@ -54,6 +61,7 @@ class SemanticCatalogCandidates
                 config('ai_integration.embedding.model'), config('ai_integration.embedding.dimensions'),
                 config('ai_integration.qdrant.collection'), $query, $filters,
             ], JSON_THROW_ON_ERROR));
+            app(ChatbotProviderBudget::class)->recordStage('qdrant', Cache::has($key) ? 'cache_hit' : 'cache_miss');
             $rows = Cache::remember($key, 60, fn (): array => $this->vectors->search($this->embeddings->embed($query), limit: 20, filters: $filters));
             $ids = [];
             $rows = array_slice($rows, 0, 20);
@@ -71,10 +79,12 @@ class SemanticCatalogCandidates
                 }
             }
 
+            app(ChatbotProviderBudget::class)->recordStage('qdrant', 'completed', (int) ((hrtime(true) - $started) / 1_000_000));
             Log::info('Chatbot retrieval completed.', ['provider' => 'qdrant', 'duration_ms' => (int) ((hrtime(true) - $started) / 1_000_000), 'candidates' => count($rows), 'accepted' => count($ids), 'status' => $ids === [] ? 'no_current_match' : 'matched']);
 
             return array_slice(array_values(array_unique($ids)), 0, 20);
         } catch (\Throwable) {
+            app(ChatbotProviderBudget::class)->recordStage('qdrant', 'failed', (int) ((hrtime(true) - $started) / 1_000_000));
             Log::warning('Chatbot retrieval failed.', ['provider' => 'qdrant', 'duration_ms' => (int) ((hrtime(true) - $started) / 1_000_000), 'status' => 'unavailable']);
             try {
                 Cache::put('chatbot:retrieval:open', true, 60);

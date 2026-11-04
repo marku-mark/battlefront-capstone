@@ -28,6 +28,7 @@ pest()->extend(TestCase::class)
         config()->set('ai.providers.gemini.key', 'testing-only');
         config()->set([
             'ai_integration.enabled' => false,
+            'ai_integration.full_catalog_pipeline' => false,
             'ai_integration.offline' => false,
             'ai_integration.model_led' => false,
             'ai_integration.adaptive' => false,
@@ -40,6 +41,7 @@ pest()->extend(TestCase::class)
             'ai_integration.neo4j.enabled' => false,
             'ai_integration.gemini.validation_enabled' => false,
             'ai_integration.gemini.max_calls' => 1,
+            'ai_integration.gemini.deadline_seconds' => 60,
             'ai_integration.gemini.scope_key' => 'testing-only',
             'ai_integration.gemini.response_key' => 'testing-only',
             'ai_integration.gemini.validation_key' => 'testing-only',

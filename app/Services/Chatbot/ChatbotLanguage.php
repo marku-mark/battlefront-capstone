@@ -143,9 +143,6 @@ class ChatbotLanguage
 
     public function detect(string $message): ?string
     {
-        if (preg_match('/\b(?:meron|merong|mayroon)\b|\bmay\b(?!\s+ara\b).*\b(?:ba|kayo|kayong)\b/iu', $message) === 1) {
-            return 'tl';
-        }
         $matches = [];
         foreach (['hil' => 'may ara|ara kamo|diin|kag|sang|akon|sini|subong|indi|kagina', 'ceb' => 'naa|naay|aduna|moy|asa|unsa|unsaon|akong|nako|inyong|kana|karon|dili|ganiha|rekomendahi', 'tl' => 'magkano|paano|nasaan|meron|merong|mayroon|mayroong|ba kayo|aking|kayong|niyan|po|hindi|irekomenda|mura'] as $language => $words) {
             $score = preg_match_all('/\b(?:'.$words.')\b/iu', $message);

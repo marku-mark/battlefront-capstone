@@ -35,3 +35,6 @@ Use the shared chatbot catalog selection and ranking policy: main products lead 
 
 ## Keep failure review separate from customer memory and catalog knowledge
 The developer-approved failure review stores only encrypted allowlisted public diagnostic samples; unknown/private scope gets metadata only and explicit unsupported scope is excluded. Successful deterministic fallback replies are not failures. Keep capture bounded and best effort, expire samples within seven days, and never send them upstream or use them in customer retrieval. Local CLI review proposes investigations; human resolution links a regression test and never automatically edits prompts, code or facts.
+
+## Full catalog pipeline has one bounded deadline
+The developer approved full public-catalog participation via CHATBOT_FULL_CATALOG_PIPELINE: understanding, Qdrant and Neo4j retrieval where valid inputs exist, grounded generation and mandatory review. FAQs/private support retain direct routing. Full mode overrides adaptive shortcuts, caps server work at 25 seconds and browser waiting at 30 seconds; missing review or provider failure returns authoritative local fallback. Automated tests must explicitly reset the full-mode flag independently of local activation.

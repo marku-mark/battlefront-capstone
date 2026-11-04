@@ -115,6 +115,7 @@ test('mobile failures use the same private capture boundary', function () {
 });
 
 test('a necessary ambiguity is reviewable without being declared a chatbot defect', function () {
+    config(['ai_integration.full_catalog_pipeline' => true]);
     config(['ai_integration.enabled' => true, 'ai_integration.model_led' => true, 'ai_integration.gemini.tokens_per_minute' => 60000]);
     ChatbotUnderstandingAgent::fake([failureReviewIntent(['outcome' => 'clarify', 'clarification' => 'cpu_meaning'])])->preventStrayPrompts();
 
@@ -208,6 +209,7 @@ test('failure storage outages never replace valid customer replies or expose exc
 });
 
 test('model led invalid interpretation is distinguishable from retrieval failure across languages', function (string $question, string $language) {
+    config(['ai_integration.full_catalog_pipeline' => true]);
     config(['ai_integration.enabled' => true, 'ai_integration.model_led' => true, 'ai_integration.gemini.tokens_per_minute' => 60000]);
     ChatbotUnderstandingAgent::fake([['outcome' => 'invalid']])->preventStrayPrompts();
 
@@ -224,6 +226,7 @@ test('model led invalid interpretation is distinguishable from retrieval failure
 ]);
 
 test('rejected generated answers keep validation stage evidence and do not store the rejected draft', function () {
+    config(['ai_integration.full_catalog_pipeline' => true]);
     config(['ai_integration.enabled' => true, 'ai_integration.model_led' => true, 'ai_integration.gemini.max_calls' => 3,
         'ai_integration.gemini.tokens_per_minute' => 60000, 'scout.driver' => 'null']);
     $product = Product::factory()->available()->create(['name' => 'Atlas SSD', 'price' => '1000.00', 'discount_price' => null]);

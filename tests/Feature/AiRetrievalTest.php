@@ -71,7 +71,7 @@ it('records monotonic projection revisions and retains deletion tombstones', fun
     $recorder->record(123);
     $recorder->record(123);
     expect(CatalogProjection::query()->where('product_id', 123)->sole()->revision)->toBe(2);
-    Queue::assertPushed(SyncCatalogProjection::class, 2);
+    Queue::assertPushed(SyncCatalogProjection::class, 1);
 });
 
 it('excludes private commercial fields from public catalog documents', function () {

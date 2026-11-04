@@ -15,6 +15,7 @@ class Neo4jClient
     }
 
     /** @param list<int> $ids
+     * @param list<array{id: int, revision: int}> $seedRevisions
      * @return list<array{product_id:int,revision:int}> */
     public function candidates(array $ids, ?int $seedRevision = null, array $seedRevisions = []): array
     {

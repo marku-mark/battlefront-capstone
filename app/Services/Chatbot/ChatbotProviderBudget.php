@@ -85,7 +85,7 @@ class ChatbotProviderBudget
             return false;
         }
         if ($this->calls >= max(1, min(3, (int) config('ai_integration.gemini.max_calls', 1)))
-            || microtime(true) - $this->started >= (int) config('ai_integration.gemini.deadline_seconds', 25)) {
+            || microtime(true) - $this->started >= (config('ai_integration.full_catalog_pipeline') ? 25 : (int) config('ai_integration.gemini.deadline_seconds', 15))) {
             return false;
         }
         if (! $this->acquireTurn()) {
@@ -112,7 +112,7 @@ class ChatbotProviderBudget
             return false;
         }
         if ($this->calls + 2 > max(1, min(3, (int) config('ai_integration.gemini.max_calls', 3)))
-            || $this->remainingSeconds() <= (int) config('ai_integration.gemini.validation_timeout_seconds', 5)
+            || $this->remainingSeconds() <= (config('ai_integration.full_catalog_pipeline') ? 5 : (int) config('ai_integration.gemini.validation_timeout_seconds', 5))
             || ! $this->acquireTurn()) {
             return false;
         }
@@ -214,7 +214,7 @@ class ChatbotProviderBudget
 
     public function remainingSeconds(): int
     {
-        return max(0, (int) floor((int) config('ai_integration.gemini.deadline_seconds', 25) - (microtime(true) - ($this->started ?? microtime(true)))));
+        return max(0, (int) floor((config('ai_integration.full_catalog_pipeline') ? 25 : (int) config('ai_integration.gemini.deadline_seconds', 15)) - (microtime(true) - ($this->started ?? microtime(true)))));
     }
 
     public function retrievalTimeout(): int
@@ -224,7 +224,7 @@ class ChatbotProviderBudget
         }
         $this->retrievalStarted ??= microtime(true);
 
-        return min($this->remainingSeconds(), max(0, (int) floor(5 - (microtime(true) - $this->retrievalStarted))));
+        return min($this->remainingSeconds(), max(0, (int) floor((config('ai_integration.full_catalog_pipeline') ? 6 : 5) - (microtime(true) - $this->retrievalStarted))));
     }
 
     public function memoize(string $key, \Closure $resolve): mixed
@@ -234,6 +234,21 @@ class ChatbotProviderBudget
         }
 
         return $this->memo[$key];
+    }
+
+    public function recordStage(string $stage, string $status, int $durationMs = 0): void
+    {
+        if (! in_array($stage, ['scope', 'generation', 'validation', 'qdrant', 'neo4j'], true) || ! in_array($status, ['completed', 'failed', 'cache_hit', 'cache_miss', 'disabled', 'unsafe_query', 'empty_query', 'circuit_open', 'no_current_seeds'], true)) {
+            return;
+        }
+        try {
+            $prefix = 'chatbot:stage:'.now()->format('Ymd').':'.$stage.':';
+            foreach ([$status => 1, 'duration_ms' => max(0, $durationMs)] as $metric => $value) {
+                Cache::add($prefix.$metric, 0, 172800);
+                Cache::increment($prefix.$metric, $value);
+            }
+        } catch (\Throwable) {
+        }
     }
 
     public function recordTurn(int $durationMs, string $source): void

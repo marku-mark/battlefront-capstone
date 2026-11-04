@@ -1,7 +1,9 @@
 <?php
 
 use App\Actions\Chatbot\Context\ResolveProductContext;
+use App\Actions\Chatbot\RenderChatbotFallback;
 use App\Ai\Agents\ChatbotIntentAgent;
+use App\Enums\ChatbotQueryCategory;
 use App\Models\Category;
 use App\Models\Product;
 use App\Repositories\Catalog\CatalogSearch;
@@ -14,9 +16,34 @@ beforeEach(function () {
     config(['scout.driver' => 'algolia']);
 });
 
+test('branch discovery answers all published matches without a follow-up question', function () {
+    $branches = array_map(fn (string $city): array => [
+        'city' => $city, 'address' => $city.' address', 'contact_number' => '123',
+        'email' => null, 'operating_hours' => '9 AM to 5 PM',
+    ], ['Sagay', 'Bacolod']);
+    $message = app(RenderChatbotFallback::class)->execute(
+        ChatbotQueryCategory::Store, 'branches', ['branches' => $branches],
+    );
+    expect($message)->toContain('Sagay address', 'Bacolod address', '9 AM to 5 PM')
+        ->not->toContain('Which branch', 'Please specify');
+});
+
 afterEach(function () {
     Product::enableSearchSyncing();
 });
+
+test('recognized device searches use local products before external search', function (string $query, string $category, string $name, string $accessory) {
+    $category = Category::factory()->create(['name' => $category]);
+    $product = Product::factory()->for($category)->available()->create(['name' => $name]);
+    Product::factory()->for($category)->available()->create(['name' => $accessory, 'is_featured' => true]);
+    $this->mock(CatalogSearch::class)->shouldNotReceive('matchingIds');
+    $result = app(ResolveProductContext::class)->execute($query);
+    expect(array_column($result['products'], 'id'))->toBe([$product->id]);
+})->with([
+    ['mouse', 'Peripherals', 'MOUSE LOGITECH M100', 'MOUSEPAD GAMING'],
+    ['mice', 'Peripherals', 'MOUSE LOGITECH M100', 'MOUSEPAD GAMING'],
+    ['CPU', 'Processor', 'AMD RYZEN 5 5600 PROCESSOR', 'CPU COOLER FAN'],
+]);
 
 test('short searches return live catalog facts for provider candidates', function (string $query) {
     config(['ai_integration.enabled' => false]);

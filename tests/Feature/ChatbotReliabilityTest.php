@@ -49,7 +49,8 @@ test('provider outage asks for a branch instead of choosing one', function () {
     Branch::factory()->create(['city' => 'Escalante City']);
 
     $this->postJson(route('chatbot.store'), ['message' => 'Where is your store?'])
-        ->assertJsonPath('message', 'Which branch do you mean? Sagay City, Escalante City.');
+        ->assertJsonPath('source', 'fallback')
+        ->assertSee('Sagay City')->assertSee('Escalante City')->assertDontSee('Which branch');
 
     ChatbotResponseAgent::assertNeverPrompted();
 });
@@ -111,7 +112,7 @@ test('provider outage distinguishes unknown stock from zero stock', function (?i
     'available' => [3, 'Sagay stock: 3 available.'],
 ]);
 
-test('provider outage asks which product when several match', function () {
+test('provider outage lists matching product prices without forced selection', function () {
     Http::preventStrayRequests();
     ChatbotResponseAgent::fake(fn () => throw new AiException)->preventStrayPrompts();
     Product::factory()->available()->create(['name' => 'Aurelius Mouse']);
@@ -119,7 +120,7 @@ test('provider outage asks which product when several match', function () {
 
     $response = $this->postJson(route('chatbot.store'), ['message' => 'What is the price of Aurelius?']);
 
-    expect($response->json('message'))->toStartWith('Which product do you mean?')->toContain('Aurelius Mouse', 'Aurelius Keyboard');
+    expect($response->json('message'))->toContain('Aurelius Mouse', 'Aurelius Keyboard', 'PHP')->not->toContain('Which product');
     ChatbotResponseAgent::assertNeverPrompted();
 });
 

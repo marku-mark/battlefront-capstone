@@ -9,15 +9,23 @@ use App\Services\Chatbot\Retrieval\EmbeddingBudgetExhausted;
 use App\Services\Chatbot\Retrieval\GeminiEmbeddingClient;
 use App\Services\Chatbot\Retrieval\Neo4jClient;
 use App\Services\Chatbot\Retrieval\QdrantClient;
+use Illuminate\Contracts\Queue\ShouldBeUniqueUntilProcessing;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Cache;
 use RuntimeException;
 use Throwable;
 
-class SyncCatalogProjection implements ShouldQueue
+class SyncCatalogProjection implements ShouldBeUniqueUntilProcessing, ShouldQueue
 {
     use Queueable;
+
+    public int $uniqueFor = 3600;
+
+    public function uniqueId(): string
+    {
+        return (string) $this->productId;
+    }
 
     public int $tries = 3;
 
@@ -49,6 +57,11 @@ class SyncCatalogProjection implements ShouldQueue
         try {
             $projection = CatalogProjection::query()->where('product_id', $this->productId)->first();
             if (! $projection) {
+                return;
+            }
+            if ((! config('ai_integration.qdrant.enabled') || $projection->qdrant_revision >= $projection->revision)
+                && (! config('ai_integration.neo4j.enabled') || $projection->neo4j_revision >= $projection->revision)
+                && $projection->last_failure === null) {
                 return;
             }
             $product = Product::query()->customerEligible()->find($this->productId);

@@ -45,9 +45,9 @@ test('defense questions return the documented deterministic topic and guidance',
     'Q21 Tagalog payment' => ['Paano magbayad?', ChatbotQueryCategory::Faq, 'payment_methods', ['Pickup orders support', 'Delivery orders support']],
     'Q22 Cebuano payment' => ['Unsaon pagbayad?', ChatbotQueryCategory::Faq, 'payment_methods', ['Pickup orders support', 'Delivery orders support']],
     'Q23 Hiligaynon-requested delivery guidance' => ['Pila ang delivery fee?', ChatbotQueryCategory::Faq, 'delivery_quote', ['demonstration estimates', 'Older orders may show a saved zero-fee estimate']],
-    'Q24 Hiligaynon location clarification' => ['Diin kamo dampi?', ChatbotQueryCategory::Store, null, ['Which branch do you mean?', 'Sagay City', 'San Carlos City']],
-    'Q25 Cebuano location clarification' => ['Asa inyong tindahan?', ChatbotQueryCategory::Store, null, ['Which branch do you mean?', 'Sagay City', 'San Carlos City']],
-    'Q26 Tagalog location clarification' => ['Saan kayo located?', ChatbotQueryCategory::Store, null, ['Which branch do you mean?', 'Sagay City', 'San Carlos City']],
+    'Q24 Hiligaynon published locations' => ['Diin kamo dampi?', ChatbotQueryCategory::Store, null, ['Sagay City', 'San Carlos City']],
+    'Q25 Cebuano published locations' => ['Asa inyong tindahan?', ChatbotQueryCategory::Store, null, ['Sagay City', 'San Carlos City']],
+    'Q26 Tagalog published locations' => ['Saan kayo located?', ChatbotQueryCategory::Store, null, ['Sagay City', 'San Carlos City']],
     'Q27 localized physical return' => ['Pwede ibalik ang item?', ChatbotQueryCategory::Faq, 'returns', ['physical item receipt', 'The chatbot cannot submit or approve a return.']],
     'Q28 localized cancellation' => ['Paano i-cancel ang order?', ChatbotQueryCategory::Faq, 'cancellation', ['cancellation review request', 'The chatbot cannot cancel an order or submit a request.']],
     'Q38 unsupported chat' => ['Tell me a joke.', ChatbotQueryCategory::Unsupported, null, ['I can only help with Battlefront products']],
@@ -115,7 +115,7 @@ test('defense mixed-topic sequence retains the choices until returns is selected
     Http::assertNothingSent();
 });
 
-test('defense product clarification and language switch keep the original price intent', function () {
+test('defense product listing and language switch keep the original price intent', function () {
     Http::preventStrayRequests();
     Product::factory()->available()->create(['name' => 'RAPOO MOUSE AND KEYBOARD BUNDLE NX1600', 'price' => '650.00', 'discount_price' => null]);
     Product::factory()->available()->create(['name' => 'RAPOO WIRED OPTICAL USB MOUSE N100', 'price' => '180.00', 'discount_price' => null]);
@@ -123,13 +123,11 @@ test('defense product clarification and language switch keep the original price 
     $chat = app(ChatbotConversation::class);
 
     $first = $chat->respond('Tagpila inyo Rapoo mouse?', null, null, 'defense');
-    $second = $chat->respond('Huo', null, $first['context_token'], 'defense');
     ChatbotResponseAgent::assertNeverPrompted();
-    $selected = $chat->respond('N100', null, $second['context_token'], 'defense');
+    $selected = $chat->respond('N100', null, $first['context_token'], 'defense');
     $switch = $chat->respond('Answer in Hiligaynon.', null, $selected['context_token'], 'defense');
 
-    expect($first['message'])->toContain('Which product', 'NX1600', 'N100');
-    expect($second['message'])->toContain('Which product', 'NX1600', 'N100');
+    expect($first['message'])->toContain('NX1600', 'PHP 650.00', 'N100', 'PHP 180.00')->not->toContain('Which product');
     expect($selected['message'])->toContain('RAPOO WIRED OPTICAL USB MOUSE N100', 'PHP 180.00')->not->toContain('NX1600');
     expect($switch['message'])->toContain('Language preference saved.');
     ChatbotResponseAgent::assertPromptedTimes(1);
