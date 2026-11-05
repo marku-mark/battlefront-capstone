@@ -2,6 +2,7 @@
 
 $publicDiskDriver = env('PUBLIC_DISK_DRIVER', env('FILESYSTEM_DISK', 'local'));
 $publicDiskUrl = env('PUBLIC_DISK_URL') ?: env('AWS_URL') ?: null;
+$publicDiskRoot = $publicDiskDriver === 'local' ? storage_path('app/public') : '';
 
 if ($publicDiskUrl === null && $publicDiskDriver === 'local') {
     $publicDiskUrl = rtrim((string) env('APP_URL', 'http://localhost'), '/').'/storage';
@@ -47,7 +48,7 @@ return [
 
         'public' => [
             'driver' => $publicDiskDriver,
-            'root' => storage_path('app/public'),
+            'root' => $publicDiskRoot,
             'url' => $publicDiskUrl,
             'visibility' => 'public',
             'key' => env('AWS_ACCESS_KEY_ID'),
