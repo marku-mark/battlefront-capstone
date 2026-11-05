@@ -1,7 +1,7 @@
 <?php
 
 $publicDiskDriver = env('PUBLIC_DISK_DRIVER', env('FILESYSTEM_DISK', 'local'));
-$publicDiskUrl = env('PUBLIC_DISK_URL', env('AWS_URL'));
+$publicDiskUrl = env('PUBLIC_DISK_URL') ?: env('AWS_URL') ?: null;
 
 if ($publicDiskUrl === null && $publicDiskDriver === 'local') {
     $publicDiskUrl = rtrim((string) env('APP_URL', 'http://localhost'), '/').'/storage';

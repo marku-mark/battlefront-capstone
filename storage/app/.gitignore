@@ -1,4 +1,7 @@
 *
 !private/
 !public/
+!imports/
+!imports/product_catalog/
+!imports/product_catalog/verified-product-details.csv
 !.gitignore

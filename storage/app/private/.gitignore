@@ -1,2 +1,4 @@
 *
 !.gitignore
+!product-catalog-images/
+!product-catalog-images/manifest.json
