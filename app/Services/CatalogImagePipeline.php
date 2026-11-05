@@ -306,19 +306,37 @@ class CatalogImagePipeline
     {
         $imagePath = $this->imagePath($entry);
         $disk = Storage::disk('public');
-        if (! $disk->exists($imagePath) || ! is_string($entry['image_sha256'] ?? null)) {
+        if (! is_string($entry['image_sha256'] ?? null)) {
             return false;
         }
 
-        $physicalPath = $disk->path($imagePath);
-        $details = @getimagesize($physicalPath);
+        try {
+            $stream = $disk->readStream($imagePath);
+            if (! is_resource($stream)) {
+                return false;
+            }
+
+            try {
+                $contents = stream_get_contents($stream);
+            } finally {
+                fclose($stream);
+            }
+        } catch (Throwable) {
+            return false;
+        }
+
+        if (! is_string($contents)) {
+            return false;
+        }
+
+        $details = @getimagesizefromstring($contents);
 
         return $details !== false
             && $details['mime'] === 'image/webp'
             && $details[0] === 1024
             && $details[1] === 1024
-            && filesize($physicalPath) === ($entry['image_bytes'] ?? null)
-            && hash_file('sha256', $physicalPath) === $entry['image_sha256'];
+            && strlen($contents) === ($entry['image_bytes'] ?? null)
+            && hash('sha256', $contents) === $entry['image_sha256'];
     }
 
     /**
