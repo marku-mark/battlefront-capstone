@@ -1,5 +1,7 @@
 {
-    "agents": ["codex"],
+    "agents": [
+        "codex"
+    ],
     "cloud": false,
     "guidelines": true,
     "mcp": true,
@@ -7,9 +9,11 @@
     "sail": false,
     "skills": [
         "infer-conventions",
+        "ai-sdk-development",
         "fortify-development",
         "laravel-best-practices",
         "testing-best-practices",
+        "scout-development",
         "wayfinder-development",
         "inertia-vue-development",
         "tailwindcss-development"

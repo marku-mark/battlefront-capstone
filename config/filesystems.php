@@ -1,5 +1,12 @@
 <?php
 
+$publicDiskDriver = env('PUBLIC_DISK_DRIVER', env('FILESYSTEM_DISK', 'local'));
+$publicDiskUrl = env('PUBLIC_DISK_URL', env('AWS_URL'));
+
+if ($publicDiskUrl === null && $publicDiskDriver === 'local') {
+    $publicDiskUrl = rtrim((string) env('APP_URL', 'http://localhost'), '/').'/storage';
+}
+
 return [
 
     /*
@@ -39,10 +46,16 @@ return [
         ],
 
         'public' => [
-            'driver' => 'local',
+            'driver' => $publicDiskDriver,
             'root' => storage_path('app/public'),
-            'url' => rtrim((string) env('APP_URL', 'http://localhost'), '/').'/storage',
+            'url' => $publicDiskUrl,
             'visibility' => 'public',
+            'key' => env('AWS_ACCESS_KEY_ID'),
+            'secret' => env('AWS_SECRET_ACCESS_KEY'),
+            'region' => env('AWS_DEFAULT_REGION'),
+            'bucket' => env('AWS_BUCKET'),
+            'endpoint' => env('AWS_ENDPOINT'),
+            'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', false),
             'throw' => false,
             'report' => false,
         ],
