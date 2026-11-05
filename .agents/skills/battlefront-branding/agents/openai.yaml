@@ -1,4 +1,0 @@
-interface:
-    display_name: 'Battlefront Branding'
-    short_description: "Apply Battlefront's visual identity consistently"
-    default_prompt: 'Use $battlefront-branding to make this interface consistent with the Battlefront brand assets.'

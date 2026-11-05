@@ -1,4 +1,0 @@
-interface:
-    display_name: 'Battlefront Frontend Design'
-    short_description: 'Design distinctive Battlefront retail interfaces'
-    default_prompt: 'Use $battlefront-frontend-design to design a distinctive, brand-aligned Battlefront interface.'

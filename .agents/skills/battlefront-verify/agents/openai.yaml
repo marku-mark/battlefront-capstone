@@ -1,4 +1,0 @@
-interface:
-    display_name: 'Battlefront Verification'
-    short_description: 'Run Battlefront checks before human review'
-    default_prompt: 'Use $battlefront-verify to run final checks on this implementation and report the results before I commit.'
