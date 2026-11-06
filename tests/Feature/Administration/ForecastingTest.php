@@ -438,6 +438,20 @@ test('imported products with development history show synthetic scope and target
     $this->assertDatabaseHas('forecasts', ['product_id' => $product->id, 'method' => 'additive_holt_winters', 'predicted_demand' => '7.10']);
 });
 
+test('development history remains forecast-ready after the calendar quarter changes', function () {
+    $this->travelTo(CarbonImmutable::parse('2026-11-15 12:00:00', 'UTC'));
+    $products = HistoricalSalesCatalogFixtures::createProducts();
+    $this->seed(DevelopmentHistoricalSalesSeeder::class);
+    $product = $products['10003'];
+
+    $this->actingAs(User::factory()->administrator()->create())
+        ->get(route('administration.forecasting.index', ['product_id' => $product->id, 'q' => $product->product_code]))
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('readiness.status', 'ready')
+            ->where('products.total', 1)
+            ->where('products.data.0.product_code', $product->product_code));
+});
+
 test('monthly display rounding never replaces the finalized quarterly total', function () {
     $product = Product::factory()->create();
     forecastingCoverage($product);

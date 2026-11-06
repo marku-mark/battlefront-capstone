@@ -77,7 +77,7 @@ class DevelopmentHistoricalSalesSeeder extends Seeder
             throw new RuntimeException('Historical sales requires the reviewed development fixture key schema migration. No existing records were changed.');
         }
         $timezone = Config::string('app.timezone');
-        $historyEnd = CarbonImmutable::instance(now($timezone))->startOfQuarter();
+        $historyEnd = CarbonImmutable::instance(now($timezone))->startOfMonth();
         $firstMonth = $historyEnd->subMonths(48);
         $coverage->clearDevelopment();
 

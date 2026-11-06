@@ -504,7 +504,7 @@ test('historical seeding is available in local and snapshots existing effective 
     'zero price' => ['0.00', null, '0.00'],
 ]);
 
-test('history includes only completed months before the quarter in the application timezone', function (string $reference, string $timezone, string $start, string $end) {
+test('history includes only completed months before the current month in the application timezone', function (string $reference, string $timezone, string $start, string $end) {
     HistoricalSalesCatalogFixtures::createProducts();
     config(['app.timezone' => $timezone]);
     $this->travelTo(CarbonImmutable::parse($reference, 'UTC'));
@@ -516,16 +516,23 @@ test('history includes only completed months before the quarter in the applicati
     expect($dates->last()->format('Y-m'))->toBe($end);
     expect($dates->map(fn ($date) => $date->format('Y-m'))->unique())->toHaveCount(48);
     expect($dates->count())->toBeBetween(150, 300);
-    expect(Sale::whereDate('sale_date', '>=', now($timezone)->startOfQuarter()->toDateString())->exists())->toBeFalse();
+    expect(Sale::whereDate('sale_date', '>=', now($timezone)->startOfMonth()->toDateString())->exists())->toBeFalse();
 })->with([
-    'before quarter closes' => ['2026-09-30 23:59:59', 'UTC', '2022-07', '2026-06'],
-    'quarter closes' => ['2026-10-01 00:00:00', 'UTC', '2022-10', '2026-09'],
+    'before October' => ['2026-09-30 23:59:59', 'UTC', '2022-09', '2026-08'],
+    'October begins' => ['2026-10-01 00:00:00', 'UTC', '2022-10', '2026-09'],
+    'before November' => ['2026-10-31 23:59:59', 'UTC', '2022-10', '2026-09'],
+    'November begins' => ['2026-11-01 00:00:00', 'UTC', '2022-11', '2026-10'],
+    'before December' => ['2026-11-30 23:59:59', 'UTC', '2022-11', '2026-10'],
+    'December begins' => ['2026-12-01 00:00:00', 'UTC', '2022-12', '2026-11'],
     'new year' => ['2027-01-01 00:00:00', 'UTC', '2023-01', '2026-12'],
-    'leap quarter' => ['2024-04-01 00:00:00', 'UTC', '2020-04', '2024-03'],
+    'during leap February' => ['2024-02-29 12:00:00', 'UTC', '2020-02', '2024-01'],
+    'after leap February' => ['2024-03-01 00:00:00', 'UTC', '2020-03', '2024-02'],
     'application ahead of UTC' => ['2026-09-30 16:00:00', 'Asia/Shanghai', '2022-10', '2026-09'],
+    'before local November' => ['2026-10-31 15:59:59', 'Asia/Manila', '2022-10', '2026-09'],
+    'local November begins' => ['2026-10-31 16:00:00', 'Asia/Manila', '2022-11', '2026-10'],
 ]);
 
-test('quarter rollover retains every existing record while preparing only the requested history window', function (string $nextReference, string $expectedStart, string $expectedEnd) {
+test('month rollover retains every existing record while preparing only the requested history window', function (string $nextReference, string $expectedStart, string $expectedEnd) {
     $products = HistoricalSalesCatalogFixtures::createProducts();
     $this->seed(DevelopmentHistoricalSalesSeeder::class);
     $customer = User::where('email', 'demo.customer01@example.test')->sole();
