@@ -5,6 +5,7 @@ import {
     CategoryScale,
     Chart as ChartJS,
     Legend,
+    LineController,
     LineElement,
     LinearScale,
     PointElement,
@@ -29,6 +30,7 @@ import { forecastUnitLabel, formatForecastUnits } from '@/lib/forecastUnits';
 ChartJS.register(
     CategoryScale,
     Legend,
+    LineController,
     LineElement,
     LinearScale,
     PointElement,
