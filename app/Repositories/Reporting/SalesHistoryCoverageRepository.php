@@ -5,6 +5,8 @@ namespace App\Repositories\Reporting;
 use App\Models\Product;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\App;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use InvalidArgumentException;
 use RuntimeException;
@@ -25,8 +27,11 @@ class SalesHistoryCoverageRepository
         if (array_key_exists($productCode, $operational)) {
             return true;
         }
-        if (! App::environment(['local', 'testing'])) {
+        if (! $this->canUseDevelopmentCoverage()) {
             return false;
+        }
+        if ($this->usesCloudDemoCoverage()) {
+            return array_key_exists($productCode, $this->readCloudDevelopment());
         }
         $disk = Storage::disk('local');
         try {
@@ -65,7 +70,7 @@ class SalesHistoryCoverageRepository
     public function forProductCodes(array $productCodes): array
     {
         $operational = config('forecasting.operational_coverage');
-        $development = is_array($operational) && App::environment(['local', 'testing']) ? $this->readDevelopment() : [];
+        $development = is_array($operational) && $this->canUseDevelopmentCoverage() ? $this->readDevelopment() : [];
         $results = [];
         foreach ($productCodes as $productCode) {
             if (preg_match(Product::CODE_PATTERN, $productCode) !== 1 || ! is_array($operational)) {
@@ -97,6 +102,23 @@ class SalesHistoryCoverageRepository
             }
         }
         ksort($entries, SORT_STRING);
+        if ($this->usesCloudDemoCoverage()) {
+            $now = now();
+            $rows = [];
+            foreach ($entries as $code => $entry) {
+                $rows[] = [
+                    'product_code' => $code,
+                    'coverage' => json_encode($entry, JSON_THROW_ON_ERROR),
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+            }
+            if ($rows !== []) {
+                DB::table('forecasting_history_coverages')->upsert($rows, ['product_code'], ['coverage', 'updated_at']);
+            }
+
+            return;
+        }
         $disk = Storage::disk('local');
         $manifest = $this->manifestPath();
         if (! $disk->makeDirectory(dirname($manifest))) {
@@ -119,6 +141,14 @@ class SalesHistoryCoverageRepository
     public function clearDevelopment(): void
     {
         $this->ensureDevelopmentEnvironment();
+        if ($this->usesCloudDemoCoverage()) {
+            if (! Schema::hasTable('forecasting_history_coverages')) {
+                throw new RuntimeException('Cloud demo forecasting coverage table is missing. Run database migrations before seeding history.');
+            }
+            DB::table('forecasting_history_coverages')->delete();
+
+            return;
+        }
         if (! Storage::disk('local')->delete($this->manifestPath())) {
             throw new RuntimeException('Previous development history coverage could not be invalidated.');
         }
@@ -127,6 +157,9 @@ class SalesHistoryCoverageRepository
     /** @return array<string, mixed> */
     private function readDevelopment(): array
     {
+        if ($this->usesCloudDemoCoverage()) {
+            return $this->readCloudDevelopment();
+        }
         try {
             $contents = Storage::disk('local')->get($this->manifestPath());
             if ($contents === null) {
@@ -138,6 +171,27 @@ class SalesHistoryCoverageRepository
             }
 
             return $manifest['products'];
+        } catch (Throwable) {
+            return [];
+        }
+    }
+
+    /** @return array<string, mixed> */
+    private function readCloudDevelopment(): array
+    {
+        try {
+            if (! Schema::hasTable('forecasting_history_coverages')) {
+                return [];
+            }
+            $entries = [];
+            foreach (DB::table('forecasting_history_coverages')->get(['product_code', 'coverage']) as $row) {
+                $entry = json_decode((string) $row->coverage, true, flags: JSON_THROW_ON_ERROR);
+                if (is_array($entry)) {
+                    $entries[(string) $row->product_code] = $entry;
+                }
+            }
+
+            return $entries;
         } catch (Throwable) {
             return [];
         }
@@ -204,8 +258,18 @@ class SalesHistoryCoverageRepository
 
     private function ensureDevelopmentEnvironment(): void
     {
-        if (! App::environment(['local', 'testing'])) {
-            throw new RuntimeException('Synthetic history coverage is only allowed in local and testing environments.');
+        if (! $this->canUseDevelopmentCoverage()) {
+            throw new RuntimeException('Synthetic history coverage is only allowed in local and testing environments unless Cloud demo history is explicitly enabled.');
         }
+    }
+
+    private function canUseDevelopmentCoverage(): bool
+    {
+        return App::environment(['local', 'testing']) || $this->usesCloudDemoCoverage();
+    }
+
+    private function usesCloudDemoCoverage(): bool
+    {
+        return App::environment(['production', 'staging']) && config('forecasting.cloud_demo_history_enabled') === true;
     }
 }

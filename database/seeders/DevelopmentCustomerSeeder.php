@@ -59,8 +59,12 @@ class DevelopmentCustomerSeeder extends Seeder
      */
     public function run(): void
     {
-        if (! App::environment(['local', 'testing'])) {
-            throw new RuntimeException('Customer demonstration data is only allowed in local and testing environments.');
+        $isLocalEnvironment = App::environment(['local', 'testing']);
+        $isEnabledCloudDemoEnvironment = App::environment(['production', 'staging'])
+            && config('forecasting.cloud_demo_history_enabled') === true;
+
+        if (! $isLocalEnvironment && ! $isEnabledCloudDemoEnvironment) {
+            throw new RuntimeException('Customer demonstration data is only allowed in local and testing environments unless Cloud demo history is explicitly enabled.');
         }
 
         $accounts = self::accounts();

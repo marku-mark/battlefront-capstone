@@ -452,6 +452,28 @@ test('development history remains forecast-ready after the calendar quarter chan
             ->where('products.data.0.product_code', $product->product_code));
 });
 
+test('explicit Cloud demo mode seeds shared coverage and lists synthetic products', function () {
+    $this->travelTo(CarbonImmutable::parse('2026-11-15 12:00:00', 'UTC'));
+    $this->app->instance('env', 'production');
+    config(['forecasting.cloud_demo_history_enabled' => true]);
+    $products = HistoricalSalesCatalogFixtures::createProducts();
+    $this->artisan('db:seed', [
+        '--class' => DevelopmentHistoricalSalesSeeder::class,
+        '--force' => true,
+        '--no-interaction' => true,
+    ])->assertSuccessful();
+    $product = $products['10003'];
+
+    $this->actingAs(User::factory()->administrator()->create())
+        ->get(route('administration.forecasting.index', ['product_id' => $product->id, 'q' => $product->product_code]))
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('readiness.status', 'ready')
+            ->where('readiness.is_synthetic', true)
+            ->where('products.total', 1)
+            ->where('products.data.0.product_code', $product->product_code));
+    $this->assertDatabaseHas('forecasting_history_coverages', ['product_code' => $product->product_code]);
+});
+
 test('monthly display rounding never replaces the finalized quarterly total', function () {
     $product = Product::factory()->create();
     forecastingCoverage($product);

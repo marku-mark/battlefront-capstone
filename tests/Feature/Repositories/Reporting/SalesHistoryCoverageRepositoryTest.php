@@ -181,24 +181,20 @@ test('seeded monthly coverage matches selected imported product quantities', fun
     ['10468', 175], ['10121', 155], ['10986', 108], ['10214', 64], ['10350', 80], ['10463', 175], ['28909657', 164],
 ]);
 
-test('only explicit reseeding advances the development coverage at quarter rollover', function () {
+test('only explicit reseeding advances the development coverage at month rollover', function () {
     HistoricalSalesCatalogFixtures::createProducts();
     $disk = Storage::fake('local');
     $this->seed(DevelopmentHistoricalSalesSeeder::class);
     $path = config('forecasting.development_manifest');
     $before = $disk->get($path);
     $repository = app(SalesHistoryCoverageRepository::class);
-    $this->travelTo(CarbonImmutable::parse('2026-12-15'));
-    $this->seed(DevelopmentHistoricalSalesSeeder::class);
-    expect($disk->get($path))->toBe($before);
-
-    $this->travelTo(CarbonImmutable::parse('2027-01-15'));
+    $this->travelTo(CarbonImmutable::parse('2026-11-15'));
     expect($repository->forProductCode('10003')['end_exclusive'])->toBe('2026-10-01');
     expect($disk->get($path))->toBe($before);
     $this->seed(DevelopmentHistoricalSalesSeeder::class);
     $entry = $repository->forProductCode('10003');
-    expect($entry['start'])->toBe('2023-01-01');
-    expect($entry['end_exclusive'])->toBe('2027-01-01');
+    expect($entry['start'])->toBe('2022-11-01');
+    expect($entry['end_exclusive'])->toBe('2026-11-01');
     expect(Sale::count())->toBeBetween(150, 300);
     expect(config('forecasting.operational_coverage'))->toBe([]);
 });
@@ -237,6 +233,36 @@ test('synthetic coverage cannot be read published or cleared in unsafe environme
     expect(fn () => $repository->clearDevelopment())->toThrow(RuntimeException::class);
     expect($disk->get(config('forecasting.development_manifest')))->toBe($before);
 })->with(['production', 'staging']);
+
+test('explicit Cloud demo mode stores synthetic coverage in the database', function () {
+    Storage::fake('local');
+    $this->app->instance('env', 'production');
+    config(['forecasting.cloud_demo_history_enabled' => true]);
+    $entry = preparedSalesCoverage([
+        'start' => '2022-10-01',
+        'source_kind' => 'synthetic_development',
+        'sales_scope' => 'development_fixture_transactions',
+    ]);
+    $repository = app(SalesHistoryCoverageRepository::class);
+
+    $repository->writeDevelopment(['00123' => $entry, 'AB12' => $entry, 'ab12' => $entry]);
+
+    expect($repository->forProductCode('00123'))->toBe($entry);
+    expect($repository->hasProductReference('00123'))->toBeTrue();
+    expect($repository->forProductCodes(['AB12', 'ab12']))->toBe(['AB12' => $entry, 'ab12' => $entry]);
+    $this->assertDatabaseHas('forecasting_history_coverages', ['product_code' => '00123']);
+    Storage::disk('local')->assertMissing(config('forecasting.development_manifest'));
+
+    config(['forecasting.cloud_demo_history_enabled' => false]);
+    expect($repository->forProductCode('00123'))->toBeNull();
+    expect($repository->hasProductReference('00123'))->toBeFalse();
+
+    config(['forecasting.cloud_demo_history_enabled' => true]);
+
+    $repository->clearDevelopment();
+
+    expect($repository->forProductCode('00123'))->toBeNull();
+});
 
 test('conflicting source declarations cannot establish coverage or overwrite a manifest', function () {
     HistoricalSalesCatalogFixtures::createProducts();

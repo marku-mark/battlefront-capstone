@@ -68,8 +68,12 @@ class DevelopmentHistoricalSalesSeeder extends Seeder
     /** Seed demonstration snapshots directly, without live order services or inventory writes. */
     public function run(SalesHistoryCoverageRepository $coverage, DeliveryRules $deliveryRules): void
     {
-        if (! App::environment(['local', 'testing'])) {
-            throw new RuntimeException('Historical sales development data is only allowed in local and testing environments.');
+        $isLocalEnvironment = App::environment(['local', 'testing']);
+        $isEnabledCloudDemoEnvironment = App::environment(['production', 'staging'])
+            && config('forecasting.cloud_demo_history_enabled') === true;
+
+        if (! $isLocalEnvironment && ! $isEnabledCloudDemoEnvironment) {
+            throw new RuntimeException('Historical sales development data is only allowed in local and testing environments unless Cloud demo history is explicitly enabled.');
         }
 
         $this->ensureNoLegacyHistory();

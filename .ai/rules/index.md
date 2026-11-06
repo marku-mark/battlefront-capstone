@@ -92,6 +92,7 @@ Before planning or editing, find the row whose globs match the file's path and r
 | app/Services/CustomerRefund*,app/Actions/Inventory/HandleCustomerReturn.php,app/Services/OrderCancellationPresenter.php,app/Services/Reporting/RefundPeriodReport.php | .ai/rules/reporting.md |
 | app/Repositories/Reporting/**,app/Services/{Reporting,Dashboard}/**,app/Actions/Order/RecordCompletedOrderSale.php,resources/js/pages/{Administration/Reports,Dashboard}/**,resources/views/reports/** | .ai/rules/reports.md |
 | app/Http/Requests/ProductCatalogIndexRequest.php,app/Repositories/Catalog/** | .ai/rules/repositories-catalog.md |
+| config/forecasting.php,database/seeders/DevelopmentCustomerSeeder.php,database/seeders/DevelopmentHistoricalSalesSeeder.php,app/Repositories/Reporting/SalesHistoryCoverageRepository.php | .ai/rules/repositories-reporting.md |
 | app/Http/Requests/Administration/SaveProductRequest.php | .ai/rules/requests-administration.md |
 | app/Services/Order/**,app/Actions/Checkout/**,app/Http/Requests/ValidateCheckoutRequest.php,config/battlefront.php,resources/data/psgc-*.json | .ai/rules/requests-data.md |
 | app/Services/Order/**,app/Actions/Checkout/**,app/Http/Requests/ValidateCheckoutRequest.php,config/battlefront.php,resources/js/pages/Checkout/**,docs/*API*,docs/PSGC_DELIVERY_DATA.md | .ai/rules/requests-js-pages-checkout.md |
