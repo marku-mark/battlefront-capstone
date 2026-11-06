@@ -67,6 +67,7 @@ use App\Http\Controllers\OrderPaymentRetryController;
 use App\Http\Controllers\PcBuildController;
 use App\Http\Controllers\PcBuilderController;
 use App\Http\Controllers\PendingCartIntentController;
+use App\Http\Controllers\PendingWishlistIntentController;
 use App\Http\Controllers\ProductCatalogController;
 use App\Http\Controllers\ProductDwellController;
 use App\Http\Controllers\ProductViewController;
@@ -141,6 +142,10 @@ Route::middleware('auth')->group(function () {
 Route::post('cart/intent', [PendingCartIntentController::class, 'store'])
     ->middleware(['guest', 'throttle:60,1'])
     ->name('cart.intent.store');
+
+Route::post('wishlist/intent', [PendingWishlistIntentController::class, 'store'])
+    ->middleware(['guest', 'throttle:60,1'])
+    ->name('wishlist.intent.store');
 
 Route::middleware(['auth', 'can:use-customer-cart'])
     ->prefix('cart')

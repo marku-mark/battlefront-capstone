@@ -268,6 +268,9 @@ function renderComponent(h, path, props) {
             '@/actions/App/Http/Controllers/WishlistController': {
                 default: { store: route, destroy: route },
             },
+            '@/actions/App/Http/Controllers/PendingWishlistIntentController': {
+                store: route,
+            },
             '@/actions/App/Http/Controllers/CartItemController': {
                 default: { store: route },
             },
@@ -452,7 +455,7 @@ test('unavailable wishlist entries keep View cart and removal accessible', (t) =
     );
 });
 
-test('guests receive the existing login link without a wishlist mutation form', (t) => {
+test('guests submit a wishlist save intent before being sent to log in', (t) => {
     const h = harness(t);
     h.page.props.auth = { user: null, can: { useCustomerCart: false } };
     const render = renderComponent(
@@ -464,6 +467,9 @@ test('guests receive the existing login link without a wishlist mutation form', 
             compact: false,
         },
     );
-    assert.equal(nodes(render({}, []), (node) => node.type === Form).length, 0);
-    assert.equal(nodes(render({}, []), (node) => node.type === Link).length, 1);
+    const forms = nodes(render({}, []), (node) => node.type === Form);
+    assert.equal(forms.length, 1);
+    assert.equal(forms[0].props.action, '/test');
+    assert.equal(forms[0].props.options.preserveScroll, true);
+    assert.equal(nodes(render({}, []), (node) => node.type === Link).length, 0);
 });

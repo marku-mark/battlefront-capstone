@@ -24,7 +24,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { useChartTheme } from '@/composables/useChartTheme';
 import { useDebouncedSearch } from '@/composables/useDebouncedSearch';
 import { BUSINESS_TIMEZONE, formatDateTime } from '@/lib/dateTime';
-import { formatForecastUnits } from '@/lib/forecastUnits';
+import { forecastUnitLabel, formatForecastUnits } from '@/lib/forecastUnits';
 
 ChartJS.register(
     CategoryScale,
@@ -50,7 +50,7 @@ const initialResult = page.flash?.forecast_result ?? null;
 const result = ref(initialResult);
 const resultMessage = computed(() =>
     result.value?.status === 'ready'
-        ? `Estimated 3-month demand: ${formatForecastUnits(result.value.forecast_quantity)} units for ${result.value.target_label}, based on 36 completed months of recorded sales.`
+        ? `Estimated 3-month demand: ${formatForecastUnits(result.value.forecast_quantity)} ${forecastUnitLabel(result.value.forecast_quantity)} for ${result.value.target_label}, based on 36 completed months of recorded sales.`
         : result.value?.message,
 );
 const isCheckingHistory = ref(false);
@@ -183,7 +183,7 @@ const chartOptions = computed(() => ({
             borderWidth: 1,
             callbacks: {
                 label: (item) =>
-                    `${item.dataset.label}: ${formatForecastUnits(item.parsed.y)} units`,
+                    `${item.dataset.label}: ${formatForecastUnits(item.parsed.y)} ${forecastUnitLabel(item.parsed.y)}`,
             },
             filter: (item) =>
                 item.datasetIndex === 0 ||
@@ -468,7 +468,9 @@ const chartOptions = computed(() => ({
                         </dt>
                         <dd class="mt-1 text-2xl font-semibold tabular-nums">
                             {{ formatForecastUnits(result.forecast_quantity) }}
-                            <span class="text-sm font-normal">units</span>
+                            <span class="text-sm font-normal">{{
+                                forecastUnitLabel(result.forecast_quantity)
+                            }}</span>
                         </dd>
                     </div>
                     <div>
@@ -516,13 +518,14 @@ const chartOptions = computed(() => ({
                         </dt>
                         <dd class="mt-1 font-semibold tabular-nums">
                             {{ formatForecastUnits(month.forecast_quantity) }}
-                            units
+                            {{ forecastUnitLabel(month.forecast_quantity) }}
                         </dd>
                     </div>
                 </dl>
                 <p class="text-muted-foreground mt-3 text-xs">
-                    Estimates are rounded to whole units for display. Rounded
-                    monthly estimates may not add up to the 3-month estimate.
+                    Estimates are displayed to two decimal places. The 3-month
+                    total is calculated from full-precision monthly forecasts
+                    before rounding, so minor decimal differences may remain.
                 </p>
                 <div class="mt-6 h-80 min-w-0">
                     <Line

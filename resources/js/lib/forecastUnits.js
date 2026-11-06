@@ -1,7 +1,12 @@
 const unitFormatter = new Intl.NumberFormat('en-PH', {
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
 });
 
 export function formatForecastUnits(value) {
-    return unitFormatter.format(Math.round(Number(value)));
+    return unitFormatter.format(Number(value));
+}
+
+export function forecastUnitLabel(value) {
+    return formatForecastUnits(value) === '1.00' ? 'unit' : 'units';
 }
