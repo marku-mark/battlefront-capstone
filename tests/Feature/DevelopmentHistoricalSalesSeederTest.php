@@ -19,6 +19,7 @@ use App\Repositories\Catalog\ProductCatalogRepository;
 use App\Services\Cart\CartService;
 use App\Services\Order\DeliveryRules;
 use App\Services\Order\OrderPlacementService;
+use App\Services\Reporting\ForecastingService;
 use Carbon\CarbonImmutable;
 use Database\Seeders\DevelopmentCustomerSeeder;
 use Database\Seeders\DevelopmentHistoricalSalesSeeder;
@@ -347,6 +348,36 @@ test('direct seeding rejects unsafe environments even with force without changin
 
     expect(historicalSalesDatabaseSnapshot())->toEqual($before);
     expect(Storage::disk('local')->get(config('forecasting.development_manifest')))->toBe('existing declaration');
+})->with(['production', 'staging']);
+
+test('Cloud demo history supports forecast generation and explicit month rollover without local coverage', function (string $environment) {
+    $products = HistoricalSalesCatalogFixtures::createProducts();
+    $this->app->instance('env', $environment);
+    config(['forecasting.cloud_demo_history_enabled' => true]);
+    $this->artisan('db:seed', ['--class' => DevelopmentHistoricalSalesSeeder::class, '--force' => true, '--no-interaction' => true])->assertSuccessful();
+
+    $service = app(ForecastingService::class);
+    expect($service->page([])['products']->total())->toBe(15);
+    $result = $service->generate($products['10003']);
+    expect($result['status'])->toBe('ready');
+    expect($result['is_synthetic'])->toBeTrue();
+    expect($result['observations'])->toHaveCount(36);
+    expect($result['monthly_forecasts'])->toHaveCount(3);
+    $this->assertDatabaseHas('forecasts', ['id' => $result['id'], 'predicted_demand' => $result['forecast_quantity']]);
+    $this->assertDatabaseCount('forecasting_history_coverages', 15);
+    Storage::disk('local')->assertMissing(config('forecasting.development_manifest'));
+
+    $this->travelTo(CarbonImmutable::parse('2026-11-15 12:00:00', 'UTC'));
+    expect($service->page([])['products']->total())->toBe(0);
+    $this->artisan('db:seed', ['--class' => DevelopmentHistoricalSalesSeeder::class, '--force' => true, '--no-interaction' => true])->assertSuccessful();
+    expect($service->page([])['products']->total())->toBe(15);
+    $result = $service->generate($products['10003']);
+    expect($result['status'])->toBe('ready');
+    expect($result['target_period']['start'])->toBe('2026-11-01');
+    expect($result['observations'])->toHaveCount(36);
+    expect($result['monthly_forecasts'])->toHaveCount(3);
+    $this->assertDatabaseHas('forecasts', ['id' => $result['id'], 'predicted_demand' => $result['forecast_quantity']]);
+    Storage::disk('local')->assertMissing(config('forecasting.development_manifest'));
 })->with(['production', 'staging']);
 
 test('missing or nonimported selected products stop before customer and transaction writes', function (bool $missing, string $code) {
