@@ -84,7 +84,7 @@ defineOptions({
                     <article
                         v-for="order in orders.data"
                         :key="order.id"
-                        class="surface-card border-border bg-card border p-5 sm:p-6"
+                        class="surface-card border-border bg-card min-w-0 border p-4 sm:p-6"
                     >
                         <div
                             class="border-border flex flex-col gap-4 border-b pb-5 sm:flex-row sm:items-start sm:justify-between"

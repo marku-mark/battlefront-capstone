@@ -478,7 +478,7 @@ watch(
                     v-if="products.data.length"
                     data="products"
                     :buffer="300"
-                    class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4"
+                    class="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4"
                 >
                     <ProductCard
                         v-for="product in products.data"
@@ -489,7 +489,7 @@ watch(
                         <div v-if="loading" role="status" class="col-span-full">
                             <span class="sr-only">Loading more products…</span>
                             <div
-                                class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4"
+                                class="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4"
                             >
                                 <ProductCardSkeleton
                                     v-for="card in 4"

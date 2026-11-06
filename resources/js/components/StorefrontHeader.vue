@@ -1,11 +1,19 @@
 <script setup>
 import { Link, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
+import { Menu } from '@lucide/vue';
 import AppLogo from '@/components/AppLogo.vue';
 import AppLogoIcon from '@/components/AppLogoIcon.vue';
 import GuestAppearanceToggle from '@/components/GuestAppearanceToggle.vue';
 import CustomerChatAssistant from '@/components/chatbot/CustomerChatAssistant.vue';
 import { Button } from '@/components/ui/button';
+import {
+    Sheet,
+    SheetContent,
+    SheetHeader,
+    SheetTitle,
+    SheetTrigger,
+} from '@/components/ui/sheet';
 import { dashboard, home, login, register } from '@/routes';
 import { index as branchIndex } from '@/routes/branches';
 import { index as productIndex } from '@/routes/products';
@@ -56,16 +64,13 @@ const storefrontLinks = [
                 <AppLogoIcon class="mx-auto size-10 sm:hidden" />
             </Link>
 
-            <nav
-                class="flex items-center gap-0 min-[360px]:gap-1 sm:gap-2"
-                aria-label="Primary"
-            >
+            <nav class="hidden items-center gap-2 sm:flex" aria-label="Primary">
                 <Button
                     v-for="item in storefrontLinks"
                     :key="item.section"
                     as-child
                     size="sm"
-                    class="min-w-11 px-2 text-xs min-[360px]:px-3 min-[360px]:text-sm"
+                    class="min-w-11 px-3"
                     :variant="
                         props.activeSection === item.section
                             ? 'outline'
@@ -81,8 +86,7 @@ const storefrontLinks = [
                                 : undefined
                         "
                     >
-                        <span class="sm:hidden">{{ item.mobileTitle }}</span>
-                        <span class="hidden sm:inline">{{ item.title }}</span>
+                        {{ item.title }}
                     </Link>
                 </Button>
 
@@ -99,7 +103,7 @@ const storefrontLinks = [
                         as-child
                         size="sm"
                         variant="ghost"
-                        class="min-w-11 px-2 text-xs min-[360px]:px-3 min-[360px]:text-sm"
+                        class="min-w-11 px-3"
                     >
                         <Link :href="login()">Log in</Link>
                     </Button>
@@ -109,6 +113,61 @@ const storefrontLinks = [
                 </template>
                 <GuestAppearanceToggle />
             </nav>
+            <div class="flex items-center gap-2 sm:hidden">
+                <GuestAppearanceToggle />
+                <Sheet>
+                    <SheetTrigger :as-child="true">
+                        <Button
+                            variant="outline"
+                            size="icon"
+                            aria-label="Open menu"
+                        >
+                            <Menu class="size-5" />
+                        </Button>
+                    </SheetTrigger>
+                    <SheetContent
+                        side="right"
+                        class="w-[min(20rem,calc(100vw-2rem))] overflow-y-auto px-5 pt-12"
+                    >
+                        <SheetHeader>
+                            <SheetTitle>Menu</SheetTitle>
+                        </SheetHeader>
+                        <nav
+                            class="flex flex-col gap-2"
+                            aria-label="Mobile primary"
+                        >
+                            <Button
+                                v-for="item in storefrontLinks"
+                                :key="item.section"
+                                as-child
+                                variant="ghost"
+                                class="min-h-11 justify-start"
+                            >
+                                <Link
+                                    :href="item.href"
+                                    :aria-current="
+                                        props.activeSection === item.section
+                                            ? 'page'
+                                            : undefined
+                                    "
+                                >
+                                    {{ item.title }}
+                                </Link>
+                            </Button>
+                            <Button
+                                as-child
+                                variant="ghost"
+                                class="min-h-11 justify-start"
+                            >
+                                <Link :href="login()">Log in</Link>
+                            </Button>
+                            <Button as-child class="min-h-11 justify-start">
+                                <Link :href="register()">Register</Link>
+                            </Button>
+                        </nav>
+                    </SheetContent>
+                </Sheet>
+            </div>
         </div>
         <CustomerChatAssistant />
     </header>

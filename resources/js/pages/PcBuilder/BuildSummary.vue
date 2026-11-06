@@ -40,7 +40,9 @@ defineEmits(['retry']);
         </p>
         <div class="border-border my-5 border-y py-5">
             <p class="text-muted-foreground text-sm">Estimated total</p>
-            <p class="mt-2 text-3xl font-bold tracking-tight tabular-nums">
+            <p
+                class="mt-2 min-w-0 text-2xl font-bold tracking-tight break-words tabular-nums sm:text-3xl"
+            >
                 {{ total }}
             </p>
             <p

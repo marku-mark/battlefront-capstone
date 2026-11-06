@@ -988,7 +988,7 @@ defineOptions({
                     class="border-border space-y-4 border-t pt-4 text-sm"
                 >
                     <h4 class="font-semibold">Refund</h4>
-                    <dl class="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    <dl class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                         <div>
                             <dt class="text-muted-foreground">Approved</dt>
                             <dd class="font-medium tabular-nums">

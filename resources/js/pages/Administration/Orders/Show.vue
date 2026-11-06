@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
 import {
     ArrowLeft,
@@ -1500,7 +1500,7 @@ defineOptions({
                             </h2>
                         </div>
                         <dl
-                            class="grid grid-cols-3 gap-4 text-sm sm:text-right"
+                            class="grid gap-4 text-sm sm:grid-cols-3 sm:text-right"
                         >
                             <div>
                                 <dt class="text-muted-foreground">

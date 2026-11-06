@@ -269,7 +269,7 @@ defineOptions({
                     <InputError :message="errors.cart_item_ids" />
 
                     <section
-                        class="surface-panel border-border bg-card grid gap-6 border p-6"
+                        class="surface-panel border-border bg-card grid min-w-0 gap-6 border p-4 sm:p-6"
                         aria-labelledby="recipient-heading"
                     >
                         <div class="flex items-center gap-3">
@@ -334,7 +334,7 @@ defineOptions({
                     </section>
 
                     <section
-                        class="surface-panel border-border bg-card grid gap-6 border p-6"
+                        class="surface-panel border-border bg-card grid min-w-0 gap-6 border p-4 sm:p-6"
                         aria-labelledby="fulfillment-heading"
                     >
                         <div class="flex items-center gap-3">

@@ -83,7 +83,7 @@ defineOptions({
             </div>
             <div
                 v-if="orders.data.length === 0"
-                class="border-border bg-card text-muted-foreground border p-6 text-sm"
+                class="border-border bg-card text-muted-foreground border p-4 text-sm sm:p-6"
             >
                 No orders match this view.
             </div>

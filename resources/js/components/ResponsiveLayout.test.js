@@ -58,13 +58,13 @@ test(
                 const section = input.closest('section');
                 const rect = section.getBoundingClientRect();
                 const boxes = [field.querySelector('label'), input, field.querySelector('p')].map(el => el.getBoundingClientRect());
-                return { left: boxes.map(box => box.left - rect.left), right: Math.max(...boxes.map(box => box.right)) <= rect.right - 23, bottom: rect.bottom - boxes.at(-1).bottom };
+                return { left: boxes.map(box => box.left - rect.left), right: Math.max(...boxes.map(box => box.right)) <= rect.right - 15, bottom: rect.bottom - boxes.at(-1).bottom };
             })()`);
                 assert.ok(
-                    layout.left.every((value) => value >= 24 && value <= 26),
+                    layout.left.every((value) => value >= 16 && value <= 18),
                 );
                 assert.equal(layout.right, true);
-                assert.ok(layout.bottom >= 24);
+                assert.ok(layout.bottom >= 16);
                 await assertFits(browser, 'FAQ search ' + width);
             }
             await browser.show('Branches/Index', { branches: [] }, true, theme);
@@ -3547,7 +3547,13 @@ test(
                 })()`);
                         assert.equal(
                             result.columns,
-                            width < 1024 ? 2 : width < 1280 ? 3 : 4,
+                            width < 360
+                                ? 1
+                                : width < 1024
+                                  ? 2
+                                  : width < 1280
+                                    ? 3
+                                    : 4,
                             `catalog columns at ${width}`,
                         );
                         assert.equal(
@@ -4231,7 +4237,13 @@ test(
                 })()`);
                     assert.equal(
                         cards.columns,
-                        width < 1024 ? 2 : width < 1280 ? 3 : 4,
+                        width < 360
+                            ? 1
+                            : width < 1024
+                              ? 2
+                              : width < 1280
+                                ? 3
+                                : 4,
                         `${component} recommendation columns at ${width}`,
                     );
                     assert.equal(

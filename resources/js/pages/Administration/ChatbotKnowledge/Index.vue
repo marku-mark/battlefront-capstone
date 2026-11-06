@@ -95,7 +95,7 @@ defineOptions({
         class="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 p-4 sm:p-6 lg:p-8"
     >
         <section
-            class="border-border bg-card relative overflow-hidden border p-6"
+            class="border-border bg-card relative overflow-hidden border p-4 sm:p-6"
         >
             <div class="bg-primary absolute inset-y-0 left-0 w-1"></div>
             <div
@@ -153,7 +153,7 @@ defineOptions({
                 <CollapsibleTrigger as-child>
                     <button
                         type="button"
-                        class="focus-visible:ring-ring flex w-full items-center justify-between gap-4 p-6 text-left focus-visible:ring-2 focus-visible:outline-none"
+                        class="focus-visible:ring-ring flex w-full min-w-0 items-center justify-between gap-4 p-4 text-left focus-visible:ring-2 focus-visible:outline-none sm:p-6"
                     >
                         <span class="text-lg font-semibold"
                             >Test chatbot routing</span
@@ -285,7 +285,7 @@ defineOptions({
 
             <div
                 v-if="knowledge.data.length === 0"
-                class="border-border bg-card flex min-h-52 items-center justify-center border p-6 text-center"
+                class="border-border bg-card flex min-h-52 items-center justify-center border p-4 text-center sm:p-6"
             >
                 <div>
                     <MessageSquareText
@@ -293,7 +293,11 @@ defineOptions({
                     />
                     <p class="mt-3 font-medium">No chatbot FAQs available</p>
                     <p class="text-muted-foreground mt-1 text-sm">
-                        {{ filters.q ? 'Try different wording or clear your search.' : 'Add approved support guidance to begin managing FAQs.' }}
+                        {{
+                            filters.q
+                                ? 'Try different wording or clear your search.'
+                                : 'Add approved support guidance to begin managing FAQs.'
+                        }}
                     </p>
                 </div>
             </div>
@@ -335,7 +339,7 @@ defineOptions({
                             {{ item.question_pattern }}
                         </h3>
                         <p
-                            class="text-muted-foreground mt-2 line-clamp-3 max-w-3xl text-sm leading-6 whitespace-pre-line break-words"
+                            class="text-muted-foreground mt-2 line-clamp-3 max-w-3xl text-sm leading-6 break-words whitespace-pre-line"
                         >
                             {{ item.response_template }}
                         </p>

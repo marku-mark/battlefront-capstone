@@ -151,7 +151,7 @@ defineOptions({
             </article>
             <p
                 v-if="entries.data.length === 0"
-                class="border-border bg-card border p-6 text-sm"
+                class="border-border bg-card border p-4 text-sm sm:p-6"
             >
                 No tasks need your attention.
             </p>

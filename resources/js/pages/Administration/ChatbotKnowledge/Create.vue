@@ -31,7 +31,7 @@ defineOptions({
             description="Check the question before saving."
         />
 
-        <section class="surface-panel border-border bg-card border p-6 sm:p-8">
+        <section class="surface-panel border-border bg-card border p-4 sm:p-8">
             <ChatbotKnowledgeForm
                 :form="ChatbotKnowledgeController.store.form()"
                 submit-label="Create FAQ"

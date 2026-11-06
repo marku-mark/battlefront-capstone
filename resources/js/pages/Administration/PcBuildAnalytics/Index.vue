@@ -75,10 +75,14 @@ function formatPrice(value) {
                     <li
                         v-for="item in popular_components"
                         :key="item.product_name"
-                        class="flex justify-between gap-4 p-4 text-sm"
+                        class="flex min-w-0 justify-between gap-4 p-4 text-sm"
                     >
-                        <span>{{ item.product_name }}</span
-                        ><span class="font-medium">{{ item.selections }}</span>
+                        <span class="min-w-0 wrap-anywhere">{{
+                            item.product_name
+                        }}</span
+                        ><span class="shrink-0 font-medium">{{
+                            item.selections
+                        }}</span>
                     </li>
                     <li
                         v-if="popular_components.length === 0"

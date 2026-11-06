@@ -301,7 +301,7 @@ onBeforeUnmount(() => {
         </p>
         <div
             v-else
-            class="mt-5 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4"
+            class="mt-5 grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4"
         >
             <article
                 v-for="(recommendation, index) in visibleRecommendations"

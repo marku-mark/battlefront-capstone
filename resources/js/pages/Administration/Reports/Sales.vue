@@ -615,11 +615,11 @@ defineOptions({
 
 <template>
     <main
-        class="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-8 p-6 lg:p-10"
+        class="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 p-4 sm:p-6 lg:gap-8 lg:p-10"
     >
         <Head title="Sales reports" />
         <section
-            class="border-border bg-card relative overflow-hidden border p-6 sm:p-8"
+            class="border-border bg-card relative overflow-hidden border p-4 sm:p-8"
         >
             <div class="bg-primary absolute inset-y-0 left-0 w-1"></div>
             <div

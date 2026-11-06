@@ -46,7 +46,7 @@ defineOptions({
     <Head :title="product.name" />
 
     <main
-        class="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 p-6 lg:p-10"
+        class="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 p-4 sm:p-6 lg:p-10"
     >
         <div class="flex flex-wrap items-start justify-between gap-4">
             <div class="space-y-3">
@@ -114,7 +114,7 @@ defineOptions({
 
             <div class="flex flex-col gap-6">
                 <section
-                    class="border-border bg-card border p-6"
+                    class="border-border bg-card border p-4 sm:p-6"
                     aria-labelledby="product-details-heading"
                 >
                     <div
@@ -267,7 +267,7 @@ defineOptions({
                         >
                         <Badge v-else variant="outline">Not initialized</Badge>
                     </div>
-                    <dl class="mt-5 grid grid-cols-2 gap-4 text-sm">
+                    <dl class="mt-5 grid gap-4 text-sm sm:grid-cols-2">
                         <div>
                             <dt class="text-muted-foreground">
                                 Stock quantity

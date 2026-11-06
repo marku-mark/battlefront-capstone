@@ -22,7 +22,7 @@ defineOptions({
         <Head title="Add category" />
         <PageHeader title="Add category" />
 
-        <section class="surface-panel border-border bg-card border p-6 sm:p-8">
+        <section class="surface-panel border-border bg-card border p-4 sm:p-8">
             <CategoryForm
                 :form="CategoryController.store.form()"
                 submit-label="Create category"

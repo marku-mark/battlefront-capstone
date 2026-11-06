@@ -292,7 +292,7 @@ defineOptions({
 
             <div
                 v-if="products.data.length === 0"
-                class="surface-panel border-border bg-card flex min-h-48 items-center justify-center border p-6 text-center"
+                class="surface-panel border-border bg-card flex min-h-48 items-center justify-center border p-4 text-center sm:p-6"
             >
                 <div>
                     <template v-if="hasActiveQuery">
@@ -384,7 +384,7 @@ defineOptions({
                         </div>
                         <dl
                             v-if="product.inventory"
-                            class="grid grid-cols-3 gap-4 text-sm lg:gap-6"
+                            class="grid gap-3 text-sm sm:grid-cols-3 lg:gap-6"
                         >
                             <div>
                                 <dt class="text-muted-foreground">Available</dt>

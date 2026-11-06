@@ -58,20 +58,25 @@ const activeItemStyles = 'bg-accent text-accent-foreground';
                                 <Menu class="h-5 w-5" />
                             </Button>
                         </SheetTrigger>
-                        <SheetContent side="left" class="w-75 p-6">
+                        <SheetContent
+                            side="left"
+                            class="w-[min(18.75rem,calc(100vw-1rem))] overflow-y-auto p-6"
+                        >
                             <SheetTitle class="sr-only"
                                 >Navigation menu</SheetTitle
                             >
                             <SheetHeader class="flex justify-start text-left">
                                 <AppLogoIcon class="size-12" />
                             </SheetHeader>
-                            <div class="flex h-full flex-1 flex-col gap-4 py-6">
+                            <div
+                                class="flex min-h-0 flex-1 flex-col gap-4 py-6"
+                            >
                                 <nav class="-mx-3 space-y-1">
                                     <Link
                                         v-for="item in mainNavItems"
                                         :key="item.title"
                                         :href="item.href"
-                                        class="hover:bg-accent flex items-center gap-x-3 rounded-lg px-3 py-2 text-sm font-medium"
+                                        class="hover:bg-accent flex min-h-11 items-center gap-x-3 rounded-lg px-3 py-2 text-sm font-medium"
                                         :class="
                                             whenCurrentUrl(
                                                 item.href,

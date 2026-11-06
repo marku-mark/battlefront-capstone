@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import PageHeader from '@/components/PageHeader.vue';
 import OrdersDirectoryTabs from '@/components/OrdersDirectoryTabs.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
@@ -448,7 +448,7 @@ defineOptions({
                         </p>
                     </div>
 
-                    <div class="grid grid-cols-2 gap-4 text-sm">
+                    <div class="grid gap-4 text-sm sm:grid-cols-2">
                         <div>
                             <p class="text-muted-foreground">Payment</p>
                             <div class="mt-1 flex flex-wrap items-center gap-2">

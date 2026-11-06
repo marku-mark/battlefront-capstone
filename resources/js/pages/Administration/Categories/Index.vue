@@ -55,7 +55,7 @@ defineOptions({
         <section class="border-border bg-card relative overflow-hidden border">
             <div class="bg-primary absolute inset-y-0 left-0 w-1"></div>
             <div
-                class="flex flex-col gap-5 p-6 sm:flex-row sm:items-start sm:justify-between"
+                class="flex flex-col gap-5 p-4 sm:flex-row sm:items-start sm:justify-between sm:p-6"
             >
                 <div class="flex items-start gap-4">
                     <span
@@ -138,7 +138,7 @@ defineOptions({
 
             <div
                 v-if="categories.data.length === 0"
-                class="surface-panel border-border bg-card flex min-h-52 items-center justify-center border p-6 text-center"
+                class="surface-panel border-border bg-card flex min-h-52 items-center justify-center border p-4 text-center sm:p-6"
             >
                 <div>
                     <FolderTree class="text-muted-foreground mx-auto size-9" />

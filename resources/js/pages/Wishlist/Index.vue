@@ -255,7 +255,7 @@ defineOptions({
             <section
                 v-else
                 aria-labelledby="empty-wishlist-heading"
-                class="surface-panel border-border bg-card flex min-h-80 items-center justify-center border border-dashed p-8 text-center"
+                class="surface-panel border-border bg-card flex min-h-80 items-center justify-center border border-dashed p-4 text-center sm:p-8"
             >
                 <div class="max-w-md">
                     <span

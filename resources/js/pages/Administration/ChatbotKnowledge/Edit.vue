@@ -39,7 +39,7 @@ defineOptions({
             </template>
         </PageHeader>
 
-        <section class="surface-panel border-border bg-card border p-6 sm:p-8">
+        <section class="surface-panel border-border bg-card border p-4 sm:p-8">
             <ChatbotKnowledgeForm
                 :knowledge="knowledge"
                 :form="ChatbotKnowledgeController.update.form(knowledge.id)"

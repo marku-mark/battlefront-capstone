@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import PageHeader from '@/components/PageHeader.vue';
 import { Head, Link, useForm, usePoll } from '@inertiajs/vue3';
 import {
@@ -392,7 +392,7 @@ function finishPaymentWindow(page) {
 
                 <aside class="grid gap-6 xl:sticky xl:top-6">
                     <section
-                        class="surface-panel border-border bg-card border p-6"
+                        class="surface-panel border-border bg-card min-w-0 border p-4 sm:p-6"
                         aria-labelledby="order-total-heading"
                     >
                         <div class="flex items-center gap-3">
@@ -436,7 +436,7 @@ function finishPaymentWindow(page) {
                                 </dd>
                             </div>
                         </dl>
-                        <p class="mt-5 text-3xl font-bold tabular-nums">
+                        <p class="mt-5 break-words text-2xl font-bold tabular-nums sm:text-3xl">
                             {{ formatCurrency(order.total) }}
                         </p>
                         <p class="text-muted-foreground mt-2 text-xs leading-5">
@@ -602,7 +602,7 @@ function finishPaymentWindow(page) {
                     </section>
 
                     <section
-                        class="surface-panel border-border bg-card border p-6"
+                        class="surface-panel border-border bg-card min-w-0 border p-4 sm:p-6"
                         aria-labelledby="submitted-details-heading"
                     >
                         <div class="flex items-center gap-3">

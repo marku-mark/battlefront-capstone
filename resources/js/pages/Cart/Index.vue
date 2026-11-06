@@ -222,7 +222,7 @@ defineOptions({
                     </section>
 
                     <aside
-                        class="surface-panel border-border bg-card border p-6 xl:sticky xl:top-6"
+                        class="surface-panel border-border bg-card min-w-0 border p-4 sm:p-6 xl:sticky xl:top-6"
                         aria-labelledby="cart-summary-heading"
                     >
                         <p
@@ -262,7 +262,9 @@ defineOptions({
                                 class="border-border flex items-end justify-between gap-4 border-t pt-4"
                             >
                                 <dt class="font-semibold">Selected subtotal</dt>
-                                <dd class="text-2xl font-bold tabular-nums">
+                                <dd
+                                    class="min-w-0 text-right text-xl font-bold tabular-nums sm:text-2xl"
+                                >
                                     {{
                                         formatCurrency(selectedSummary.subtotal)
                                     }}
