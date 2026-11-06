@@ -12,7 +12,7 @@ import {
     Tooltip,
 } from 'chart.js';
 import { Search } from '@lucide/vue';
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import { Line } from 'vue-chartjs';
 import ForecastingController from '@/actions/App/Http/Controllers/Administration/ForecastingController';
 import CatalogPagination from '@/components/CatalogPagination.vue';
@@ -102,7 +102,8 @@ function generate() {
     result.value = null;
     form.post(ForecastingController.store.url(), {
         preserveScroll: true,
-        onSuccess: (page) => {
+        onSuccess: async (page) => {
+            await nextTick();
             result.value = page.flash?.forecast_result ?? null;
         },
     });
