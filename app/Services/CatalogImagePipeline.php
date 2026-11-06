@@ -109,38 +109,14 @@ class CatalogImagePipeline
                 $bytes = $optimized['bytes'];
                 $checksum = hash('sha256', $bytes);
                 $disk = Storage::disk('public');
-                $disk->makeDirectory(dirname($imagePath));
-                $destination = $disk->path($imagePath);
-
-                if (is_file($destination)) {
-                    if (hash_file('sha256', $destination) !== $checksum) {
+                if ($disk->exists($imagePath)) {
+                    if (hash('sha256', $disk->get($imagePath)) !== $checksum) {
                         throw new RuntimeException('A different image already occupies this product path.');
                     }
                 } else {
-                    $output = @fopen($destination, 'x');
-                    if ($output === false) {
-                        throw new RuntimeException('The product image path could not be reserved.');
+                    if (! $disk->put($imagePath, $bytes, 'public')) {
+                        throw new RuntimeException('The product image could not be written completely.');
                     }
-
-                    try {
-                        $offset = 0;
-                        while ($offset < strlen($bytes)) {
-                            $written = @fwrite($output, substr($bytes, $offset));
-                            if ($written === false || $written === 0) {
-                                throw new RuntimeException('The product image could not be written completely.');
-                            }
-                            $offset += $written;
-                        }
-                        if (! fflush($output)) {
-                            throw new RuntimeException('The product image could not be flushed.');
-                        }
-                    } catch (Throwable $exception) {
-                        fclose($output);
-                        unlink($destination);
-
-                        throw $exception;
-                    }
-                    fclose($output);
                 }
 
                 $manifest['entries'][$index]['status'] = 'complete';
@@ -311,16 +287,7 @@ class CatalogImagePipeline
         }
 
         try {
-            $stream = $disk->readStream($imagePath);
-            if (! is_resource($stream)) {
-                return false;
-            }
-
-            try {
-                $contents = stream_get_contents($stream);
-            } finally {
-                fclose($stream);
-            }
+            $contents = $disk->get($imagePath);
         } catch (Throwable) {
             return false;
         }

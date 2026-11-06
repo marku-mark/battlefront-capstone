@@ -3,6 +3,7 @@
 $publicDiskDriver = env('PUBLIC_DISK_DRIVER', env('FILESYSTEM_DISK', 'local'));
 $publicDiskUrl = env('PUBLIC_DISK_URL') ?: env('AWS_URL') ?: null;
 $publicDiskRoot = $publicDiskDriver === 'local' ? storage_path('app/public') : '';
+$publicDiskBucket = env('PUBLIC_DISK_BUCKET', 'battlefront_images');
 
 if ($publicDiskUrl === null && $publicDiskDriver === 'local') {
     $publicDiskUrl = rtrim((string) env('APP_URL', 'http://localhost'), '/').'/storage';
@@ -54,7 +55,7 @@ return [
             'key' => env('AWS_ACCESS_KEY_ID'),
             'secret' => env('AWS_SECRET_ACCESS_KEY'),
             'region' => env('AWS_DEFAULT_REGION'),
-            'bucket' => env('AWS_BUCKET'),
+            'bucket' => $publicDiskBucket,
             'endpoint' => env('AWS_ENDPOINT'),
             'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', false),
             'throw' => false,

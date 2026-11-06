@@ -25,6 +25,10 @@ function imageProductPayload(?Product $product = null): array
     ];
 }
 
+test('public product image storage targets the Laravel Cloud bucket', function () {
+    expect(config('filesystems.disks.public.bucket'))->toBe('battlefront_images');
+});
+
 test('administrators can create optimized images independently of catalog generation', function (string $extension) {
     Storage::fake('public');
     Storage::fake('local');
