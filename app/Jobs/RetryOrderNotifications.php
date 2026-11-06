@@ -17,10 +17,7 @@ class RetryOrderNotifications implements ShouldQueue
 
     public int $timeout = 30;
 
-    public function __construct(public readonly OrderNotificationOccurred $event)
-    {
-        $this->onConnection('database')->onQueue('notifications');
-    }
+    public function __construct(public readonly OrderNotificationOccurred $event) {}
 
     /** @return list<int> */
     public function backoff(): array

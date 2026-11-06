@@ -48,8 +48,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        DevCommands::artisan('queue:listen --queue=notifications,default --tries=1 --timeout=0', 'queue');
-        DevCommands::artisan('queue:listen --queue=payments --sleep=1 --tries=3 --timeout=30', 'payments');
+        DevCommands::artisan('queue:listen --queue=default --tries=3 --timeout=60', 'queue');
+
         DevCommands::artisan('schedule:work', 'scheduler');
 
         $this->configureDefaults();

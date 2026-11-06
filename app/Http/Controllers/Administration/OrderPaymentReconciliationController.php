@@ -26,7 +26,7 @@ class OrderPaymentReconciliationController extends Controller
             }
             foreach ($flows as $flow) {
                 $flow->update(['next_check_at' => now()]);
-                ReconcilePayMongoOrder::dispatch($flow->id)->onQueue('payments')->afterCommit();
+                ReconcilePayMongoOrder::dispatch($flow->id)->afterCommit();
             }
             $recovery->audit($order->id, 'payment.reconciliation_requested', [], $request->user()->id);
         }, attempts: 3);

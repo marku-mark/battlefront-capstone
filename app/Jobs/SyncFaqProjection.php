@@ -24,7 +24,7 @@ class SyncFaqProjection implements ShouldQueue
     public function __construct(public int $knowledgeId)
     {
         $this->afterCommit();
-        $this->onQueue('chatbot-indexing');
+
     }
 
     /** @return list<int> */

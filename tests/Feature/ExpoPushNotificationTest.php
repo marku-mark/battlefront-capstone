@@ -138,7 +138,7 @@ test('persisted customer notification queues delivery for each eligible device o
     $this->assertDatabaseCount('notifications', 1);
     $this->assertDatabaseCount('notification_push_deliveries', 2);
     Bus::assertDispatchedTimes(SendExpoNotification::class, 4);
-    Bus::assertDispatched(SendExpoNotification::class, fn ($job) => $job->connection === 'database' && $job->queue === 'notifications');
+    Bus::assertDispatched(SendExpoNotification::class, fn ($job) => $job->connection === null && $job->queue === null);
 });
 
 test('accepted push tickets are not resent and schedule receipt lookup without sensitive payload fields', function () {

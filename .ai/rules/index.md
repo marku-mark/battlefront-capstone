@@ -11,6 +11,7 @@ Before planning or editing, find the row whose globs match the file's path and r
 | app/Http/{Requests,Controllers}/Administration/SalesReport*,resources/js/pages/Administration/Reports/** | .ai/rules/administration-reports.md |
 | app/Models/Product.php,app/Http/Controllers/Administration/ProductController.php,app/Http/Requests/Administration/SaveProductRequest.php | .ai/rules/administration.md |
 | routes/api.php,app/Http/Controllers/Api/**,config/sanctum.php | .ai/rules/api.md |
+| app/Jobs/** | .ai/rules/app-jobs.md |
 | app/**,database/**,resources/js/** | .ai/rules/app-js.md |
 | app/Models/** | .ai/rules/app-models.md |
 | app/Repositories/Catalog/** | .ai/rules/app-repositories-catalog.md |

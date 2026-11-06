@@ -34,7 +34,7 @@ class SyncCatalogProjection implements ShouldBeUniqueUntilProcessing, ShouldQueu
     public function __construct(public int $productId)
     {
         $this->afterCommit();
-        $this->onQueue('chatbot-indexing');
+
     }
 
     /** @return list<int> */

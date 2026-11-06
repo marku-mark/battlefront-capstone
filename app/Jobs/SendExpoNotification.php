@@ -22,10 +22,7 @@ class SendExpoNotification implements ShouldQueue
 
     public int $timeout = 30;
 
-    public function __construct(public readonly int $deliveryId)
-    {
-        $this->onConnection('database')->onQueue('notifications');
-    }
+    public function __construct(public readonly int $deliveryId) {}
 
     /** @return list<int> */
     public function backoff(): array

@@ -71,7 +71,7 @@ class ProcessPayMongoWebhook implements ShouldQueue
             if ($flow->channel === 'hosted_checkout' && $flow->status !== 'paid'
                 && in_array($inbox->event_type, ['payment.failed', 'qrph.expired'], true)) {
                 $flow->update(['status' => 'reconciliation_required']);
-                ReconcilePayMongoOrder::dispatch($flow->id)->onQueue('payments')->afterCommit();
+                ReconcilePayMongoOrder::dispatch($flow->id)->afterCommit();
                 $inbox->update(['status' => 'processed', 'processed_at' => now()]);
 
                 return;

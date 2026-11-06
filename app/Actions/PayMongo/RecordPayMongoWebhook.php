@@ -26,7 +26,7 @@ class RecordPayMongoWebhook
             throw $exception;
         }
 
-        ProcessPayMongoWebhook::dispatch($inbox->id)->onQueue('payments')->afterCommit();
+        ProcessPayMongoWebhook::dispatch($inbox->id)->afterCommit();
 
         return true;
     }

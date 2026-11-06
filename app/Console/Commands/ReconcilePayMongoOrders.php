@@ -28,7 +28,7 @@ class ReconcilePayMongoOrders extends Command
 
         foreach ($flows as $flow) {
             $flow->update(['next_check_at' => now()->addMinute()]);
-            ReconcilePayMongoOrder::dispatch($flow->id)->onQueue('payments');
+            ReconcilePayMongoOrder::dispatch($flow->id);
         }
 
         return self::SUCCESS;
