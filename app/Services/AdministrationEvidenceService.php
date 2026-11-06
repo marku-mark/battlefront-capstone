@@ -43,7 +43,7 @@ class AdministrationEvidenceService
             $images[] = $file;
         }
 
-        return $this->prepareFiles($images);
+        return $this->prepareFiles($images, 'returns/product-photos', $this->returnDiskName());
     }
 
     /** @param list<array{path: string, original_name: string, mime_type: string}> $photos */
@@ -70,10 +70,17 @@ class AdministrationEvidenceService
         $this->persist($actor, 'refund_payment', $paymentId, $photos, true);
     }
 
+    public static function diskNameForPath(string $path): string
+    {
+        return str_starts_with($path, 'returns/') ? self::returnDiskName() : 'local';
+    }
+
     /** @param list<array{path: string, original_name: string, mime_type: string}> $files */
     public function discardPreparedFiles(array $files): void
     {
-        Storage::disk('local')->delete(array_column($files, 'path'));
+        foreach (collect($files)->groupBy(fn (array $file): string => self::diskNameForPath($file['path'])) as $diskName => $diskFiles) {
+            Storage::disk($diskName)->delete(array_column($diskFiles->all(), 'path'));
+        }
     }
 
     /**
@@ -82,7 +89,11 @@ class AdministrationEvidenceService
     public function store(User $actor, string $subjectType, int $subjectId, array $files): void
     {
         $this->authorize($actor, $subjectType, $subjectId, true);
-        $prepared = $subjectType === 'customer_return' ? $this->prepareProductPhotos($files) : $this->prepareFiles($files);
+        $prepared = match ($subjectType) {
+            'customer_return' => $this->prepareProductPhotos($files),
+            'refund_payment' => $this->prepareFiles($files, 'returns/payment-proofs', $this->returnDiskName()),
+            default => $this->prepareFiles($files),
+        };
 
         try {
             DB::transaction(function () use ($actor, $subjectType, $subjectId, $prepared): void {
@@ -139,12 +150,12 @@ class AdministrationEvidenceService
      * @param  list<UploadedFile>  $files
      * @return list<array{path: string, original_name: string, mime_type: string}>
      */
-    private function prepareFiles(array $files): array
+    private function prepareFiles(array $files, string $directory = 'administration/evidence', string $diskName = 'local'): array
     {
         $prepared = [];
         try {
             foreach ($files as $file) {
-                $path = $file->storeAs('administration/evidence', Str::uuid().'.'.$file->extension(), 'local');
+                $path = $file->storeAs($directory, Str::uuid().'.'.$file->extension(), $diskName);
                 if (! is_string($path)) {
                     throw new RuntimeException('Evidence storage failed.');
                 }
@@ -167,7 +178,7 @@ class AdministrationEvidenceService
             throw ValidationException::withMessages(['files' => 'A case can have at most five evidence files.']);
         }
         foreach ($prepared as $file) {
-            if (! Storage::disk('local')->exists($file['path'])) {
+            if (! Storage::disk(self::diskNameForPath($file['path']))->exists($file['path'])) {
                 throw ValidationException::withMessages(['files' => 'An evidence file could not be stored. Upload it again.']);
             }
             DB::table('administration_evidence')->insert([...$file, 'subject_type' => $subjectType,
@@ -186,5 +197,10 @@ class AdministrationEvidenceService
             'refund_payment' => 'customer_refund_payments',
             default => throw new AuthorizationException,
         };
+    }
+
+    private static function returnDiskName(): string
+    {
+        return config('filesystems.disks.battlefront_returns.driver') === 'local' ? 'local' : 'battlefront_returns';
     }
 }

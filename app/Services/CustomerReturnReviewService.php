@@ -92,7 +92,9 @@ class CustomerReturnReviewService
 
             return ['verified' => $verified, 'awaiting_review' => $awaitingReview, 'disputed' => $disputed];
         });
-        $photoReturnIds = $this->returns->productPhotos($returns->getCollection()->pluck('id'))->filter(fn ($file): bool => Storage::disk('local')->exists($file->path))->pluck('subject_id')->flip();
+        $photoReturnIds = $this->returns->productPhotos($returns->getCollection()->pluck('id'))
+            ->filter(fn ($file): bool => Storage::disk(AdministrationEvidenceService::diskNameForPath($file->path))->exists($file->path))
+            ->pluck('subject_id')->flip();
         $returns->getCollection()->transform(function ($return) use ($heldReturnIds, $refundBalances, $overdueCutoff, $actor, $photoReturnIds) {
             $return->has_product_photo = $photoReturnIds->has($return->id);
             $return->can_upload_evidence = $this->evidence->canUpload($actor, 'customer_return', $return);

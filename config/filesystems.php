@@ -4,6 +4,7 @@ $publicDiskDriver = env('PUBLIC_DISK_DRIVER', env('FILESYSTEM_DISK', 'local'));
 $publicDiskUrl = env('PUBLIC_DISK_URL') ?: env('AWS_URL') ?: null;
 $publicDiskRoot = $publicDiskDriver === 'local' ? storage_path('app/public') : '';
 $publicDiskBucket = env('PUBLIC_DISK_BUCKET', 'battlefront_images');
+$returnsDiskDriver = env('RETURNS_DISK_DRIVER', 'local');
 
 if ($publicDiskUrl === null && $publicDiskDriver === 'local') {
     $publicDiskUrl = rtrim((string) env('APP_URL', 'http://localhost'), '/').'/storage';
@@ -71,6 +72,21 @@ return [
             'url' => env('AWS_URL'),
             'endpoint' => env('AWS_ENDPOINT'),
             'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', false),
+            'throw' => false,
+            'report' => false,
+        ],
+
+        'battlefront_returns' => [
+            'driver' => $returnsDiskDriver,
+            'root' => $returnsDiskDriver === 'local' ? storage_path('app/returns') : '',
+            'key' => env('RETURNS_AWS_ACCESS_KEY_ID'),
+            'secret' => env('RETURNS_AWS_SECRET_ACCESS_KEY'),
+            'region' => env('RETURNS_AWS_DEFAULT_REGION'),
+            'bucket' => env('RETURNS_DISK_BUCKET', 'battlefront_returns'),
+            'url' => env('RETURNS_DISK_URL'),
+            'endpoint' => env('RETURNS_AWS_ENDPOINT'),
+            'use_path_style_endpoint' => env('RETURNS_AWS_USE_PATH_STYLE_ENDPOINT', false),
+            'visibility' => 'private',
             'throw' => false,
             'report' => false,
         ],

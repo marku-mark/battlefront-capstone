@@ -25,8 +25,10 @@ class CustomerRefundProof
                 ->whereColumn('reviews.customer_refund_payment_id', 'payments.id')->where('reviews.decision', 'verified')->where('reviews.confirmation_method', 'approver')
                 ->whereRaw('reviews.id = (select max(latest.id) from customer_refund_payment_reviews as latest where latest.customer_refund_payment_id = payments.id)'))
             ->first(['evidence.path', 'evidence.mime_type']);
-        abort_if($file === null || ! in_array($file->mime_type, ['image/jpeg', 'image/png', 'image/webp'], true) || ! Storage::disk('local')->exists($file->path), 404);
+        abort_if($file === null || ! in_array($file->mime_type, ['image/jpeg', 'image/png', 'image/webp'], true), 404);
+        $disk = Storage::disk(AdministrationEvidenceService::diskNameForPath($file->path));
+        abort_unless($disk->exists($file->path), 404);
 
-        return Storage::disk('local')->response($file->path, 'refund-payment-proof', ['Content-Type' => $file->mime_type, 'Cache-Control' => 'private, no-store', 'X-Content-Type-Options' => 'nosniff']);
+        return $disk->response($file->path, 'refund-payment-proof', ['Content-Type' => $file->mime_type, 'Cache-Control' => 'private, no-store', 'X-Content-Type-Options' => 'nosniff']);
     }
 }

@@ -81,7 +81,8 @@ class OrderCancellationPresenter
             ->map(fn ($payment): array => [
                 'id' => $payment->id, 'amount' => bcadd($this->numericAmount((string) $payment->amount), '0.00', 2),
                 'payment_method' => $payment->payment_method, 'paid_at' => CarbonImmutable::parse($payment->paid_at)->toIso8601String(),
-                'proof' => $payment->confirmation_method === 'approver' && $payment->evidence_id !== null && Storage::disk('local')->exists($payment->path)
+                'proof' => $payment->confirmation_method === 'approver' && $payment->evidence_id !== null
+                    && Storage::disk(AdministrationEvidenceService::diskNameForPath($payment->path))->exists($payment->path)
                     ? ['id' => $payment->evidence_id, 'url' => route('api.v1.orders.refund-payments.proof.show', [$order->id, $payment->id, $payment->evidence_id], false)] : null,
             ])->all());
     }

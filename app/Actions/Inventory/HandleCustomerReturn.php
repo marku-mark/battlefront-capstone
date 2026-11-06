@@ -278,7 +278,7 @@ class HandleCustomerReturn
     {
         return DB::table('administration_evidence')->where('subject_type', 'customer_return')->where('subject_id', $returnId)
             ->whereIn('mime_type', ['image/jpeg', 'image/png', 'image/webp'])
-            ->pluck('path')->contains(fn (string $path): bool => Storage::disk('local')->exists($path));
+            ->pluck('path')->contains(fn (string $path): bool => Storage::disk(AdministrationEvidenceService::diskNameForPath($path))->exists($path));
     }
 
     public function handBack(int $returnId, User $actor): void

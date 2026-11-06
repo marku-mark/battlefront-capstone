@@ -30,11 +30,11 @@ class AdministrationEvidenceController extends Controller
             abort(404);
         }
         $service->authorize($request->user(), $record->subject_type, (int) $record->subject_id, false);
-        if (! Storage::disk('local')->exists($record->path)) {
+        $disk = Storage::disk(AdministrationEvidenceService::diskNameForPath($record->path));
+        if (! $disk->exists($record->path)) {
             abort(404);
         }
 
-        $disk = Storage::disk('local');
         if (in_array($record->mime_type, ['image/jpeg', 'image/png', 'image/webp'], true)) {
             return $disk->response($record->path, $record->original_name, [
                 'Content-Type' => $record->mime_type,

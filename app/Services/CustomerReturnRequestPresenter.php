@@ -123,7 +123,8 @@ class CustomerReturnRequestPresenter
                 'reviews.confirmation_method', 'evidence.id as evidence_id', 'evidence.path as evidence_path']);
         $result = [];
         foreach ($rows as $row) {
-            $proof = $row->confirmation_method === 'approver' && $row->evidence_id !== null && Storage::disk('local')->exists($row->evidence_path)
+            $proof = $row->confirmation_method === 'approver' && $row->evidence_id !== null
+                && Storage::disk(AdministrationEvidenceService::diskNameForPath($row->evidence_path))->exists($row->evidence_path)
                 ? ['id' => (int) $row->evidence_id, 'url' => route('api.v1.orders.refund-payments.proof.show', ['order' => $order->id, 'payment' => $row->id, 'evidence' => $row->evidence_id], false)] : null;
             $result[(int) $row->customer_return_id][] = ['id' => (int) $row->id, 'amount' => bcadd(self::numericAmount((string) $row->amount), '0.00', 2),
                 'payment_method' => $row->payment_method, 'paid_at' => Carbon::parse($row->paid_at)->toIso8601String(),
