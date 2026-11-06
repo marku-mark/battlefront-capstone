@@ -81,6 +81,33 @@ function forecastingZeroResult(Product $product): array
     return (new CalculateAdditiveHoltWinters)->execute($preparation);
 }
 
+test('json generation returns chart series directly without session flash', function () {
+    $product = Product::factory()->create();
+    forecastingCoverage($product);
+    forecastingMonthlySales($product, array_fill(0, 36, 10));
+
+    $this->actingAs(User::factory()->administrator()->create())
+        ->postJson(route('administration.forecasting.store'), forecastingInput($product))
+        ->assertOk()
+        ->assertJsonPath('status', 'ready')
+        ->assertJsonPath('product.id', $product->id)
+        ->assertJsonPath('forecast_quantity', '30.00')
+        ->assertJsonCount(36, 'observations')
+        ->assertJsonCount(3, 'monthly_forecasts')
+        ->assertInertiaFlashMissing('forecast_result');
+
+    $this->assertDatabaseHas('forecasts', ['product_id' => $product->id, 'predicted_demand' => '30.00']);
+});
+
+test('json generation returns validation errors without saving a forecast', function () {
+    $this->actingAs(User::factory()->administrator()->create())
+        ->postJson(route('administration.forecasting.store'), [])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('product_id');
+
+    $this->assertDatabaseEmpty('forecasts');
+});
+
 test('rolling generation uses full local months and preserves matching calendar quarter history', function (string $instant, string $timezone, string $start, string $end, string $key, string $label) {
     config(['app.timezone' => $timezone]);
     $this->travelTo(CarbonImmutable::parse($instant, 'UTC'));

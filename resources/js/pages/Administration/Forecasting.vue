@@ -1,6 +1,6 @@
 <script setup>
 import PageHeader from '@/components/PageHeader.vue';
-import { Head, router, useForm, usePage } from '@inertiajs/vue3';
+import { Head, router, useHttp, usePage } from '@inertiajs/vue3';
 import {
     CategoryScale,
     Chart as ChartJS,
@@ -56,7 +56,7 @@ const resultMessage = computed(() =>
         : result.value?.message,
 );
 const isCheckingHistory = ref(false);
-const form = useForm({
+const form = useHttp({
     product_id: props.selected_product?.id ?? null,
 });
 const { search, isSearching, cancelPendingSearch } = useDebouncedSearch({
@@ -97,16 +97,20 @@ function selectProduct(product) {
     );
 }
 
-function generate() {
+async function generate() {
     cancelPendingSearch();
     result.value = null;
-    form.post(ForecastingController.store.url(), {
-        preserveScroll: true,
-        onSuccess: async (page) => {
-            await nextTick();
-            result.value = page.flash?.forecast_result ?? null;
-        },
-    });
+    try {
+        await form.post(ForecastingController.store.url(), {
+            onSuccess: async (response) => {
+                await nextTick();
+                result.value = response;
+                router.reload({ only: ['forecasts'], preserveScroll: true });
+            },
+        });
+    } catch {
+        form.setError('forecast', 'The forecast response could not be loaded. Refresh the page to check saved forecasts before trying again.');
+    }
 }
 
 function pageRoute(options, saved = false) {
