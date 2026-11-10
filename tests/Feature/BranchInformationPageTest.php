@@ -44,14 +44,14 @@ test('guests can view the confirmed branch information', function () {
             ->where('branches.4.longitude', 123.4216919));
 });
 
-test('unconfirmed branch details remain null', function () {
+test('unconfirmed branch contact details remain null while its confirmed address is shown', function () {
     $this->seed(BranchSeeder::class);
 
     $response = $this->get(route('branches.index'));
 
     $response->assertInertia(fn (Assert $page) => $page
         ->where('branches.2.city', 'Escalante City')
-        ->where('branches.2.address', null)
+        ->where('branches.2.address', 'National Road, Barangay Balintawak, Escalante City, 6124')
         ->where('branches.2.contact_number', null)
         ->where('branches.2.email', null)
         ->where('branches.4.city', 'San Carlos City')

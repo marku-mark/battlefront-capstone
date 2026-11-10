@@ -4,6 +4,7 @@ use App\Actions\Chatbot\ClassifyChatbotInquiry;
 use App\Actions\Chatbot\RouteChatbotQuery;
 use App\Ai\Agents\ChatbotIntentAgent;
 use App\Ai\Agents\ChatbotResponseAgent;
+use App\Ai\Agents\ChatbotUnderstandingAgent;
 use App\Enums\ChatbotCategory;
 use App\Enums\ChatbotQueryCategory;
 use App\Models\Branch;
@@ -210,6 +211,50 @@ test('short localized availability follow ups recheck Sagay inventory', function
 
     expect($next['message'])->toContain('Logitech G502 Mouse', 'out of stock at Sagay');
     ChatbotIntentAgent::assertNeverPrompted();
+});
+
+test('language detection keeps ambiguous short input on the prior language and distinguishes explicit preference from negation', function () {
+    $language = app(ChatbotLanguage::class);
+
+    expect($language->select('yes', 'hil'))->toBe('hil')
+        ->and($language->select('motherboard', 'ceb'))->toBe('ceb')
+        ->and($language->select('answer in Hiligaynon: may ara kamo sang SSD?', 'tl'))->toBe('hil')
+        ->and($language->explicit('do not answer in English'))->toBeNull()
+        ->and($language->explicit('please answer in Tagalog'))->toBe('tl');
+});
+
+test('affirmative language instructions survive negated alternatives', function (string $message, ?string $expected) {
+    $language = app(ChatbotLanguage::class);
+
+    expect($language->explicit($message))->toBe($expected);
+    expect($language->withoutLanguageRequest($message))->toBe('');
+})->with([
+    ['Do not answer in English; reply in Tagalog', 'tl'],
+    ['Reply in Cebuano, not English', 'ceb'],
+    ['Answer in English; respond in Hiligaynon', 'hil'],
+    ['Do not answer in English', null],
+    ['Not in Tagalog; reply in English', 'en'],
+    ['Dili English; tubag sa Cebuano', 'ceb'],
+    ['Please do not answer in English, but reply in Tagalog instead', 'tl'],
+]);
+
+test('mixed affirmative and negative language instructions persist without provider calls', function (bool $modelLed) {
+    config(['ai_integration.enabled' => $modelLed, 'ai_integration.model_led' => $modelLed]);
+    ChatbotUnderstandingAgent::fake()->preventStrayPrompts();
+    $chat = app(ChatbotConversation::class);
+
+    $first = $chat->respond('Reply in Cebuano, not English', null, null, 'language-refinement');
+    $second = $chat->respond('Do not answer in English', null, $first['context_token'], 'language-refinement');
+    expect(app(ChatbotConversationToken::class)->decode($second['context_token'], 'language-refinement:guest'))->toMatchArray(['language_preference' => 'ceb']);
+
+    expect($first['language'])->toBe('ceb');
+    expect($second['language'])->toBe('ceb');
+    ChatbotUnderstandingAgent::assertNeverPrompted();
+    ChatbotResponseAgent::assertNeverPrompted();
+})->with([false, true]);
+
+test('language detection leaves balanced mixed language evidence unresolved', function () {
+    expect(app(ChatbotLanguage::class)->detect('Diin? Do you?'))->toBeNull();
 });
 
 test('shared regional expressions do not falsely identify a language', function () {

@@ -24,7 +24,7 @@ test('guests receive all five published branches in the same order and shape as 
         ->assertJsonPath('data.1.is_operational', false)
         ->assertJsonPath('data.1.operational_notice', null)
         ->assertJsonPath('data.2.city', 'Escalante City')
-        ->assertJsonPath('data.2.address', null)
+        ->assertJsonPath('data.2.address', 'National Road, Barangay Balintawak, Escalante City, 6124')
         ->assertJsonPath('data.2.contact_number', null)
         ->assertJsonPath('data.2.email', null)
         ->assertJsonPath('data.3.city', 'Guihulngan City')

@@ -17,21 +17,24 @@ class ModelLedChatbot
 {
     public function __construct(private ChatbotAiAdapter $ai, private ChatbotLanguage $language) {}
 
-    public function eligible(string $message): bool
+    /** @param array<string, mixed> $state */
+    public function eligible(string $message, array $state = []): bool
     {
         $boundary = app(ClassifyChatbotInquiry::class);
         $canonical = $this->language->canonical($message);
-        if (config('ai_integration.full_catalog_pipeline') && in_array($boundary->execute($message)['category'], [ChatbotQueryCategory::Faq, ChatbotQueryCategory::Store, ChatbotQueryCategory::Order], true)) {
+        $branchCatalog = app(ChatbotBranchAvailability::class)->supports($message, $state)
+            || in_array($state['pending_catalog']['reason'] ?? null, ['unknown_branch', 'ambiguous_branch'], true);
+        if (config('ai_integration.full_catalog_pipeline') && ! $branchCatalog && in_array($boundary->execute($message)['category'], [ChatbotQueryCategory::Faq, ChatbotQueryCategory::Store, ChatbotQueryCategory::Order], true)) {
             return false;
         }
         if (config('ai_integration.full_catalog_pipeline') && preg_match('/^(?:hi|hello|hey|thanks|thank you)[.!?]*$/iu', trim($message))) {
             return false;
         }
         $catalog = app(CatalogSearchIntent::class)->resolve(trim($canonical, " \t\n\r\0\x0B?.!"));
-        if (! config('ai_integration.full_catalog_pipeline') && $catalog !== null && preg_match('/\b(?:compare|recommend|suggest|compatible|compatibility|versus|vs|best|gaming|editing|streaming|not|dili|indi|hindi|wala|except|exclude|without|usd|dollars?|eur)\b|[$€]/iu', $canonical) !== 1) {
+        if (! $branchCatalog && ! config('ai_integration.full_catalog_pipeline') && $catalog !== null && preg_match('/\b(?:compare|recommend|suggest|compatible|compatibility|versus|vs|best|gaming|editing|streaming|not|dili|indi|hindi|wala|except|exclude|without|under|below|above|between|budget|usd|dollars?|eur)\b|[$€]/iu', $canonical) !== 1) {
             return false;
         }
-        if ($boundary->execute($message)['category'] === ChatbotQueryCategory::Store) {
+        if (! $branchCatalog && $boundary->execute($message)['category'] === ChatbotQueryCategory::Store) {
             return false;
         }
 
@@ -66,7 +69,7 @@ class ModelLedChatbot
                     $publicProducts[] = ['name' => $previous[$id]->name];
                 }
             }
-            $publicConstraints = array_intersect_key($state['model_constraints'] ?? [], array_flip(['category_key', 'product_role', 'brand', 'capacity', 'use_case', 'excluded_brands', 'price']));
+            $publicConstraints = array_intersect_key($state['model_constraints'] ?? [], array_flip(['category_key', 'product_role', 'brand', 'capacity', 'use_case', 'excluded_brands', 'price', 'branch', 'availability', 'intent']));
             $public = ['language' => $language, 'language_preference' => $state['language_preference'] ?? null, 'products' => $publicProducts, 'constraints' => $publicConstraints];
             $intent = $this->resolvePendingCpuClarification($message, $state);
             if ($intent === null) {
@@ -80,8 +83,10 @@ class ModelLedChatbot
                     $intent = $resumed['intent'];
                 }
             }
-            if ($intent === null && config('ai_integration.full_catalog_pipeline')) {
-                $context = app(ResolveProductContext::class)->execute($message);
+            if ($intent === null && (config('ai_integration.full_catalog_pipeline') || app(ChatbotBranchAvailability::class)->supports($message, $state))) {
+                $context = app(ChatbotBranchAvailability::class)->supports($message, $state)
+                    ? app(ChatbotBranchAvailability::class)->localContext($message, $state)
+                    : app(ResolveProductContext::class)->execute($message);
                 $text = app(RenderChatbotFallback::class)->execute(ChatbotQueryCategory::Product, $message, $context) ?? 'Please provide a product name or model.';
             }
             if ($intent === null && $trace->event === null) {
@@ -134,7 +139,7 @@ class ModelLedChatbot
                         ChatbotQueryCategory::Faq => 'Approved information for that question is currently unavailable.',
                         default => "I couldn't find a matching product in the current Battlefront catalog. Please try the product name, brand, category, or tag.",
                     };
-                    if ($context !== [] && (($context['products'] ?? []) !== [] || ($context['branches'] ?? []) !== [] || ($context['knowledge'] ?? []) !== [] || isset($context['guidance']) || isset($context['compatibility']))) {
+                    if (! isset($context['branch_availability_message']) && $context !== [] && (($context['products'] ?? []) !== [] || ($context['branches'] ?? []) !== [] || ($context['knowledge'] ?? []) !== [] || isset($context['guidance']) || isset($context['compatibility']))) {
                         $context['interpreted_intent'] = ['focus' => $intent['intent'], 'requested_attributes' => $intent['attributes'], 'maximum_php' => $intent['maximum_php'], 'excluded_terms' => $intent['excluded_brands'], 'price_selection' => $context['price_selection'] ?? null];
                         $draft = $this->ai->grounded($message, $context, $language, scopeChecked: true);
                         if ($draft['successful']) {
@@ -154,6 +159,10 @@ class ModelLedChatbot
                 if ($intent['outcome'] === 'supported' && ! isset($context['clarification'])) {
                     $state['model_constraints'] = $context['selection_constraints'] ?? array_intersect_key($intent, array_flip(['category_key', 'maximum_php', 'excluded_brands', 'brand', 'capacity', 'use_case']));
                 }
+            }
+            if (($context['selection_constraints']['intent'] ?? null) === 'branch_availability') {
+                $state['model_constraints'] = $context['selection_constraints'];
+                $state['references']['product'] = array_slice(array_column($context['products'] ?? [], 'id'), 0, 6);
             }
             $state['language'] = $language;
             if ($explicitLanguage !== null) {
@@ -243,6 +252,12 @@ class ModelLedChatbot
     private function resumePendingCatalog(string $message, array $intent, array $pending): ?array
     {
         $original = $pending['intent'] ?? null;
+        if (is_array($original) && in_array($pending['reason'] ?? null, ['unknown_branch', 'ambiguous_branch'], true)
+            && $intent['outcome'] === 'supported' && ($intent['branch'] ?? '') !== ''
+            && in_array($intent['intent'], ['store', 'discovery', 'branch_availability'], true)) {
+            return ['intent' => [...$original, 'branch' => $intent['branch'], 'intent' => 'branch_availability', 'language' => $intent['language'], 'clarification' => 'none'],
+                'message' => $original['search_query'].' at '.$intent['branch'].' branch'];
+        }
         if (! is_array($original)
             || $intent['outcome'] !== 'supported'
             || ! in_array($intent['intent'], ['discovery', 'facts', 'comparison', 'recommendation', 'compatibility'], true)
@@ -281,16 +296,17 @@ class ModelLedChatbot
     }
 
     /** @param array<string, mixed> $intent
-     * @return array{intent: array<string, mixed>, alternatives: bool, cheaper: bool}|null
+     * @return array{intent: array<string, mixed>, alternatives: bool, cheaper: bool, reason: string}|null
      */
     private function pendingCatalog(string $message, array $intent, ?string $clarificationCode): ?array
     {
-        if (! in_array($clarificationCode, ['identify_product', 'identify_alternative_anchor'], true)) {
+        if (! in_array($clarificationCode, ['identify_product', 'identify_alternative_anchor', 'unknown_branch', 'ambiguous_branch'], true)) {
             return null;
         }
 
         return [
             'intent' => $intent,
+            'reason' => $clarificationCode,
             'alternatives' => preg_match('/\b(?:alternatives?|similar to|cheaper|more affordable|mas mura|mas barato|mas baratu)\b/iu', $message) === 1,
             'cheaper' => preg_match('/\b(?:cheaper|more affordable|mas mura|mas barato|mas baratu)\b/iu', $message) === 1,
         ];

@@ -118,6 +118,13 @@ class ChatbotOrchestrationService
             return $this->fallback($category, self::SENSITIVE_INPUT);
         }
 
+        if (app(ChatbotBranchAvailability::class)->supports($normalizedMessage)) {
+            $context = app(ChatbotBranchAvailability::class)->localContext($normalizedMessage);
+            $remember?->__invoke(ChatbotQueryCategory::Product, $context);
+
+            return $this->fallback(ChatbotQueryCategory::Product, $this->renderChatbotFallback->execute(ChatbotQueryCategory::Product, $normalizedMessage, $context) ?? self::NO_PRODUCT_MATCH, $context);
+        }
+
         $advice = app(ChatbotCatalogAdvice::class);
         if ($advice->supports($normalizedMessage)
             && ! preg_match('/\b(?:ignore|instructions|system prompt|password|api key|execute|sql|cypher)\b/iu', $normalizedMessage)) {

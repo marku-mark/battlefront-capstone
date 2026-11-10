@@ -4,6 +4,7 @@ namespace App\Actions\Chatbot;
 
 use App\Actions\Chatbot\Context\ResolveProductContext;
 use App\Enums\ChatbotQueryCategory;
+use App\Services\Chatbot\ChatbotBranchAvailability;
 use App\Services\Chatbot\ChatbotLanguage;
 
 class RouteChatbotQuery
@@ -24,6 +25,10 @@ class RouteChatbotQuery
 
         if ($this->categorizer->isBlocked($message) || $this->boundary->containsSensitiveInput($message)) {
             return ['category' => $category, 'choices' => []];
+        }
+
+        if ($resolveCatalogTerms && app(ChatbotBranchAvailability::class)->supports($message)) {
+            return ['category' => ChatbotQueryCategory::Product, 'choices' => []];
         }
 
         $choices = [];

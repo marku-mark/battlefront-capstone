@@ -38,3 +38,9 @@ The developer-approved failure review stores only encrypted allowlisted public d
 
 ## Full catalog pipeline has one bounded deadline
 The developer approved full public-catalog participation via CHATBOT_FULL_CATALOG_PIPELINE: understanding, Qdrant and Neo4j retrieval where valid inputs exist, grounded generation and mandatory review. FAQs/private support retain direct routing. Full mode overrides adaptive shortcuts, caps server work at 25 seconds and browser waiting at 30 seconds; missing review or provider failure returns authoritative local fallback. Automated tests must explicitly reset the full-mode flag independently of local activation.
+
+## Keep branch product inquiries compound and inventory authoritative
+Branch plus product constraints form one catalog request. Preserve branch/availability with existing brand/category/price constraints in bounded identity-bound follow-up state. Branch stock replies use published MySQL branch records and deterministic wording: only Sagay has live inventory; other branches are unknown, never inferred available or out of stock. Legacy intent fallback and model-led understanding share this boundary; never activate providers for verification.
+
+## Preserve branch catalog constraints in deterministic fallbacks
+Local branch requests and understanding-failure replies use ChatbotCatalogSelection with structured filters; never reconstruct a search sentence that drops sort or strict price bounds. Retain bounded branch/category/brand/price constraints through empty results and branch clarification, clear them for explicit new catalog topics, and requery live facts each turn within identity-bound expiring state.

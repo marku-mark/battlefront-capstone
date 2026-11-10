@@ -126,11 +126,12 @@ class ChatbotLanguage
 
     public function explicit(string $message): ?string
     {
-        if (preg_match('/\b(?:answer|reply|respond|speak|use|in|sabat|tubag|sagot|sumagot)(?:\s+(?:in|sa|lang|using))?\s+(english|hiligaynon|ilonggo|bisaya|cebuano|tagalog|filipino)\b/iu', $message, $matches) !== 1) {
+        $message = $this->withoutNegatedLanguageRequest($message);
+        if (! preg_match_all('/\b(?:answer|reply|respond|speak|use|in|sabat|tubag|sagot|sumagot)(?:\s+(?:in|sa|lang|using))?\s+(english|hiligaynon|ilonggo|bisaya|cebuano|tagalog|filipino)\b/iu', $message, $matches)) {
             return null;
         }
 
-        return match (Str::lower($matches[1])) {
+        return match (Str::lower(end($matches[1]))) {
             'hiligaynon', 'ilonggo' => 'hil',
             'bisaya', 'cebuano' => 'ceb',
             'tagalog', 'filipino' => 'tl',
@@ -140,30 +141,45 @@ class ChatbotLanguage
 
     public function withoutLanguageRequest(string $message): string
     {
-        return trim(preg_replace('/\b(?:please\s+)?(?:answer|reply|respond|speak|use|in|sabat|tubag|sagot|sumagot)(?:\s+(?:in|sa|lang|using))?\s+(?:english|hiligaynon|ilonggo|bisaya|cebuano|tagalog|filipino)\b[.!]?/iu', '', $message) ?? $message);
+        $cleaned = preg_replace('/\b(?:please\s+)?(?:answer|reply|respond|speak|use|in|sabat|tubag|sagot|sumagot)(?:\s+(?:in|sa|lang|using))?\s+(?:english|hiligaynon|ilonggo|bisaya|cebuano|tagalog|filipino)\b[.!]?/iu', '', $this->withoutNegatedLanguageRequest($message)) ?? $message;
+        if ($cleaned !== $message && preg_match('/^(?:[\s,;:.!?]|\b(?:and|but|instead|then)\b)*$/iu', $cleaned)) {
+            return '';
+        }
+
+        return $cleaned === $message ? trim($message) : trim($cleaned, " \t\n\r\0\x0B,;:.!?");
+    }
+
+    private function withoutNegatedLanguageRequest(string $message): string
+    {
+        return preg_replace('/\b(?:please\s+)?(?:(?:do not|don.t|hindi|dili|indi)\s+(?:(?:answer|reply|respond|speak|use)\s+)?|not\s+)(?:in\s+)?(?:english|hiligaynon|ilonggo|bisaya|cebuano|tagalog|filipino)\b/iu', '', $message) ?? $message;
     }
 
     public function detect(string $message): ?string
     {
-        $matches = [];
-        foreach (['hil' => 'may ara|ara kamo|diin|kag|sang|akon|sini|subong|indi|kagina', 'ceb' => 'naa|naay|aduna|moy|asa|unsa|unsaon|akong|nako|inyong|kana|karon|dili|ganiha|rekomendahi', 'tl' => 'magkano|paano|nasaan|meron|merong|mayroon|mayroong|ba kayo|aking|kayong|niyan|po|hindi|irekomenda|mura'] as $language => $words) {
-            $score = preg_match_all('/\b(?:'.$words.')\b/iu', $message);
-            if ($score > 0) {
-                $matches[$language] = $score;
+        $patterns = [
+            'hil' => ['may ara', 'ara kamo', 'diin', 'kag', 'sang', 'akon', 'sini', 'subong', 'indi', 'kagina', 'manubo'],
+            'ceb' => ['naa', 'naay', 'aduna', 'moy', 'asa', 'unsa', 'unsaon', 'akong', 'nako', 'inyong', 'inyong', 'karon', 'dili', 'ganiha', 'rekomendahi'],
+            'tl' => ['magkano', 'paano', 'nasaan', 'meron', 'merong', 'mayroon', 'mayroong', 'ba kayo', 'aking', 'kayong', 'niyan', 'po', 'hindi', 'irekomenda', 'mura'],
+            'en' => ['how', 'where', 'what', 'which', 'do you', 'have you', 'got any', 'can i', 'recommend', 'compare', 'show me', 'help me'],
+        ];
+        $scores = [];
+        foreach ($patterns as $language => $phrases) {
+            foreach ($phrases as $phrase) {
+                if (preg_match('/\b'.preg_quote($phrase, '/').'\b/iu', $message) === 1) {
+                    $weight = in_array($phrase, ['may ara', 'ara kamo', 'diin', 'mayroong', 'merong', 'magkano', 'unsaon', 'rekomendahi', 'do you', 'have you', 'got any', 'can i'], true) ? 2 : 1;
+                    $scores[$language] = ($scores[$language] ?? 0) + $weight;
+                }
             }
         }
-
-        if (count($matches) === 1) {
-            return array_key_first($matches);
+        if ($scores === []) {
+            return null;
         }
-        if (count($matches) > 1) {
-            arsort($matches);
-            $scores = array_values($matches);
+        arsort($scores);
+        $languages = array_keys($scores);
+        $top = reset($scores);
+        $next = array_values($scores)[1] ?? 0;
 
-            return $scores[0] > ($scores[1] ?? $scores[0]) ? array_key_first($matches) : null;
-        }
-
-        return preg_match('/\b(?:how|where|what|which|is the|do you|have you|got any|can i|recommend|compare|show me|help me)\b/iu', $message) === 1 ? 'en' : null;
+        return $top > $next ? $languages[0] : null;
     }
 
     public function select(string $message, ?string $previous = null): string
@@ -182,11 +198,12 @@ class ChatbotLanguage
             }
         }
         preg_match('/\b(?:under|below|less than|budget(?: is| of)?)\s*(?:PHP\s*|\x{20B1}\s*)?([\d,]+(?:\.\d{1,2})?)(?![\p{L}\p{N}])/iu', $query, $budget);
-        preg_match_all('/\b(?:not|without|exclude|except)\s+(intel|amd|nvidia)\b/iu', $query, $excluded);
+        preg_match_all('/\b(?:not|without|exclud(?:e|ing)|except)\s+([\p{L}\p{N}-]+)\b/iu', $query, $excluded);
+        $excludedBrands = array_values(array_unique(array_filter(array_map('strtolower', $excluded[1]), fn (string $brand): bool => ! in_array($brand, ['available', 'stock', 'budget', 'under', 'below', 'price', 'products', 'product'], true))));
         preg_match('/\b\d+(?:\.\d+)?\s*(?:TB|GB)\b/iu', $query, $capacity);
 
         return ['attributes' => $attributes, 'maximum_php' => isset($budget[1]) ? (float) str_replace(',', '', $budget[1]) : null,
-            'excluded_brands' => array_values(array_unique(array_map('strtolower', $excluded[1]))), 'capacity' => $capacity[0] ?? null];
+            'excluded_brands' => $excludedBrands, 'capacity' => $capacity[0] ?? null];
     }
 
     public function blocked(string $message): bool

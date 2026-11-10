@@ -46,7 +46,7 @@ test('branch reference data can be seeded repeatedly', function () {
     ]);
     $this->assertDatabaseHas('branches', [
         'city' => 'Escalante City',
-        'address' => null,
+        'address' => 'National Road, Barangay Balintawak, Escalante City, 6124',
         'contact_number' => null,
     ]);
 

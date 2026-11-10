@@ -37,7 +37,7 @@ class ChatbotCatalogAdvice
         $price = app(ChatbotPriceIntent::class)->resolve($query);
         $catalogIntent = app(CatalogSearchIntent::class)->resolve($price['query']);
         if (($catalogIntent !== null && app(ProductCatalogRepository::class)->hasChatbotCategory($price['query'])) || $price['sort'] !== null) {
-            preg_match_all('/\b(?:not|without|exclude|except)\s+([\p{L}\p{N}-]+)\b/iu', $query, $excluded);
+            preg_match_all('/\b(?:not|without|exclud(?:e|ing)|except)\s+([\p{L}\p{N}-]+)\b/iu', $query, $excluded);
             $context = app(ChatbotCatalogSelection::class)->select($message, [
                 'intent' => 'recommendation', 'category_key' => ChatbotProductRanking::FAMILIES[$catalogIntent['category'] ?? ''] ?? 'other',
                 'search_query' => $price['query'], 'product_mentions' => [], 'reference' => 'new', 'position' => 0,
@@ -48,9 +48,9 @@ class ChatbotCatalogAdvice
             return ['message' => $text ?? 'I could not find an available catalog option matching those constraints.', 'context' => $context];
         }
         $maximum = null;
-        preg_match_all('/\b(?:not|without|exclude|except)\s+(intel|amd|nvidia)\b/iu', $query, $exclusions);
+        preg_match_all('/\b(?:not|without|exclud(?:e|ing)|except)\s+([\p{L}\p{N}-]+)\b/iu', $query, $exclusions);
         $excludedBrands = array_map('strtolower', $exclusions[1]);
-        $query = preg_replace('/\b(?:not|without|exclude|except)\s+(?:intel|amd|nvidia)\b/iu', ' ', $query) ?? $query;
+        $query = preg_replace('/\b(?:not|without|exclud(?:e|ing)|except)\s+[\p{L}\p{N}-]+\b/iu', ' ', $query) ?? $query;
         if (preg_match('/\b(?:under|below|less than|budget(?: of)?)\s*(?:PHP\s*|\x{20B1}\s*)?([\d,]+(?:\.\d{1,2})?)(?![\p{L}\p{N}])/iu', $query, $budget) === 1) {
             $maximum = (float) str_replace(',', '', $budget[1]);
             $query = str_replace($budget[0], ' ', $query);

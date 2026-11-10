@@ -13,7 +13,7 @@ class ChatbotUnderstandingAgent implements Agent, HasStructuredOutput
 {
     use Promptable;
 
-    public const INTENTS = ['discovery', 'facts', 'comparison', 'recommendation', 'compatibility', 'store', 'support', 'private', 'greeting'];
+    public const INTENTS = ['discovery', 'branch_availability', 'facts', 'comparison', 'recommendation', 'compatibility', 'store', 'support', 'private', 'greeting'];
 
     public const CATEGORIES = ['printer', 'laptop', 'desktop', 'computer', 'processor', 'motherboard', 'memory', 'graphics', 'storage', 'power_supply', 'case', 'cooling', 'monitor', 'other'];
 
@@ -23,7 +23,11 @@ class ChatbotUnderstandingAgent implements Agent, HasStructuredOutput
 
 
             Interpret meaning rather than requiring exact wording. Honorifics (po), omitted question particles (ba/bala), informal spelling and English hardware terms do not change an availability question into missing_details. A component category is sufficient for discovery; an exact model is only needed for exact-model facts or compatibility. Keep reply language separate from search_query: use concise catalog terms for retrieval while retaining the customer's language. Do not translate model codes. Never remove negation or reinterpret a request to exclude a brand as a request for that brand. Do not infer availability from how a question is phrased.
+            Product availability at a branch is one related branch_availability request, not mixed_topics or a pure store question. Preserve brand, category, model, budget and exclusions together. For "what branch that i can but asus laptop", interpret the contextual typo as buy: branch_availability, laptop, brand Asus, attributes stock, branch empty, availability in_stock. Do not infer that any branch actually stocks it. Pure branch addresses, contact numbers and opening hours remain store intent. branch contains only the branch name or city actually mentioned, otherwise empty; never include branch words in search_query. availability is in_stock for requests to buy or find available products, otherwise any. An unspecified laptop model is sufficient for discovery. Budget-only and brand-only refinements use reference previous and retain the previous category; explicit new categories start a new request. "Any brand" clears brand and exclusions; "any branch" clears branch. Preserve strict versus inclusive price bounds. A branch stock question followed by "under 40k" remains branch_availability.
             Examples below show selected fields only; always return every schema field. They are examples, not customer context or catalog facts:
+            - Input: "Saang branch may Asus laptop na wala pang PHP 40k?" -> {"outcome":"supported","intent":"branch_availability","language":"tl","category_key":"laptop","search_query":"Asus laptop","brand":"Asus","maximum_php":40000,"maximum_inclusive":false,"branch":"","availability":"in_stock","reference":"new","clarification":"none"}
+            - Input: "Asa nga branch naay Asus laptop ubos sa PHP 40k?" -> {"outcome":"supported","intent":"branch_availability","language":"ceb","category_key":"laptop","search_query":"Asus laptop","brand":"Asus","maximum_php":40000,"maximum_inclusive":false,"branch":"","availability":"in_stock","reference":"new","clarification":"none"}
+            - Input: "Sa diin nga branch may Asus laptop nga manubo sa PHP 40k?" -> {"outcome":"supported","intent":"branch_availability","language":"hil","category_key":"laptop","search_query":"Asus laptop","brand":"Asus","maximum_php":40000,"maximum_inclusive":false,"branch":"","availability":"in_stock","reference":"new","clarification":"none"}
             - Input: "Do you happen to carry RAM?" -> {"outcome":"supported","intent":"discovery","language":"en","category_key":"memory","search_query":"RAM","attributes":["stock"],"reference":"new","clarification":"none"}
             - Input: "Mayroon po kayong SSD?" -> {"outcome":"supported","intent":"discovery","language":"tl","category_key":"storage","search_query":"SSD","attributes":["stock"],"reference":"new","clarification":"none"}
             - Input: "Naa ba moy monitor karon?" -> {"outcome":"supported","intent":"discovery","language":"ceb","category_key":"monitor","search_query":"monitor","attributes":["stock"],"reference":"new","clarification":"none"}
@@ -60,6 +64,8 @@ class ChatbotUnderstandingAgent implements Agent, HasStructuredOutput
             'maximum_php' => $schema->number()->nullable()->required(),
             'excluded_brands' => $schema->array()->items($schema->string())->required(),
             'brand' => $schema->string()->required(),
+            'branch' => $schema->string()->required(),
+            'availability' => $schema->string()->enum(['any', 'in_stock'])->required(),
             'capacity' => $schema->string()->required(),
             'use_case' => $schema->string()->required(),
             'reference' => $schema->string()->enum(['new', 'previous'])->required(),

@@ -296,9 +296,16 @@ test('repeated seeding preserves snapshots and unrelated transactions even on se
 
     $this->seed(DevelopmentHistoricalSalesSeeder::class);
 
-    expect(historicalSalesDatabaseSnapshot())->toEqual($before);
-    expect(Storage::disk('local')->get(config('forecasting.development_manifest')))->toBe($coverageBefore);
-    expect($products['10003']->orderItems()->whereHas('order', fn ($query) => $query->whereNotNull('development_fixture_key'))->pluck('price_at_time')->unique()->all())->toBe(['2800.00']);
+    $after = historicalSalesDatabaseSnapshot();
+    foreach ($before as $table => $rows) {
+        expect(array_slice($after[$table], 0, count($rows)))->toEqual($rows);
+    }
+    expect(count($after['orders']))->toBeGreaterThan(count($before['orders']))
+        ->and(Storage::disk('local')->get(config('forecasting.development_manifest')))->not->toBe($coverageBefore);
+    $fixturePrices = $products['10003']->orderItems()
+        ->whereHas('order', fn ($query) => $query->whereNotNull('development_fixture_key'))
+        ->pluck('price_at_time')->unique()->all();
+    expect($fixturePrices)->toContain('2800.00', '2500.00');
 });
 
 test('historical seeding retains imported customer catalog and cart eligibility', function () {

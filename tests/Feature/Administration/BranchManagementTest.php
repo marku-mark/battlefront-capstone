@@ -241,6 +241,7 @@ test('legacy missing details can remain published but require verification on re
     $this->seed(BranchSeeder::class);
     $administrator = User::factory()->administrator()->create();
     $branch = Branch::query()->where('city', 'Escalante City')->sole();
+    $branch->update(['address' => null]);
     $details = ['name' => $branch->name, 'city' => $branch->city, 'operating_hours' => $branch->operating_hours];
 
     $this->actingAs($administrator)->put(route('administration.branches.update', $branch), [...$details, 'email' => 'verified@example.test'])

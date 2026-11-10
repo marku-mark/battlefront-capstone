@@ -273,7 +273,7 @@ class ResolveProductContext
     }
 
     /** @return Collection<int, Product> */
-    private function namedProducts(string $message): Collection
+    public function namedProducts(string $message): Collection
     {
         $normalized = $this->normalizedText($message);
 

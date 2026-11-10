@@ -16,6 +16,13 @@ class RenderChatbotFallback
         if ($category === ChatbotQueryCategory::Product && isset($context['clarification'])) {
             return $context['clarification'];
         }
+        if ($category === ChatbotQueryCategory::Product && isset($context['branch_availability_message'])) {
+            return $context['branch_availability_message'].(($context['products'] ?? []) !== []
+                ? "\n\n".implode("\n\n", app(ChatbotGroundedResponse::class)->evidence(['products' => $context['products']])) : '');
+        }
+        if ($category === ChatbotQueryCategory::Product && isset($context['no_match_message'])) {
+            return $context['no_match_message'];
+        }
         if ($category === ChatbotQueryCategory::Product && isset($context['price_selection']) && ($context['products'] ?? []) !== []) {
             $scope = $context['price_selection']['scope'] === 'selected_products' ? 'these selected products' : 'the matching available catalog products';
             $direction = match ($context['price_selection']['sort']) {

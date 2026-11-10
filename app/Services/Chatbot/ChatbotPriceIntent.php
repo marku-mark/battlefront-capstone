@@ -12,6 +12,7 @@ class ChatbotPriceIntent
      *     cheaper: bool, scope: string, error: string|null, query: string} */
     public function resolve(string $message, array $model = []): array
     {
+        $message = trim(preg_replace('/\s+/u', ' ', $message));
         $query = mb_strtolower($message);
         $descending = 'most expensive|highest price|price high to low|pinakamahal';
         $ascending = 'cheapest|lowest price|least expensive|price low to high|pinakamura|pinakabarato|pinakabaratu';

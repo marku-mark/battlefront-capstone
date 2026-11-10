@@ -49,6 +49,15 @@ test('best value does not silently request the cheapest product', function () {
     expect(app(ChatbotPriceIntent::class)->resolve('best value laptop')['sort'])->toBeNull();
 });
 
+test('price inquiries tolerate conversational whitespace without losing budget boundaries', function (string $message, array $expected) {
+    expect(app(ChatbotPriceIntent::class)->resolve($message))->toMatchArray($expected);
+})->with([
+    ['laptop at   least PHP 20k', ['minimum' => '20000.00', 'minimum_inclusive' => true, 'query' => 'laptop']],
+    ["laptop at\nmost PHP 30k", ['maximum' => '30000.00', 'maximum_inclusive' => true, 'query' => 'laptop']],
+    ["lowest\tprice laptop less  than PHP 30k", ['sort' => 'asc', 'maximum' => '30000.00', 'maximum_inclusive' => false, 'query' => 'laptop']],
+    ['laptop budget   of PHP 25k', ['maximum' => '25000.00', 'maximum_inclusive' => true, 'query' => 'laptop']],
+]);
+
 test('regional budget removal restores products excluded by a prior limit', function (string $message) {
     config(['ai_integration.qdrant.enabled' => false, 'scout.driver' => 'null']);
     $category = Category::factory()->create(['name' => 'Laptops & Desktops']);

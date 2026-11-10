@@ -10,6 +10,7 @@ use App\Services\Chatbot\ChatbotLanguage;
 use Illuminate\Support\Facades\Artisan;
 use Inertia\Testing\AssertableInertia as Assert;
 use Laravel\Ai\Exceptions\AiException;
+use Symfony\Component\Console\Output\BufferedOutput;
 
 test('ordinary security questions do not count as submitted secrets', function (string $question) {
     expect(app(ClassifyChatbotInquiry::class)->containsSensitiveInput($question))->toBeFalse();
@@ -25,6 +26,11 @@ test('shopping normalization preserves exact models and negation', function () {
     expect(app(ChatbotLanguage::class)->canonical('pls prcie RTX 4060 Ti, not AMD, under 5k'))
         ->toBe('price RTX 4060 Ti, not AMD, under 5000');
     expect(app(ChatbotLanguage::class)->canonical('LG 5K Monitor'))->toBe('LG 5K Monitor');
+});
+
+test('brand exclusion interpretation accepts catalog brands beyond the processor vendors', function () {
+    expect(app(ChatbotLanguage::class)->interpret('recommend a monitor, excluding Logitech')['excluded_brands'])
+        ->toBe(['logitech']);
 });
 
 test('CPU inquiries resolve processors and preserve accessory and model names', function () {
@@ -102,13 +108,17 @@ test('a price assigned to the wrong product fails grounded validation even when 
 });
 
 test('offline evaluation reports labeled routing attribute and clarification accuracy', function () {
+    $this->withoutMockingConsoleOutput();
     $disk = $this->fakeIsolatedStorage('local');
     $disk->put('understanding.json', json_encode([[
         'id' => 'public-product-typo', 'language' => 'en', 'messages' => ['What is the prcie of Missing SSD X100?'],
         'expected_category' => 'product', 'expected_attributes' => ['price'], 'expected_clarification' => false,
     ]]));
-    expect(Artisan::call('chatbot:evaluate', ['--dataset' => $disk->path('understanding.json')]))->toBe(0);
-    $report = json_decode(Artisan::output(), true, flags: JSON_THROW_ON_ERROR);
+    $output = new BufferedOutput;
+    $exitCode = Artisan::call('chatbot:evaluate', ['--dataset' => $disk->path('understanding.json')], $output);
+    $reportOutput = $output->fetch();
+    expect($exitCode)->toBe(0, $reportOutput);
+    $report = json_decode($reportOutput, true, flags: JSON_THROW_ON_ERROR);
     expect($report['summary']['en']['routing_accuracy'])->toBe(1)
         ->and($report['summary']['en']['attributes_accuracy'])->toBe(1)
         ->and($report['summary']['en']['clarification_accuracy'])->toBe(1);

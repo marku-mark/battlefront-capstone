@@ -56,7 +56,7 @@ class ChatbotAiAdapter
                 return null;
             }
             $data = $response->structured;
-            $defaults = ['sort' => 'relevance', 'minimum_php' => null, 'minimum_inclusive' => true, 'maximum_inclusive' => true, 'price_scope' => 'catalog', 'product_role' => 'main'];
+            $defaults = ['branch' => '', 'availability' => 'any', 'sort' => 'relevance', 'minimum_php' => null, 'minimum_inclusive' => true, 'maximum_inclusive' => true, 'price_scope' => 'catalog', 'product_role' => 'main'];
             $data = [...$defaults, ...$data];
             $validator = Validator::make($data, [
                 'outcome' => ['required', Rule::in(['supported', 'clarify', 'unsupported'])],
@@ -74,14 +74,23 @@ class ChatbotAiAdapter
                 'maximum_php' => ['present', 'nullable', 'numeric', 'min:0', 'max:9999999999'],
                 'excluded_brands' => ['present', 'array', 'max:6'], 'excluded_brands.*' => ['string', 'max:80'],
                 'brand' => ['present', 'string', 'max:80'], 'capacity' => ['present', 'string', 'max:40'], 'use_case' => ['present', 'string', 'max:100'],
+                'branch' => ['present', 'string', 'max:100'],
+                'availability' => ['required', Rule::in(['any', 'in_stock'])],
                 'reference' => ['required', Rule::in(['new', 'previous'])], 'position' => ['required', 'integer', 'min:0', 'max:6'],
                 'clarification' => ['required', Rule::in(['none', 'cpu_meaning', 'missing_reference', 'mixed_topics', 'missing_details'])],
             ]);
 
-            if ($validator->fails() || count($data) !== 21) {
+            if ($validator->fails() || count($data) !== 23) {
                 $budget->recordStage('scope', 'failed');
                 app(ChatbotFailureTrace::class)->record('understanding_invalid_output', 'scope');
                 $this->logAttempt($started, 4, 'understanding_invalid_output');
+
+                return null;
+            }
+
+            if ($data['branch'] !== '' && mb_stripos($message, $data['branch']) === false
+                && mb_strtolower($data['branch']) !== mb_strtolower($publicState['constraints']['branch'] ?? '')) {
+                app(ChatbotFailureTrace::class)->record('understanding_invalid_output', 'scope');
 
                 return null;
             }
