@@ -9,6 +9,23 @@ use App\Services\Chatbot\ChatbotLocalizedResponse;
 use App\Services\Chatbot\ChatbotProviderBudget;
 use Illuminate\Support\Facades\Http;
 
+test('branch availability introductions and fallbacks are localized', function (string $language) {
+    config(['ai_integration.localization_enabled' => true]);
+    $localizer = app(ChatbotLocalizedResponse::class);
+    foreach ([
+        'These matching products are available at the Sagay branch. I cannot confirm stock at other branches.',
+        'I cannot confirm stock at Escalante. Live inventory information covers Sagay only. Please contact the branch before visiting.',
+        'Published branch information is currently unavailable. Live inventory information covers Sagay only.',
+        'I found no available Sagay products matching all of these constraints. Try changing the brand, model or budget. I cannot confirm stock at other branches.',
+        'Please provide a product name or model, or clarify your Battlefront question.',
+        'By CPU, do you mean a processor or a complete desktop system unit?',
+        'Please sign in with your customer account to check your order status.',
+    ] as $text) {
+        expect($localizer->text($text, $language))->not->toContain('These matching', 'I cannot confirm', 'Live inventory', 'Please contact', 'Published branch', 'I found no', 'matching all', 'Try changing', 'Please provide', 'By CPU', 'Please sign in');
+    }
+    expect($localizer->text('I cannot confirm stock at Escalante.', $language))->toContain('Escalante');
+})->with(['ceb', 'tl', 'hil']);
+
 test('private support refusals match the customer language without sending provider requests', function (string $message, string $expected) {
     config(['ai_integration.localization_enabled' => true]);
     $result = app(ChatbotConversation::class)->respond($message, null, null, 'web:localized');

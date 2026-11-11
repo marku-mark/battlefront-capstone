@@ -8,6 +8,20 @@ class ChatbotLocalizedResponse
      * @var array<string, array{string, string, string}>
      */
     private const MESSAGES = [
+        'By CPU, do you mean a processor or a complete desktop system unit?' => ['Sa CPU, processor ba o kompleto nga desktop system unit imong pasabot?', 'Sa CPU, processor ba o kumpletong desktop system unit ang ibig mong sabihin?', 'Sa CPU, processor ukon kompleto nga desktop system unit ang imo ginatumod?'],
+        'Please sign in with your customer account to check your order status.' => ['Palihog sign in gamit ang imong customer account aron makita ang status sa order.', 'Mag-sign in gamit ang iyong customer account para makita ang status ng order.', 'Palihog mag-sign in gamit ang imo customer account agod makita ang status sang order.'],
+        'These matching products are available at the Sagay branch.' => ['Adunay stock niining mga produkto sa Sagay branch.', 'May stock ng mga produktong ito sa Sagay branch.', 'May stock sini nga mga produkto sa Sagay branch.'],
+        'I cannot confirm stock at other branches.' => ['Dili nako makumpirma ang stock sa ubang mga branch.', 'Hindi ko makumpirma ang stock sa ibang mga branch.', 'Indi ko makumpirma ang stock sa iban nga mga branch.'],
+        'I cannot confirm stock at ' => ['Dili nako makumpirma ang stock sa ', 'Hindi ko makumpirma ang stock sa ', 'Indi ko makumpirma ang stock sa '],
+        'Live inventory information covers Sagay only.' => ['Para lamang sa Sagay ang kasamtangang impormasyon sa stock.', 'Para lamang sa Sagay ang kasalukuyang impormasyon ng stock.', 'Para lamang sa Sagay ang kasamtangan nga impormasyon sang stock.'],
+        'Please contact the branch before visiting.' => ['Palihog kontaka ang branch sa dili pa mobisita.', 'Makipag-ugnayan muna sa branch bago bumisita.', 'Palihog kontaka ang branch antes magbisita.'],
+        'Published branch information is currently unavailable.' => ['Wala pay impormasyon sa branch karon.', 'Hindi pa makuha ang impormasyon ng branch.', 'Wala anay impormasyon sang branch subong.'],
+        'I found no available Sagay products' => ['Wala koy nakitang available nga produkto sa Sagay', 'Wala akong nakitang available na produkto sa Sagay', 'Wala ako sing nakita nga available nga produkto sa Sagay'],
+        'matching all of these constraints.' => ['nga mohaom sa tanang kondisyon.', 'na tugma sa lahat ng kondisyong ito.', 'nga nagaigo sa tanan nga kondisyon.'],
+        'Try changing the brand, model or budget.' => ['Sulayi pag-ilis sa brand, modelo o budget.', 'Subukang baguhin ang brand, modelo o budget.', 'Tilawi pag-ilis sang brand, modelo ukon budget.'],
+        'Which branch do you mean: ' => ['Unsang branch imong pasabot: ', 'Aling branch ang tinutukoy mo: ', 'Ano nga branch ang imo ginatumod: '],
+        'Please provide a product name or model.' => ['Ihatag ang ngalan o modelo sa produkto.', 'Ibigay ang pangalan o modelo ng produkto.', 'Ihatag ang ngalan ukon modelo sang produkto.'],
+        'Please provide a product name or model, or clarify your Battlefront question.' => ['Ihatag ang ngalan o modelo sa produkto, o klaroha ang imong pangutana bahin sa Battlefront.', 'Ibigay ang pangalan o modelo ng produkto, o linawin ang iyong tanong tungkol sa Battlefront.', 'Ihatag ang ngalan ukon modelo sang produkto, ukon klaroha ang imo pamangkot parte sa Battlefront.'],
         'Yes. ' => ['Oo. ', 'Oo. ', 'Huo. '],
         'No. ' => ['Dili. ', 'Hindi. ', 'Indi. '],
         'Current selling price: PHP ' => ['Kasamtangang baligya: PHP ', 'Kasalukuyang presyo: PHP ', 'Kasamtangan nga baligya: PHP '],

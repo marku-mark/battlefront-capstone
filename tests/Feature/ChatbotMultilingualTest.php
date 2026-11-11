@@ -23,6 +23,26 @@ use Laravel\Ai\Prompts\AgentPrompt;
 
 beforeEach(fn () => Http::preventStrayRequests());
 
+test('apostrophe variants preserve contraction meaning across supported languages', function (string $contracted, string $expanded) {
+    $language = app(ChatbotLanguage::class);
+    foreach (["'", '’', '‘', 'ʼ'] as $apostrophe) {
+        expect($language->normalized(str_replace("'", $apostrophe, $contracted)))->toBe($language->normalized($expanded));
+    }
+})->with([
+    ['naa mo\'y ram', 'naa moy ram'],
+    ['naa\'y ram', 'naay ram'],
+    ['aduna mo\'y laptop', 'aduna moy laptop'],
+    ['ako\'y naghahanap ng ram', 'ako ay naghahanap ng ram'],
+    ['ano\'ng presyo ng ram', 'anong presyo ng ram'],
+    ['may ara kamo sa\'ng ram', 'may ara kamo sang ram'],
+    ['I don\'t want Intel RAM', 'I do not want Intel RAM'],
+    ['isn\'t this RAM available?', 'is not this RAM available?'],
+]);
+
+test('apostrophe matching leaves catalog names intact', function () {
+    expect(app(ChatbotLanguage::class)->canonical("Do you have Kingston's RAM?"))->toContain("Kingston's RAM");
+});
+
 test('availability wording selects its language even after a different prior language', function (string $question, string $language) {
     expect(app(ChatbotLanguage::class)->select($question, $language === 'tl' ? 'ceb' : 'tl'))->toBe($language);
 })->with([
@@ -62,6 +82,10 @@ test('natural availability variations preserve product identity and current stoc
     'Tagalog stock' => ['May stock pa ba kayo ng %s?', 'Atlas Monitor'],
     'Tagalog availability' => ['Available pa ba ang %s?', 'Atlas SSD'],
     'Cebuano naa ba moy' => ['Naa ba moy %s?', 'BIOSTAR H610M Motherboard'],
+    'Cebuano straight apostrophe' => ["Naa mo'y %s?", 'Atlas RAM'],
+    'Cebuano curved apostrophe' => ['Naa mo’y %s?', 'Atlas RAM'],
+    'Tagalog apostrophe' => ["Ako'y naghahanap. May %s ba kayo?", 'Atlas RAM'],
+    'Hiligaynon apostrophe' => ["May ara kamo sa'ng %s?", 'Atlas RAM'],
     'Cebuano naa pa ba' => ['Naa pa ba moy %s?', 'Atlas SSD'],
     'Cebuano naa mo' => ['Naa mo %s?', 'Logitech G502 Mouse'],
     'Cebuano aduna' => ['Aduna ba moy %s?', 'Atlas Monitor'],

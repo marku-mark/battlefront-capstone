@@ -84,6 +84,15 @@ class ChatbotLanguage
 
     public function canonical(string $message): string
     {
+        $message = preg_replace('/\b(mo|naa|aduna|wala|dili|unsa)[\x{0027}\x{2018}\x{2019}\x{02BC}]y\b/iu', '$1y', $message) ?? $message;
+        $message = preg_replace_callback('/\b(ako|ikaw|siya|kami|kayo|sila|ito|iyan|iyon)[\x{0027}\x{2018}\x{2019}\x{02BC}]y\b/iu', fn (array $match): string => $match[1].' ay', $message) ?? $message;
+        $message = preg_replace('/\b(ano|sino|saan)[\x{0027}\x{2018}\x{2019}\x{02BC}]ng\b/iu', '$1ng', $message) ?? $message;
+        $message = preg_replace('/\bsa[\x{0027}\x{2018}\x{2019}\x{02BC}]ng\b/iu', 'sang', $message) ?? $message;
+        $message = preg_replace_callback('/\b(don|doesn|didn|isn|aren|wasn|weren|couldn|wouldn|shouldn)[\x{0027}\x{2018}\x{2019}\x{02BC}]t\b/iu', fn (array $match): string => match (mb_strtolower($match[1])) {
+            'don' => 'do not', 'doesn' => 'does not', 'didn' => 'did not', 'isn' => 'is not',
+            'aren' => 'are not', 'wasn' => 'was not', 'weren' => 'were not',
+            'couldn' => 'could not', 'wouldn' => 'would not', default => 'should not',
+        }, $message) ?? $message;
         $message = $this->withoutClarificationPrefix($this->withoutLanguageRequest($message));
         $message = preg_replace('/\b(?:pls|plz|please|kindly|hello|hi|po)\b[,:]?/iu', ' ', $message) ?? $message;
         $message = Str::squish($message);
