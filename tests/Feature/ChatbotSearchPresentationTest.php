@@ -8,6 +8,7 @@ use App\Models\Category;
 use App\Models\Product;
 use App\Repositories\Catalog\CatalogSearch;
 use App\Services\Chatbot\ChatbotConversation;
+use App\Services\Chatbot\ChatbotPresentation;
 use App\Services\Chatbot\PublicChatbotQuery;
 use App\Services\Chatbot\SemanticCatalogCandidates;
 
@@ -15,6 +16,41 @@ beforeEach(function () {
     Product::disableSearchSyncing();
     config(['scout.driver' => 'algolia']);
 });
+
+test('availability replies present catalog price and stock below the introduction', function () {
+    config(['ai_integration.localization_enabled' => true]);
+    $presentation = app(ChatbotPresentation::class)->build([
+        'category' => ChatbotQueryCategory::Product,
+        'message' => "Oo, meron po.\n\nExample Laptop.\nOo. Stock sa Sagay: 1 ang available.",
+    ], ['products' => [[
+        'id' => 7, 'name' => 'Example Laptop', 'price' => '2200.00',
+        'inventory' => ['status' => 'in_stock', 'quantity' => 5],
+    ]]], 'meron po kayo laptop?', null, 'tl');
+
+    expect($presentation['intro'])->toBe('Oo, meron po.')
+        ->and($presentation['products'][0]['name'])->toBe('Example Laptop')
+        ->and($presentation['products'][0]['price'])->toBe('2200.00')
+        ->and($presentation['products'][0]['labels']['stock'])->toBe('Katayuan ng stock')
+        ->and($presentation['products'][0]['stock'])->toBe('May stock sa Sagay — 5 ang available')
+        ->and($presentation['facts'])->toBe([]);
+});
+
+test('product introductions and quantities follow the response language', function (string $language, string $intro, string $stock) {
+    config(['ai_integration.localization_enabled' => true]);
+    $presentation = app(ChatbotPresentation::class)->build([
+        'category' => ChatbotQueryCategory::Product,
+        'message' => 'Example Laptop. Stock details.',
+    ], ['products' => [[
+        'id' => 7, 'name' => 'Example Laptop', 'price' => '2200.00',
+        'inventory' => ['status' => 'out_of_stock', 'quantity' => 0],
+    ]]], 'laptop', null, $language);
+
+    expect($presentation['intro'])->toBe($intro)
+        ->and($presentation['products'][0]['stock'])->toBe($stock);
+})->with([
+    ['en', 'Here are the products matching your request.', 'Out of stock at Sagay — 0 available'],
+    ['tl', 'Narito po ang mga produktong tugma sa hinahanap ninyo.', 'Walang stock sa Sagay — 0 ang available'],
+]);
 
 test('branch discovery answers all published matches without a follow-up question', function () {
     $branches = array_map(fn (string $city): array => [

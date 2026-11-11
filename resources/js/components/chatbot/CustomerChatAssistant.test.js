@@ -327,7 +327,7 @@ test('product links follow their full descriptions without duplicating the botto
         } };
         const paragraphs = context.paragraphs(message);
         assert.equal(paragraphs[0].actions.length, 0);
-        assert.equal(paragraphs[1].text, `BIOSTAR H610M Motherboard — PHP 3,600.00. ${stock}.`);
+        assert.equal(paragraphs[1].text, `Product name: BIOSTAR H610M Motherboard\nPrice: ₱3,600.00\nAvailability: ${stock}`);
         assert.equal(paragraphs[1].actions[0], first);
         assert.equal(paragraphs[2].actions[0], second);
         assert.equal(context.remaining(message).length, 1);
@@ -352,7 +352,7 @@ test('product links follow their full descriptions without duplicating the botto
         ],
     } });
     assert.equal(separated.length, 2);
-    assert.equal(separated[0].text, 'PRINTER CANON PIXMA E410.\nPresyo: PHP 3,900.00.\nStock sa Sagay: 1 ang available.');
+    assert.equal(separated[0].text, 'Product name: PRINTER CANON PIXMA E410\nPrice: ₱3,900.00\nAvailability: Stock sa Sagay: 1 ang available');
     assert.equal(separated[0].actions[0].id, 1);
     assert.equal(separated[1].actions[0].id, 2);
     const repeated = context.paragraphs({ presentation: {
@@ -364,7 +364,7 @@ test('product links follow their full descriptions without duplicating the botto
     } });
     assert.equal(repeated.length, 2);
     assert.equal(repeated[0].actions[0].id, 1);
-    assert.match(descriptor.template.content, /v-for="action in entry.actions"[\s\S]*?>\{\{ action.label \}\}<\/Link>/);
+    assert.match(descriptor.template.content, /v-for="action in entry.actions"[\s\S]*?>Link: <Link[\s\S]*?>View Product<\/Link>/);
     const url = runInNewContext(`(${functionSource('actionUrl')})`, {
         ProductCatalogController: { show: { url: (id) => `/products/${id}` } },
     });

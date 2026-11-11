@@ -266,12 +266,24 @@ function messageParagraphs(message) {
         actions: actions.filter((action) => action.kind === 'product'
             && text.includes(action.label)
             && !paragraphs.slice(index + 1).some((paragraph) => paragraph.includes(action.label))),
-    }));
+    })).map((entry) => {
+        if (entry.actions.length !== 1) return entry;
+        const product = entry.actions[0];
+        const price = entry.text.match(/(?:PHP|₱)\s*([\d,]+\.\d{2})/i);
+        if (!price) return entry;
+        const details = entry.text.slice(entry.text.indexOf(price[0]) + price[0].length)
+            .replace(/^[.\s]+/, '').replace(/[.\s]+$/, '');
+        return {
+            ...entry,
+            text: `Product name: ${product.label}\nPrice: ₱${price[1]}${details ? `\nAvailability: ${details}` : ''}`,
+        };
+    });
 }
 
 function remainingActions(message) {
     const placed = messageParagraphs(message).flatMap((paragraph) => paragraph.actions);
-    return (message.presentation?.actions ?? []).filter((action) => !placed.includes(action));
+    return (message.presentation?.actions ?? []).filter((action) => !placed.includes(action)
+        && !(action.kind === 'product' && message.presentation?.products?.some((product) => product.id === action.id)));
 }
 
 function actionUrl(action) {
@@ -551,12 +563,10 @@ async function submitMessage(quickQuestion = null, freshContext = true) {
                                         <p v-else class="whitespace-pre-wrap">
                                             {{ entry.text }}
                                         </p>
-                                        <Link
-                                            v-for="action in entry.actions"
-                                            :key="action.id"
+                                        <span v-for="action in entry.actions" :key="action.id">Link: <Link
                                             :href="actionUrl(action)"
-                                            class="text-primary-ink focus-visible:ring-ring block underline focus-visible:ring-2"
-                                        >{{ action.label }}</Link>
+                                            class="text-primary-ink focus-visible:ring-ring underline focus-visible:ring-2"
+                                        >View Product</Link></span>
                                     </div>
                                     <template v-if="message.presentation">
                                         <dl
@@ -583,11 +593,11 @@ async function submitMessage(quickQuestion = null, freshContext = true) {
                                             :key="product.id"
                                             class="border-border bg-card rounded-md border p-3"
                                         >
-                                            <p class="font-semibold">
-                                                {{ product.name }}
+                                            <p>
+                                                <strong>{{ product.labels?.name ?? 'Product name' }}:</strong> {{ product.name }}
                                             </p>
                                             <p>
-                                                PHP
+                                                <strong>{{ product.labels?.price ?? 'Price' }}:</strong> ₱
                                                 {{
                                                     Number(
                                                         product.price,
@@ -596,18 +606,18 @@ async function submitMessage(quickQuestion = null, freshContext = true) {
                                                         maximumFractionDigits: 2,
                                                     })
                                                 }}
-                                                · {{ product.stock }}
                                             </p>
+                                            <p><strong>{{ product.labels?.stock ?? 'Availability' }}:</strong> {{ product.stock }}</p>
                                             <p
                                                 v-if="product.notice"
                                                 class="text-muted-foreground"
                                             >
                                                 {{ product.notice }}
                                             </p>
-                                            <Link
+                                            <span><strong>Link:</strong> <Link
                                                 :href="ProductCatalogController.show.url(product.id)"
-                                                class="text-primary-ink focus-visible:ring-ring block underline focus-visible:ring-2"
-                                            >View product</Link>
+                                                class="text-primary-ink focus-visible:ring-ring underline focus-visible:ring-2"
+                                            >{{ product.labels?.view ?? 'View Product' }}</Link></span>
                                         </div>
                                         <p>
                                             {{ message.presentation.follow_up }}

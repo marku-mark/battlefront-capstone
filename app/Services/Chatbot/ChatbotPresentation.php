@@ -22,6 +22,54 @@ class ChatbotPresentation
         if (app(ClassifyChatbotInquiry::class)->containsSensitiveInput($question)) {
             return $presentation;
         }
+        if ($result['category']->value === 'product' && ($context['products'] ?? []) !== []) {
+            $products = array_slice($context['products'], 0, 6);
+            $intro = $presentation['intro'];
+            foreach ($products as $product) {
+                $position = mb_stripos($intro, $product['name']);
+                if ($position !== false) {
+                    $intro = mb_substr($intro, 0, $position);
+                }
+            }
+            $presentation['intro'] = trim($intro) !== '' ? trim($intro) : match ($language) {
+                'tl' => 'Narito po ang mga produktong tugma sa hinahanap ninyo.',
+                'ceb' => 'Ania ang mga produkto nga mohaom sa imong gipangita.',
+                'hil' => 'Ari ang mga produkto nga nagaigo sa imo ginapangita.',
+                default => 'Here are the products matching your request.',
+            };
+            $presentation['products'] = array_map(function (array $product) use ($language): array {
+                $quantity = $product['inventory']['quantity'] ?? null;
+                $status = match ($product['inventory']['status'] ?? null) {
+                    'in_stock' => 'In stock at Sagay',
+                    'low_stock' => 'Low stock at Sagay',
+                    'out_of_stock' => 'Out of stock at Sagay',
+                    default => 'Stock is unconfirmed',
+                };
+                $stock = app(ChatbotLocalizedResponse::class)->text($status, $language);
+                if (is_int($quantity) && $quantity >= 0) {
+                    $stock .= match ($language) {
+                        'tl' => " — {$quantity} ang available",
+                        'ceb' => " — {$quantity} ang available",
+                        'hil' => " — {$quantity} ang available",
+                        default => " — {$quantity} available",
+                    };
+                }
+
+                return [
+                    'id' => $product['id'],
+                    'name' => $product['name'],
+                    'price' => $product['discount_price'] ?? $product['price'] ?? null,
+                    'stock' => $stock,
+                    'labels' => match ($language) {
+                        'tl' => ['name' => 'Pangalan ng produkto', 'price' => 'Presyo', 'stock' => 'Katayuan ng stock', 'view' => 'Tingnan ang produkto'],
+                        'ceb' => ['name' => 'Ngalan sa produkto', 'price' => 'Presyo', 'stock' => 'Kahimtang sa stock', 'view' => 'Tan-awa ang produkto'],
+                        'hil' => ['name' => 'Ngalan sang produkto', 'price' => 'Presyo', 'stock' => 'Kahimtangan sang stock', 'view' => 'Tan-awa ang produkto'],
+                        default => ['name' => 'Product name', 'price' => 'Price', 'stock' => 'Availability', 'view' => 'View Product'],
+                    },
+                    'notice' => $product['demo_notice'] ?? null,
+                ];
+            }, $products);
+        }
         if (count($context['products'] ?? []) === 1 && $presentation['products'] === []) {
             $product = $context['products'][0];
             $attributes = app(ChatbotLanguage::class)->interpret($question)['attributes'];
@@ -39,7 +87,7 @@ class ChatbotPresentation
                 $presentation['facts'][] = ['label' => $product['name'], 'value' => $product['demo_notice']];
             }
         }
-        if ($presentation['products'] === []) {
+        if (($context['products'] ?? []) !== []) {
             foreach (array_slice($context['products'] ?? [], 0, 6) as $product) {
                 if (isset($product['id'])) {
                     $presentation['actions'][] = ['kind' => 'product', 'id' => $product['id'], 'label' => $product['name']];
