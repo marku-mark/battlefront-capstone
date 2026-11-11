@@ -92,11 +92,18 @@ class ModelLedChatbot
             if ($intent === null && $trace->event === null) {
                 $trace->record('understanding_failed', 'scope');
             }
+            if ($intent === null && ($context['products'] ?? []) === []) {
+                $category = ChatbotQueryCategory::Unsupported;
+                $language = $explicitLanguage ?? $state['language_preference'] ?? $state['language'] ?? $language;
+                $text = 'I can only help with Battlefront products, your orders, store information, payment methods, pickup, and delivery.';
+            }
             if ($intent !== null) {
                 $trace->scope = $intent['outcome'] === 'unsupported' ? 'unsupported' : ($intent['intent'] === 'private' ? 'private' : 'public');
                 $trace->publicScopeConfirmed = $trace->scope === 'public';
                 $language = $explicitLanguage ?? $state['language_preference'] ?? ($intent['language'] === 'und' ? $language : $intent['language']);
                 if ($intent['outcome'] === 'unsupported') {
+                    $category = ChatbotQueryCategory::Unsupported;
+                    $language = $explicitLanguage ?? $state['language_preference'] ?? $state['language'] ?? $language;
                     $text = 'I can only help with Battlefront products, your orders, store information, payment methods, pickup, and delivery.';
                 } elseif ($intent['outcome'] === 'clarify' || $intent['clarification'] !== 'none') {
                     $trace->record('clarification', 'scope');

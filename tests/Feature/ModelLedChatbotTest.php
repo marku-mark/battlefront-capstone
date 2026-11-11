@@ -38,6 +38,18 @@ test('model understanding switches from computers to processors across Tagalog t
     Http::assertNothingSent();
 });
 
+test('unsupported inquiries retain the previous language and link to the unfiltered catalog', function () {
+    config(['ai_integration.enabled' => true, 'ai_integration.model_led' => true, 'ai_integration.localization_enabled' => true]);
+    ChatbotUnderstandingAgent::fake([understood(['outcome' => 'unsupported', 'language' => 'ceb'])])->preventStrayPrompts();
+    ChatbotEvidenceAgent::fake()->preventStrayPrompts();
+    $reply = app(ModelLedChatbot::class)->respond('naa kay uyab?', ['language' => 'hil'], null);
+
+    expect($reply['state']['language'])->toBe('hil')
+        ->and($reply['message'])->toContain('Makabulig ako')
+        ->and($reply['presentation']['actions'])->toContain(['kind' => 'catalog', 'label' => 'Tan-awa ang mga produkto', 'query' => '']);
+    ChatbotEvidenceAgent::assertNeverPrompted();
+});
+
 test('CPU discovery does not ask whether CPU means a processor or system unit', function () {
     config(['ai_integration.enabled' => true, 'ai_integration.model_led' => true]);
     ChatbotUnderstandingAgent::fake([understood(['outcome' => 'clarify', 'clarification' => 'cpu_meaning'])])->preventStrayPrompts();

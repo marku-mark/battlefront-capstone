@@ -95,6 +95,7 @@ class ChatbotPresentation
             }
         }
         $kind = match ($result['category']->value) {
+            'unsupported' => 'catalog',
             'product' => 'catalog',
             'store' => 'branches',
             'order' => $customer === null ? 'login' : 'orders',
