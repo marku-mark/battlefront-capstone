@@ -17,6 +17,21 @@ function understood(array $overrides = []): array
         'reference' => 'new', 'position' => 0, 'clarification' => 'none'], $overrides);
 }
 
+test('a clear Hiligaynon question controls the model reply language despite an English intent label', function () {
+    config(['ai_integration.enabled' => true, 'ai_integration.model_led' => true, 'ai_integration.multipart' => false,
+        'ai_integration.gemini.max_calls' => 3, 'ai_integration.gemini.tokens_per_minute' => 60000]);
+    $ram = Product::factory()->available()->for(Category::factory()->state(['name' => 'RAM']))->create(['name' => 'Atlas RAM']);
+    ChatbotUnderstandingAgent::fake([understood(['language' => 'en', 'category_key' => 'memory', 'search_query' => 'RAM'])])->preventStrayPrompts();
+    ChatbotEvidenceAgent::fake([['answer' => 'May ara kami Atlas RAM sa Sagay.', 'evidence_ids' => ['product:'.$ram->id]]])->preventStrayPrompts();
+    ChatbotValidationAgent::fake([['verdict' => 'approve']])->preventStrayPrompts();
+    $reply = app(ModelLedChatbot::class)->respond('may ara kamo ram?', [], null);
+    expect($reply['source'])->toBe('gemini');
+    expect($reply['state']['language'])->toBe('hil');
+    expect($reply['presentation']['intro'])->toContain('May ara kami');
+    ChatbotEvidenceAgent::assertPrompted(fn ($prompt): bool => str_contains($prompt->prompt, 'hil'));
+    Http::assertNothingSent();
+});
+
 test('model understanding switches from computers to processors across Tagalog turns', function () {
     config(['ai_integration.enabled' => true, 'ai_integration.model_led' => true, 'ai_integration.adaptive' => true,
         'ai_integration.qdrant.enabled' => false, 'scout.driver' => 'null', 'ai_integration.gemini.tokens_per_minute' => 60000, 'ai_integration.gemini.max_calls' => 3]);
@@ -32,7 +47,7 @@ test('model understanding switches from computers to processors across Tagalog t
     $second = $this->postJson('/chatbot', ['message' => 'meron po rin ba kayo cpu?', 'context_token' => $first->json('context_token')])->assertOk()->assertJsonPath('language', 'tl')->assertJsonPath('source', 'gemini');
     expect($first->json('message'))->toContain('Atlas Desktop PC')->not->toContain('CPU CASE');
     expect($second->json('message'))->toContain('Atlas CPU')->not->toContain('CPU CASE');
-    ChatbotUnderstandingAgent::assertNeverPrompted();
+    ChatbotUnderstandingAgent::assertPromptedTimes(2);
     ChatbotEvidenceAgent::assertPromptedTimes(2);
     ChatbotValidationAgent::assertPromptedTimes(2);
     Http::assertNothingSent();
@@ -124,6 +139,22 @@ test('model led path preserves private order authorization', function () {
     ChatbotUnderstandingAgent::assertNeverPrompted();
 });
 
+test('generation and review receive the resolved retained budget after a filter refinement', function () {
+    config(['ai_integration.enabled' => true, 'ai_integration.model_led' => true, 'ai_integration.gemini.max_calls' => 3,
+        'ai_integration.gemini.tokens_per_minute' => 30000]);
+    $product = Product::factory()->available()->for(Category::factory()->state(['name' => 'RAM']))->create(['name' => 'Atlas RAM', 'price' => 1500, 'discount_price' => null]);
+    ChatbotUnderstandingAgent::fake([understood(['operation' => 'refine', 'language' => 'en', 'category_key' => 'memory', 'search_query' => 'RAM',
+        'reference' => 'previous', 'price_scope' => 'previous', 'constraint_updates' => ['brand' => 'clear', 'budget' => 'retain']])])->preventStrayPrompts();
+    ChatbotEvidenceAgent::fake([['answer' => 'These RAM options are under PHP 3,000.', 'evidence_ids' => ['product:'.$product->id]]])->preventStrayPrompts();
+    ChatbotValidationAgent::fake([['verdict' => 'approve']])->preventStrayPrompts();
+    $reply = app(ModelLedChatbot::class)->respond('Any brand', ['model_constraints' => ['category_key' => 'memory', 'brand' => 'Beacon', 'excluded_brands' => [],
+        'price' => ['maximum' => '3000.00', 'maximum_inclusive' => false]]], null);
+    expect($reply['source'])->toBe('gemini');
+    expect($reply['state']['model_constraints']['price']['maximum'])->toBe('3000.00');
+    ChatbotValidationAgent::assertPromptedTimes(1);
+    Http::assertNothingSent();
+});
+
 test('review rejection returns current catalog facts without a repair call', function () {
     config(['ai_integration.enabled' => true, 'ai_integration.model_led' => true, 'ai_integration.qdrant.enabled' => false, 'scout.driver' => 'null',
         'ai_integration.gemini.tokens_per_minute' => 30000, 'ai_integration.gemini.max_calls' => 3]);
@@ -133,8 +164,8 @@ test('review rejection returns current catalog facts without a repair call', fun
     ChatbotValidationAgent::fake([['verdict' => 'reject']])->preventStrayPrompts();
     $response = $this->postJson('/chatbot', ['message' => 'CPU price?'])->assertOk()->assertJsonPath('source', 'fallback');
     expect($response->json('message'))->toContain('Atlas CPU');
-    expect(app(ChatbotProviderBudget::class)->usage()['calls'])->toBe(2);
-    ChatbotUnderstandingAgent::assertNeverPrompted();
+    expect(app(ChatbotProviderBudget::class)->usage()['calls'])->toBe(3);
+    ChatbotUnderstandingAgent::assertPromptedTimes(1);
     ChatbotEvidenceAgent::assertPromptedTimes(1);
     ChatbotValidationAgent::assertPromptedTimes(1);
 });

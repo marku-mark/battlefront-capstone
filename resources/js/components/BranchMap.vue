@@ -158,7 +158,7 @@ onBeforeUnmount(() => {
                 </h2>
             </div>
             <p class="text-muted-foreground text-sm">
-                {{ mappedBranches.length }} mapped
+                {{ mappedBranches.length }} {{ mappedBranches.length === 1 ? 'location' : 'locations' }}
             </p>
         </div>
 
@@ -221,7 +221,7 @@ onBeforeUnmount(() => {
                         class="border-foreground bg-background size-3 rounded-full border-2"
                         aria-hidden="true"
                     />
-                    Other mapped branches
+                    Other store locations
                 </span>
             </figcaption>
         </figure>

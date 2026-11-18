@@ -4,6 +4,8 @@ namespace App\Services\Chatbot;
 
 use App\Actions\Chatbot\ClassifyChatbotInquiry;
 use App\Models\ChatbotKnowledge;
+use App\Services\Chatbot\Retrieval\EmbeddingBudgetExhausted;
+use App\Services\Chatbot\Retrieval\EmbeddingFallback;
 use App\Services\Chatbot\Retrieval\FaqDocumentBuilder;
 use App\Services\Chatbot\Retrieval\GeminiEmbeddingClient;
 use App\Services\Chatbot\Retrieval\QdrantClient;
@@ -29,8 +31,14 @@ class SemanticFaqCandidates
             if (Cache::has('chatbot:faq:open')) {
                 return [];
             }
-            $key = 'chatbot:faq:query:'.hash('sha256', json_encode([config('ai_integration.embedding.model'), config('ai_integration.embedding.dimensions'), config('ai_integration.faq.collection'), $query], JSON_THROW_ON_ERROR));
-            $rows = Cache::remember($key, 60, fn (): array => (new QdrantClient((string) config('ai_integration.faq.collection')))->searchDocuments($this->embeddings->embed($query)));
+            $key = 'chatbot:faq:query:'.hash('sha256', json_encode([config('ai_integration.embedding.model'), config('ai_integration.embedding.dimensions'), config('ai_integration.faq.collection'), config('ai_integration.embedding.fallback_profiles'), $query], JSON_THROW_ON_ERROR));
+            $rows = Cache::remember($key, 60, function () use ($query): array {
+                try {
+                    return (new QdrantClient((string) config('ai_integration.faq.collection')))->searchDocuments($this->embeddings->embed($query));
+                } catch (EmbeddingBudgetExhausted) {
+                    return app(EmbeddingFallback::class)->search($query, faq: true);
+                }
+            });
             $records = ChatbotKnowledge::query()->active()->whereIn('id', array_column(array_column($rows, 'payload'), 'faq_id'))->get()->keyBy('id');
             $scores = [];
             foreach ($rows as $row) {

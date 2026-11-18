@@ -10,7 +10,9 @@ Before planning or editing, find the row whose globs match the file's path and r
 | app/Actions/{Inventory,Order}/**,app/Services/Order/**,app/Http/Controllers/Administration/Order*,resources/js/pages/Administration/Orders/** | .ai/rules/administration-orders.md |
 | app/Http/{Requests,Controllers}/Administration/SalesReport*,resources/js/pages/Administration/Reports/** | .ai/rules/administration-reports.md |
 | app/Models/Product.php,app/Http/Controllers/Administration/ProductController.php,app/Http/Requests/Administration/SaveProductRequest.php | .ai/rules/administration.md |
+| app/Services/Chatbot/**,app/Ai/Agents/ChatbotMultipartUnderstandingAgent.php | .ai/rules/agents.md |
 | routes/api.php,app/Http/Controllers/Api/**,config/sanctum.php | .ai/rules/api.md |
+| app/Console/Commands/AuditEmbeddingFallbacks.php | .ai/rules/app-console-commands.md |
 | app/Jobs/** | .ai/rules/app-jobs.md |
 | app/**,database/**,resources/js/** | .ai/rules/app-js.md |
 | app/Models/** | .ai/rules/app-models.md |
@@ -22,6 +24,7 @@ Before planning or editing, find the row whose globs match the file's path and r
 | app/Actions/Cart/**,app/Services/Cart/** | .ai/rules/cart.md |
 | resources/js/{pages/Cart,components/cart}/**/*.vue | .ai/rules/cartcomponents-cart.md |
 | resources/js/components/catalog/StockAvailability.vue | .ai/rules/catalog.md |
+| app/{Services/Chatbot,Jobs}/** | .ai/rules/chatbot-jobs.md |
 | app/Actions/Chatbot/**,app/Services/Chatbot/**,app/Http/Requests/Administration/*ChatbotKnowledge*.php,resources/js/pages/Administration/ChatbotKnowledge/**,database/seeders/DevelopmentChatbotKnowledgeSeeder.php | .ai/rules/chatbot-knowledge-seeders.md |
 | app/Actions/Chatbot/**,app/Http/Controllers/Administration/ChatbotKnowledgeController.php,resources/js/pages/Administration/ChatbotKnowledge/** | .ai/rules/chatbot-knowledge.md |
 | app/Actions/Chatbot/**,app/Repositories/Catalog/** | .ai/rules/chatbot-repositories-catalog.md |
@@ -30,6 +33,7 @@ Before planning or editing, find the row whose globs match the file's path and r
 | app/Services/Order/**,app/Actions/{Checkout,Order}/**,app/Models/Product.php,config/battlefront.php | .ai/rules/checkout-order-models.md |
 | app/Services/Order/**,app/Enums/PaymentMethod.php,app/Models/Order.php,app/Http/Controllers/Administration/Order*,resources/js/pages/{Checkout,Orders,Administration/Orders}/** | .ai/rules/checkout-orders-administration-orders.md |
 | config/battlefront.php,app/Http/Controllers/CheckoutController.php,resources/js/pages/Checkout/** | .ai/rules/checkout.md |
+| app/{Ai/Agents,Services/Chatbot,Console/Commands/EvaluateChatbot.php,Console/Commands/CompareChatbotReplies.php}/** | .ai/rules/commands-commands.md |
 | database/seeders/DevelopmentHistoricalSalesSeeder.php,app/Console/Commands/ResetDevCommand.php,database/seeders/DevelopmentCustomerSeeder.php | .ai/rules/commands-seeders.md |
 | database/seeders/DevelopmentHistoricalSalesSeeder.php,app/Console/Commands/ResetDevCommand.php, database/seeders/DevelopmentCustomerSeeder.php,app/Console/Commands/ResetDevCommand.php, database/seeders/DatabaseSeeder.php,app/Console/Commands/ResetDevCommand.php | .ai/rules/commands.md |
 | app/Models/Inventory.php,app/Repositories/Inventory/**,app/Actions/Chatbot/Context/ResolveProductContext.php,resources/js/components/catalog/StockAvailability.vue | .ai/rules/components-catalog.md |
@@ -96,8 +100,11 @@ Before planning or editing, find the row whose globs match the file's path and r
 | app/Http/Requests/Administration/SaveProductRequest.php | .ai/rules/requests-administration.md |
 | app/Services/Order/**,app/Actions/Checkout/**,app/Http/Requests/ValidateCheckoutRequest.php,config/battlefront.php,resources/data/psgc-*.json | .ai/rules/requests-data.md |
 | app/Services/Order/**,app/Actions/Checkout/**,app/Http/Requests/ValidateCheckoutRequest.php,config/battlefront.php,resources/js/pages/Checkout/**,docs/*API*,docs/PSGC_DELIVERY_DATA.md | .ai/rules/requests-js-pages-checkout.md |
+| app/Services/Order/**,app/Actions/{Cart,Order}/**,app/Http/Requests/CheckoutPreviewRequest.php | .ai/rules/requests.md |
+| resources/js/components/chatbot/** | .ai/rules/resources-js-components-chatbot.md |
 | resources/js/app.js | .ai/rules/resources-js.md |
 | routes/api.php,app/Http/Controllers/Api/**,app/Http/Resources/** | .ai/rules/resources.md |
+| app/Services/Chatbot/Retrieval/** | .ai/rules/retrieval.md |
 | app/Actions/Chatbot/**,database/seeders/DevelopmentChatbotKnowledgeSeeder.php | .ai/rules/seeders.md |
 | app/Services/Chatbot/** | .ai/rules/services-chatbot.md |
 | app/Services/PayMongo/**,app/Services/CustomerOrderPresenter.php,resources/js/pages/Orders/** | .ai/rules/services-js-pages-orders.md |

@@ -44,3 +44,30 @@ Branch plus product constraints form one catalog request. Preserve branch/availa
 
 ## Preserve branch catalog constraints in deterministic fallbacks
 Local branch requests and understanding-failure replies use ChatbotCatalogSelection with structured filters; never reconstruct a search sentence that drops sort or strict price bounds. Retain bounded branch/category/brand/price constraints through empty results and branch clarification, clear them for explicit new catalog topics, and requery live facts each turn within identity-bound expiring state.
+
+## Prioritize model-led catalog replies with mandatory product format
+Eligible enabled public catalog turns prioritize model-led understanding, grounded generation and mandatory review; keyword success and simple facts must not routinely bypass generation. Preserve ordered category sections and Product name, Price, Availability, Link (View Product) fields from verified system facts/system URLs through multipart, fallback and restored transcripts. All factual prose must use current authorized MySQL/approved evidence and PHP compatibility verdicts; never invent missing facts. Deterministic fallback is for provider/validation/budget/deadline failure; private-support gates and approved direct FAQs remain. Supersedes adaptive catalog shortcuts; preserve activation controls.
+
+## Retain reviewed model wording beside authoritative catalog fields
+Do not discard reviewed model wording while constructing product cards or multipart sections. Keep the validated explanation with system-controlled Product name, Price, Availability and Link (View Product), including single-section follow-ups and transcript restoration. Keep section-specific product IDs bounded and identity-bound; ordinal follow-ups requery current authorized facts rather than reusing saved prices or stock.
+
+## Always keep a natural catalog opening above labeled products
+Catalog sections must retain a concise natural opening above Product name, Price, Availability and Link. Prefer reviewed model wording; if provider or review fails, retain the localized factual fallback opening rather than clearing intro. Never label fallback wording as model-generated or weaken review to force a model response.
+
+## Match catalog openings to the users language
+Natural catalog openings and supporting prose follow the current detected user language (English, Tagalog, Cebuano/Bisaya or Hiligaynon) unless an explicit current/persisted language preference overrides it. Clear local language detection takes priority over a conflicting model language label. Localized factual fallback openings follow the same selection; preserve exact product names, amounts and stock facts.
+
+## End compound refinements on new support topics and render catalog facts once
+New branch/store, FAQ and private-order questions must escape pending compound product/section refinements; a newly named product family starts a fresh search. Preserve genuine section, ordinal and shared-filter follow-ups. Product presentation removes duplicate recognized labeled fields and fact-only listing paragraphs when authoritative cards already display them; preserve reviewed explanations, uncertainty and compatibility warnings. Apply the same cleanup to single and multipart replies without relying on provider compliance.
+
+## Localize early clarifications and explain Sagay-only stock politely
+Select the current detected language before compound/early fallback routing, honoring explicit saved language preferences. Translate application-owned Wi-Fi, section, budget and branch clarifications without model calls, preserving catalog names, amounts and technical identifiers. For other-branch stock questions, explain politely in en/tl/ceb/hil that this chat's stock information covers Sagay only and direct customers to the branch; never imply another branch has no stock. Keep existing privacy and stock-authority boundaries.
+
+## Keep branch locations out of catalog search text
+Branch query cleanup must handle English and regional location wording (including sa, diri sa, dinhi sa and dito sa), published city aliases, and branch suffixes. Apply shared branch scope to every requested product section without treating a city as a product term. Clean the already-resolved catalog query; never restore raw intent text containing budgets, exclusions or recommendation wording after structured constraints have been parsed. Retain MySQL stock, per-section filters and other-branch Sagay-only notices.
+
+## Apply explicit catalog constraint updates before selection
+The approved accuracy refinement uses ChatbotIntentState for new/refine/select/clarify/topic operations and set/clear/retain constraint updates. Persist resolved constraints, never replay per-turn updates in saved compound intents. Exact-product selection skips unused Qdrant/Neo4j candidate lookups while keeping grounded generation and mandatory review. Filter-removal choices are not clarification; retain the explicit presentation clarification flag.
+
+## Keep evaluated intent state and benchmark traffic distinct
+After empty catalog results, discovery/recommendation refinements search the matching catalog rather than selecting prior IDs. Generation and review use resolved PHP constraints, including retained/cleared price bounds, rather than raw model defaults. Explicit CLI evaluation isolates operational metrics and failure-review samples while preserving real provider budgets/cooldowns; review packets remain hash-bound and require fluent-speaker attestation. Full-mode review may use up to ten seconds of remaining time without exceeding the shared 25-second/three-call ceiling.

@@ -1,9 +1,10 @@
 <script setup>
-import { Form } from '@inertiajs/vue3';
+import { Form, useForm } from '@inertiajs/vue3';
 import { LogIn, ShoppingCart } from '@lucide/vue';
 import { computed, ref } from 'vue';
 import { store } from '@/actions/App/Http/Controllers/CartItemController';
 import { store as storePendingIntent } from '@/actions/App/Http/Controllers/PendingCartIntentController';
+import { store as buyNow } from '@/routes/buy-now';
 import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,6 +18,12 @@ const props = defineProps({
 });
 
 const enteredQuantity = ref(1);
+const purchase = useForm({ product_id: props.productId, quantity: 1 });
+function purchaseNow() {
+    if (purchase.processing || !hasAvailableStock.value || exceedsStock.value || !Number.isInteger(enteredQuantity.value) || enteredQuantity.value < 1) return;
+    purchase.quantity = enteredQuantity.value;
+    purchase.post(buyNow.url(), { preserveScroll: true });
+}
 const hasAvailableStock = computed(
     () =>
         Number.isInteger(props.availableQuantity) &&
@@ -70,7 +77,7 @@ function trackEnteredQuantity(event) {
                 type="number"
                 min="1"
                 :max="hasAvailableStock ? availableQuantity : 0"
-                :disabled="!hasAvailableStock || processing"
+                :disabled="!hasAvailableStock || processing || purchase.processing"
                 step="1"
                 inputmode="numeric"
                 :default-value="1"
@@ -81,7 +88,8 @@ function trackEnteredQuantity(event) {
             />
         </div>
 
-        <Button type="submit" :disabled="processing || !hasAvailableStock">
+        <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+        <Button class="w-full sm:w-auto" type="submit" :disabled="processing || purchase.processing || !hasAvailableStock">
             <Spinner v-if="processing" />
             <LogIn v-else-if="guest" aria-hidden="true" />
             <ShoppingCart v-else aria-hidden="true" />
@@ -95,6 +103,13 @@ function trackEnteredQuantity(event) {
                       : 'Add to cart'
             }}
         </Button>
+
+        <Button class="w-full sm:w-auto" type="button" variant="outline" :disabled="processing || purchase.processing || !hasAvailableStock || exceedsStock || !Number.isInteger(enteredQuantity) || enteredQuantity < 1" @click="purchaseNow">
+            <Spinner v-if="purchase.processing" />
+            {{ purchase.processing ? 'Continuing...' : 'Buy Now' }}
+        </Button>
+        </div>
+        <div class="sm:col-span-2" aria-live="polite"><InputError :message="purchase.errors.product_id || purchase.errors.quantity || purchase.errors.cart" /></div>
 
         <div class="min-h-8 sm:col-span-2" aria-live="polite">
             <p

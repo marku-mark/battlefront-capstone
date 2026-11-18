@@ -283,7 +283,7 @@ function returnToCatalog() {
                         </h2>
                         <p class="text-muted-foreground mt-1 text-sm leading-6">
                             Choose a quantity, then log in or register to add it
-                            to your cart.
+                            to your cart or continue with Buy Now.
                         </p>
                         <AddToCartForm
                             class="mt-4"

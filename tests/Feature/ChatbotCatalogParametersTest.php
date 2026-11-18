@@ -53,6 +53,32 @@ test('branch shopping retains brand laptop budget and stock together', function 
     [true, 'Which branch can I buy an Asus laptop under PHP 40000?'],
 ]);
 
+test('stock timing words do not filter Sagay catalog results', function (string $question, string $family, string $categoryName, string $language, bool $modelLed) {
+    config(['ai_integration.enabled' => $modelLed, 'ai_integration.model_led' => $modelLed,
+        'ai_integration.localization_enabled' => true, 'scout.driver' => 'null']);
+    Branch::factory()->create(['city' => config('battlefront.operational_branch_city')]);
+    $category = Category::factory()->create(['name' => $categoryName]);
+    $match = Product::factory()->available()->for($category)->create(['name' => 'Atlas '.$family.' A100', 'price' => 25000, 'discount_price' => null]);
+    $outOfStock = Product::factory()->available()->for($category)->create(['name' => 'Atlas '.$family.' A200']);
+    $outOfStock->inventory->update(['quantity' => 0]);
+    ChatbotUnderstandingAgent::fake([catalogParameterIntent([
+        'category_key' => $family, 'search_query' => $family.' subong sa Sagay', 'branch' => 'Sagay', 'brand' => '', 'language' => $language,
+    ])])->preventStrayPrompts();
+    ChatbotEvidenceAgent::fake()->preventStrayPrompts();
+
+    $reply = $this->postJson('/chatbot', ['message' => $question])->assertOk()->assertJsonPath('language', $language);
+
+    expect(catalogParameterProductIds($reply->json()))->toBe([$match->id]);
+    ChatbotUnderstandingAgent::assertPromptedTimes($modelLed ? 1 : 0);
+    ChatbotEvidenceAgent::assertNeverPrompted();
+})->with([
+    'Hiligaynon laptop' => ['ara kamo laptop subong sa sagay?', 'laptop', 'Laptops & Desktops', 'hil', false],
+    'Hiligaynon model interpretation' => ['ara kamo laptop subong sa sagay?', 'laptop', 'Laptops & Desktops', 'hil', true],
+    'Cebuano monitor' => ['Naa moy monitor sa Sagay karon?', 'monitor', 'Monitor', 'ceb', false],
+    'Tagalog graphics card' => ['Mayroon ba kayong GPU ngayon sa Sagay?', 'gpu', 'Graphics Card', 'tl', false],
+    'English SSD' => ['Do you have SSD right now at Sagay?', 'SSD', 'Storage', 'en', false],
+]);
+
 test('other branch stock stays unknown and supplies published contact information', function (string $question) {
     config(['ai_integration.enabled' => true, 'ai_integration.model_led' => true, 'scout.driver' => 'null']);
     Branch::factory()->create(['city' => 'Escalante City', 'contact_number' => '09123456789']);

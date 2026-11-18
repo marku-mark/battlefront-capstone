@@ -10,8 +10,49 @@ use App\Models\Product;
 use App\Repositories\Catalog\CatalogSearchIntent;
 use Illuminate\Support\Str;
 
+/** @phpstan-import-type CatalogContext from ChatbotCatalogSelection */
 class ChatbotBranchAvailability
 {
+    private const LOCATION_PREPOSITION = '(?:in|at|from|(?:(?:diri|dinhi|dito)\s+)?sa)';
+
+    public function isGeneralOtherBranchStockQuestion(string $message): bool
+    {
+        $canonical = app(ChatbotLanguage::class)->canonical($message);
+        $asksStock = preg_match('/\b(?:stock|stocks|inventory|availability)\b/iu', $canonical) === 1
+            || (preg_match('/\bavailable\b/iu', $canonical) === 1 && preg_match('/\bbranch(?:es)?\b/iu', $canonical) !== 1);
+        if (! $asksStock
+            || preg_match('/\b(?:order|payment|refund|return|delivery|password|otp|api key)\b/iu', $canonical) === 1
+            || app(CategorizeChatbotQuery::class)->isBlocked($message)
+            || app(CatalogSearchIntent::class)->resolve($canonical) !== null
+            || app(ResolveProductContext::class)->namesProduct($message)) {
+            return false;
+        }
+
+        return preg_match('/\b(?:other branch(?:es)?|iban(?: nga)? (?:mga )?branch(?:es)?|ubang(?: mga)? branch(?:es)?|laing(?: mga)? branch(?:es)?|ibang(?: mga)? branch(?:es)?)\b/iu', $canonical) === 1
+            || Branch::query()->published()->get(['city', 'name'])
+                ->contains(fn (Branch $branch): bool => ! $branch->is_operational && $this->mentions($canonical, $branch));
+    }
+
+    public function catalogQuery(string $message): string
+    {
+        foreach (Branch::query()->published()->get(['city', 'name']) as $branch) {
+            foreach ([$branch->city, preg_replace('/\s+city$/iu', '', $branch->city), $branch->name] as $alias) {
+                $message = preg_replace('/\b'.self::LOCATION_PREPOSITION.'\s+(?:the\s+)?(?:branch\s+(?:(?:in|at|sa)\s+)?)?'.preg_quote($alias, '/').'(?:\s+(?:(?:nga|na)\s+)?branch)?\b/iu', ' ', $message) ?? $message;
+                $message = preg_replace('/\b'.preg_quote($alias, '/').'(?:\s+(?:(?:nga|na)\s+)?branch)?\b/iu', ' ', $message) ?? $message;
+            }
+        }
+
+        return Str::squish($message);
+    }
+
+    public function stockCatalogQuery(string $message): string
+    {
+        $query = $this->catalogQuery($message);
+        $timing = '(?:right now|at the moment|as of now|currently|today|now|subong|karon|ngayon)';
+
+        return Str::squish(preg_replace('/^'.$timing.'[\s,]+|\s+'.$timing.'(?=\s*[?.!]*$)/iu', ' ', $query) ?? $query);
+    }
+
     /** @param array<string, mixed> $state */
     public function supports(string $message, array $state = []): bool
     {
@@ -20,7 +61,7 @@ class ChatbotBranchAvailability
             return true;
         }
         $branchWording = preg_match('/\b(?:branch|branches|where.*(?:buy|purchase)|(?:buy|purchase).*where)\b/iu', $canonical) === 1;
-        $namedLocation = ! $branchWording && preg_match('/\b(?:in|at)\s+(?!(?:stock|least|most)\b)[\p{L}]/iu', $canonical) === 1
+        $namedLocation = ! $branchWording
             && Branch::query()->published()->get(['name', 'city'])->contains(fn (Branch $branch): bool => $this->mentions($message, $branch));
 
         return ($branchWording || $namedLocation)
@@ -44,13 +85,13 @@ class ChatbotBranchAvailability
         $language = app(ChatbotLanguage::class);
         $canonical = $language->canonical($language->withoutLanguageRequest($message));
         $price = app(ChatbotPriceIntent::class)->resolve($canonical);
-        $query = $price['query'];
+        $query = $this->stockCatalogQuery($price['query']);
         $branch = '';
         $records = Branch::query()->published()->get(['city', 'name']);
         $matches = $records->filter(fn (Branch $record): bool => $this->mentions($canonical, $record));
         if ($matches->isNotEmpty()) {
             $branch = implode(' or ', $matches->pluck('city')->all());
-        } elseif (preg_match('/\b(?:at|in)\s+(?:the\s+)?(?!(?:stock|least|most)\b)([\p{L}][\p{L} .-]*?)(?:\s+branch\b|[?!]|$)/iu', $canonical, $location)) {
+        } elseif (preg_match('/\b'.self::LOCATION_PREPOSITION.'\s+(?:the\s+)?(?!(?:stock|least|most)\b)([\p{L}][\p{L} .-]*?)(?:\s+branch\b|[?!]|$)/iu', $canonical, $location)) {
             $branch = trim($location[1]);
             $query = str_ireplace($location[0], ' ', $query);
         }
@@ -122,15 +163,15 @@ class ChatbotBranchAvailability
             ->first(fn (string $brand): bool => $brand !== '' && preg_match('/\b'.preg_quote($brand, '/').'\b/iu', $message) === 1) ?? '';
     }
 
-    /** @param array<string, mixed> $context
+    /** @param CatalogContext $context
      * @param array<string, mixed> $intent
-     * @return array<string, mixed> */
+     * @return CatalogContext */
     public function resolve(string $message, array $intent, array $context): array
     {
         if (isset($context['clarification'])) {
             return $context;
         }
-        $context['products'] = array_values(array_filter($context['products'] ?? [], fn (array $product): bool => in_array($product['inventory']['status'] ?? null, ['in_stock', 'low_stock'], true)));
+        $context['products'] = array_values(array_filter($context['products'], fn (array $product): bool => in_array($product['inventory']['status'] ?? null, ['in_stock', 'low_stock'], true)));
         $branch = trim($intent['branch'] ?? '');
         $branches = Branch::query()->published()->orderBy('id')->get();
         $matches = $branches->filter(fn (Branch $record): bool => $this->mentions($branch !== '' ? $branch : $message, $record));
@@ -153,7 +194,7 @@ class ChatbotBranchAvailability
         $context['branches'] = app(ResolveStoreContext::class)->execute($selected->city)['branches'];
         if (! $selected->is_operational) {
             $context['products'] = [];
-            $context['branch_availability_message'] = 'I cannot confirm stock at '.$selected->city.'. Live inventory information covers Sagay only. Please contact the branch before visiting.';
+            $context['branch_availability_message'] = 'Stock information in this chat covers the Sagay branch only. I cannot confirm stock at '.$selected->city.'. Please contact the branch before visiting.';
             if ($selected->contact_number) {
                 $context['branch_availability_message'] .= ' Phone: '.$selected->contact_number.'.';
             }

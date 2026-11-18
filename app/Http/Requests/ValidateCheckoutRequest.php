@@ -6,6 +6,7 @@ use App\Concerns\ValidatesDeliveryGeography;
 use App\Enums\FulfillmentMethod;
 use App\Enums\PaymentMethod;
 use App\Services\Order\DeliveryRules;
+use App\Services\Order\DirectPurchase;
 use App\Services\Order\PsgcDeliveryLocations;
 use App\Support\PhilippineMobileNumber;
 use DomainException;
@@ -46,6 +47,7 @@ class ValidateCheckoutRequest extends CheckoutPreviewRequest
 
         return [
             'cart_item_ids' => $this->cartItemIds(),
+            'direct_purchase' => app(DirectPurchase::class)->selection(),
             'recipient_name' => $this->string('recipient_name')->toString(),
             'contact_number' => PhilippineMobileNumber::normalize($this->string('contact_number')->toString()),
             'fulfillment_method' => $this->string('fulfillment_method')->toString(),

@@ -35,6 +35,7 @@ use function Pest\Laravel\mock;
 test('categorizes before resolving context and resolves context before generating wording', function () {
     $context = [
         'products' => [[
+            'id' => 1,
             'name' => 'Aurelius Link Station',
             'price' => '12999.00',
             'inventory' => ['quantity' => 7, 'status' => 'in_stock'],

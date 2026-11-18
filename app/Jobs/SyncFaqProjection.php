@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\ChatbotKnowledge;
 use App\Services\Chatbot\Retrieval\EmbeddingBudgetExhausted;
+use App\Services\Chatbot\Retrieval\EmbeddingFallback;
 use App\Services\Chatbot\Retrieval\FaqDocumentBuilder;
 use App\Services\Chatbot\Retrieval\GeminiEmbeddingClient;
 use App\Services\Chatbot\Retrieval\QdrantClient;
@@ -35,7 +36,11 @@ class SyncFaqProjection implements ShouldQueue
 
     public function handle(FaqDocumentBuilder $builder, GeminiEmbeddingClient $embeddings): void
     {
-        if (config('ai_integration.offline') || ! config('ai_integration.sync_enabled') || ! config('ai_integration.faq.enabled') || ! config('ai_integration.qdrant.enabled')) {
+        if (config('ai_integration.offline') || ! config('ai_integration.sync_enabled') || ! config('ai_integration.qdrant.enabled')) {
+            return;
+        }
+        app(EmbeddingFallback::class)->enqueue($this->knowledgeId, true);
+        if (! config('ai_integration.faq.enabled')) {
             return;
         }
         $lock = Cache::lock('chatbot:faq:sync:'.$this->knowledgeId, 90);

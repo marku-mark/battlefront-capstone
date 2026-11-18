@@ -13,6 +13,7 @@ use App\Models\Tag;
 use App\Models\User;
 use App\Services\Chatbot\ChatbotProviderBudget;
 use App\Services\Chatbot\Retrieval\CatalogProjectionRecorder;
+use App\Services\Chatbot\Retrieval\EmbeddingFallback;
 use App\Services\Order\PsgcDeliveryLocations;
 use Carbon\CarbonImmutable;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -131,7 +132,7 @@ class AppServiceProvider extends ServiceProvider
     {
         foreach (['saved', 'deleted'] as $event) {
             ChatbotKnowledge::{$event}(function (ChatbotKnowledge $knowledge): void {
-                if (config('ai_integration.sync_enabled') && config('ai_integration.faq.enabled')) {
+                if (config('ai_integration.sync_enabled') && (config('ai_integration.faq.enabled') || app(EmbeddingFallback::class)->profiles(true) !== [])) {
                     SyncFaqProjection::dispatch($knowledge->id)->afterCommit();
                 }
             });

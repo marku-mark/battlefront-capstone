@@ -327,7 +327,7 @@ test('product links follow their full descriptions without duplicating the botto
         } };
         const paragraphs = context.paragraphs(message);
         assert.equal(paragraphs[0].actions.length, 0);
-        assert.equal(paragraphs[1].text, `Product name: BIOSTAR H610M Motherboard\nPrice: ₱3,600.00\nAvailability: ${stock}`);
+        assert.equal(paragraphs[1].text, `BIOSTAR H610M Motherboard — PHP 3,600.00. ${stock}.`);
         assert.equal(paragraphs[1].actions[0], first);
         assert.equal(paragraphs[2].actions[0], second);
         assert.equal(context.remaining(message).length, 1);
@@ -352,7 +352,7 @@ test('product links follow their full descriptions without duplicating the botto
         ],
     } });
     assert.equal(separated.length, 2);
-    assert.equal(separated[0].text, 'Product name: PRINTER CANON PIXMA E410\nPrice: ₱3,900.00\nAvailability: Stock sa Sagay: 1 ang available');
+    assert.equal(separated[0].text, 'PRINTER CANON PIXMA E410.\nPresyo: PHP 3,900.00.\nStock sa Sagay: 1 ang available.');
     assert.equal(separated[0].actions[0].id, 1);
     assert.equal(separated[1].actions[0].id, 2);
     const repeated = context.paragraphs({ presentation: {
@@ -374,10 +374,28 @@ test('product links follow their full descriptions without duplicating the botto
     assert.equal(url({ kind: 'product', id: -1 }), null);
 });
 
+test('structured product cards own product links and prose never becomes inferred English fields', () => {
+    const context = {};
+    runInNewContext(`${functionSource('messageParagraphs')}; ${functionSource('remainingActions')}; this.paragraphs = messageParagraphs; this.remaining = remainingActions;`, context);
+    const product = { kind: 'product', id: 7, label: 'Atlas Router' };
+    const browse = { kind: 'catalog', label: 'Tan-awa ang mga produkto' };
+    const intro = 'Atlas Router — PHP 850.00, may yara 3 ka stock.';
+    const message = { presentation: { intro, products: [{ id: 7, name: 'Atlas Router' }], actions: [product, browse] } };
+
+    const paragraphs = context.paragraphs(message);
+
+    assert.equal(paragraphs[0].text, intro);
+    assert.equal(paragraphs[0].actions.length, 0);
+    assert.equal(context.remaining(message).length, 1);
+    assert.equal(context.remaining(message)[0], browse);
+    const reasoning = 'Atlas Router costs PHP 850.00 less. Performance cannot be inferred from price.';
+    assert.equal(context.paragraphs({ presentation: { intro: reasoning, actions: [product] } })[0].text, reasoning);
+});
+
 test("timeout preserves question and rejects a late response", async () => {
 let timeout;
         let finish;
-        const response = new Promise((resolve, reject) => {
+        const response = new Promise((resolve) => {
             finish = resolve;
         });
         const context = {

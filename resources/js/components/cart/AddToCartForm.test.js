@@ -44,6 +44,7 @@ function componentModules({
         {
             vue: Vue,
             '@inertiajs/vue3': {
+                useForm: (data) => Vue.reactive({ ...data, processing: false, errors: {}, post() {} }),
                 Head: primitive,
                 Link: primitive,
                 usePage: () => ({

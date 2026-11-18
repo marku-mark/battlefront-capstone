@@ -10,10 +10,11 @@ use RuntimeException;
 class GeminiEmbeddingClient
 {
     /** @return list<float> */
-    public function embed(string $text, bool $document = false): array
+    public function embed(string $text, bool $document = false, ?string $model = null): array
     {
-        $key = 'chatbot:embedding:v2:'.hash('sha256', json_encode([
-            config('ai_integration.embedding.model'), config('ai_integration.embedding.dimensions'), $document, $text,
+        $model ??= (string) config('ai_integration.embedding.model');
+        $key = 'chatbot:embedding:'.($model === 'gemini-embedding-2' ? 'v3:' : 'v2:').hash('sha256', json_encode([
+            $model, config('ai_integration.embedding.dimensions'), $document, $text,
         ], JSON_THROW_ON_ERROR));
         $cached = $this->cachedVector(Cache::get($key));
         if ($cached !== null) {
@@ -28,7 +29,7 @@ class GeminiEmbeddingClient
             if ($cached !== null) {
                 return $cached;
             }
-            $vector = $this->requestEmbedding($text, $document);
+            $vector = $this->requestEmbedding($text, $document, $model);
             Cache::put($key, $vector, $document ? 604800 : 86400);
 
             return $vector;
@@ -55,19 +56,25 @@ class GeminiEmbeddingClient
     }
 
     /** @return list<float> */
-    private function requestEmbedding(string $text, bool $document): array
+    private function requestEmbedding(string $text, bool $document, string $model): array
     {
-        $model = (string) config('ai_integration.embedding.model', 'gemini-embedding-001');
         $dimensions = (int) config('ai_integration.embedding.dimensions', 768);
         $key = (string) config('ai_integration.embedding.key');
         if (! config('ai_integration.qdrant.enabled') || $key === '' || ! in_array($model, ['gemini-embedding-001', 'gemini-embedding-2'], true) || ! in_array($dimensions, [768, 1536, 3072], true) || trim($text) === '' || strlen($text) > 6000) {
             throw new RuntimeException('Embedding unavailable.');
         }
         $budget = app(ChatbotProviderBudget::class);
+        $cooldown = 'chatbot:embedding:limited:'.hash('sha256', $model.'|'.$key);
+        $limitedUntil = Cache::get($cooldown);
+        $currentTimestamp = now()->getTimestamp();
+        if (is_int($limitedUntil) && $limitedUntil > $currentTimestamp) {
+            throw new EmbeddingBudgetExhausted($limitedUntil - $currentTimestamp, (string) Cache::get($cooldown.':kind', 'provider_rate_limit'));
+        }
         if (! $budget->reserveEmbedding($text)) {
             throw new EmbeddingBudgetExhausted($budget->retryAfter());
         }
-        $body = ['model' => 'models/'.$model, 'content' => ['parts' => [['text' => $text]]], 'outputDimensionality' => $dimensions];
+        $content = $model === 'gemini-embedding-2' ? ($document ? 'title: none | text: ' : 'task: search result | query: ').$text : $text;
+        $body = ['model' => 'models/'.$model, 'content' => ['parts' => [['text' => $content]]], 'outputDimensionality' => $dimensions];
         if ($model === 'gemini-embedding-001') {
             $body['taskType'] = $document ? 'RETRIEVAL_DOCUMENT' : 'RETRIEVAL_QUERY';
         }
@@ -77,6 +84,28 @@ class GeminiEmbeddingClient
         }
         try {
             $response = Http::acceptJson()->withHeaders(['x-goog-api-key' => $key])->connectTimeout(min(2, $timeout))->timeout($timeout)->withoutRedirecting()->post('https://generativelanguage.googleapis.com/v1beta/models/'.$model.':embedContent', $body);
+            if ($response->status() === 429) {
+                $retryAfter = ctype_digit((string) $response->header('Retry-After')) ? max(1, min(86400, (int) $response->header('Retry-After'))) : 60;
+                $reason = 'provider_rate_limit';
+                foreach ((array) $response->json('error.details', []) as $detail) {
+                    if (! is_array($detail)) {
+                        continue;
+                    }
+                    if (is_string($detail['retryDelay'] ?? null) && preg_match('/^(\d+(?:\.\d+)?)s$/D', $detail['retryDelay'], $delay)) {
+                        $retryAfter = max($retryAfter, min(86400, (int) ceil((float) $delay[1])));
+                    }
+                    foreach ((array) ($detail['violations'] ?? []) as $violation) {
+                        if (is_array($violation) && is_string($violation['quotaId'] ?? null) && preg_match('/per_?day/i', $violation['quotaId'])) {
+                            $reason = 'provider_daily_limit';
+                            $pacific = now()->setTimezone('America/Los_Angeles');
+                            $retryAfter = max($retryAfter, (int) ceil($pacific->diffInSeconds($pacific->copy()->addDay()->startOfDay())) + 5);
+                        }
+                    }
+                }
+                Cache::put($cooldown, now()->getTimestamp() + $retryAfter, $retryAfter);
+                Cache::put($cooldown.':kind', $reason, $retryAfter);
+                throw new EmbeddingBudgetExhausted($retryAfter, $reason);
+            }
             $vector = $response->json('embedding.values');
             if (! $response->successful() || ! is_array($vector) || count($vector) !== $dimensions) {
                 throw new RuntimeException('Embedding unavailable.');
@@ -94,6 +123,8 @@ class GeminiEmbeddingClient
             $norm = sqrt($norm);
 
             return array_values(array_map(fn ($value): float => (float) $value / $norm, $vector));
+        } catch (EmbeddingBudgetExhausted $exception) {
+            throw $exception;
         } catch (\Throwable) {
             throw new RuntimeException('Embedding unavailable.');
         }

@@ -3,6 +3,7 @@
 namespace App\Actions\Chatbot;
 
 use App\Enums\ChatbotQueryCategory;
+use App\Repositories\Catalog\CatalogSearchIntent;
 use App\Services\Chatbot\ChatbotLanguage;
 
 class ClassifyChatbotInquiry
@@ -100,7 +101,9 @@ class ClassifyChatbotInquiry
             $owner = 'order';
         } elseif ($this->categorizer->requiresLiveFacts($message) && (! in_array($this->ruleTopic($text), ['payment_methods', 'payment_proof', 'delivery_quote', 'returns', 'refunds', 'cancellation'], true)
             || (in_array($this->ruleTopic($text), ['payment_methods', 'payment_proof'], true) && preg_match('/\b(?:price|prices|stock|stocks|specs|specifications)\b/u', $text) === 1))) {
-            $category = $this->categorizer->requiresStoreFacts($message) ? ChatbotQueryCategory::Store : ChatbotQueryCategory::Product;
+            $branchOnly = preg_match('/\b(?:branch|branches|store|brach)\b/u', $text) === 1
+                && app(CatalogSearchIntent::class)->resolve($this->language->canonical($message)) === null;
+            $category = $this->categorizer->requiresStoreFacts($message) || $branchOnly ? ChatbotQueryCategory::Store : ChatbotQueryCategory::Product;
             $owner = $category->value;
         } elseif (! in_array($category, [ChatbotQueryCategory::Product, ChatbotQueryCategory::Store], true) && ($topic = $this->ruleTopic($text)) !== null) {
             $category = ChatbotQueryCategory::Faq;

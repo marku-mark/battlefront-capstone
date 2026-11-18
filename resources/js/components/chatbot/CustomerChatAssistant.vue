@@ -244,7 +244,9 @@ async function chooseQuickQuestion(item) {
 }
 
 function messageParagraphs(message) {
-    const actions = message.presentation?.actions ?? [];
+    const products = message.presentation?.products ?? [];
+    const actions = (message.presentation?.actions ?? []).filter((action) =>
+        action.kind !== 'product' || !products.some((product) => product.id === action.id));
     const paragraphs = (message.presentation?.intro ?? message.content)
         .split(/\n\s*\n/)
         .reduce((groups, text) => {
@@ -266,18 +268,7 @@ function messageParagraphs(message) {
         actions: actions.filter((action) => action.kind === 'product'
             && text.includes(action.label)
             && !paragraphs.slice(index + 1).some((paragraph) => paragraph.includes(action.label))),
-    })).map((entry) => {
-        if (entry.actions.length !== 1) return entry;
-        const product = entry.actions[0];
-        const price = entry.text.match(/(?:PHP|₱)\s*([\d,]+\.\d{2})/i);
-        if (!price) return entry;
-        const details = entry.text.slice(entry.text.indexOf(price[0]) + price[0].length)
-            .replace(/^[.\s]+/, '').replace(/[.\s]+$/, '');
-        return {
-            ...entry,
-            text: `Product name: ${product.label}\nPrice: ₱${price[1]}${details ? `\nAvailability: ${details}` : ''}`,
-        };
-    });
+    }));
 }
 
 function remainingActions(message) {
@@ -537,8 +528,10 @@ async function submitMessage(quickQuestion = null, freshContext = true) {
                                 <div
                                     class="mt-1 space-y-3 text-sm leading-6 [overflow-wrap:anywhere]"
                                 >
+                                    <template v-for="(section, sectionIndex) in message.presentation?.sections ?? [message.presentation]" :key="sectionIndex">
+                                        <p v-if="section?.heading" class="font-semibold">{{ section.heading }}</p>
                                     <div
-                                        v-for="(entry, index) in messageParagraphs(message)"
+                                        v-for="(entry, index) in messageParagraphs({ ...message, presentation: section })"
                                         :key="index"
                                     >
                                         <ul
@@ -568,17 +561,16 @@ async function submitMessage(quickQuestion = null, freshContext = true) {
                                             class="text-primary-ink focus-visible:ring-ring underline focus-visible:ring-2"
                                         >View Product</Link></span>
                                     </div>
-                                    <template v-if="message.presentation">
+                                    <template v-if="section">
                                         <dl
                                             v-if="
-                                                message.presentation.facts
+                                                section.facts
                                                     ?.length
                                             "
                                             class="space-y-2"
                                         >
                                             <div
-                                                v-for="(fact, index) in message
-                                                    .presentation.facts"
+                                                v-for="(fact, index) in section.facts"
                                                 :key="`fact-${index}`"
                                             >
                                                 <dt class="font-semibold">
@@ -588,8 +580,7 @@ async function submitMessage(quickQuestion = null, freshContext = true) {
                                             </div>
                                         </dl>
                                         <div
-                                            v-for="product in message
-                                                .presentation.products"
+                                            v-for="product in section.products"
                                             :key="product.id"
                                             class="border-border bg-card rounded-md border p-3"
                                         >
@@ -619,6 +610,9 @@ async function submitMessage(quickQuestion = null, freshContext = true) {
                                                 class="text-primary-ink focus-visible:ring-ring underline focus-visible:ring-2"
                                             >{{ product.labels?.view ?? 'View Product' }}</Link></span>
                                         </div>
+                                    </template>
+                                    </template>
+                                    <template v-if="message.presentation">
                                         <p>
                                             {{ message.presentation.follow_up }}
                                         </p>

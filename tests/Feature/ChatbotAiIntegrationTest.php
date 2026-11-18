@@ -98,7 +98,7 @@ test('enabled product flow preserves live stock through the HTTP boundary', func
     ChatbotEvidenceAgent::fake([['evidence_ids' => ['product:'.$product->id]]])->preventStrayPrompts();
 
     $this->postJson('/chatbot', ['message' => 'Is Atlas Network Hub available?'])
-        ->assertOk()->assertJsonPath('message', 'Atlas Network Hub — PHP 2,500.00. Out of stock at Sagay. Live inventory information covers the Sagay branch only.');
+        ->assertOk()->assertJsonPath('message', 'Atlas Network Hub — PHP 2,500.00. Out of stock at Sagay. Available quantity: 0. Live inventory information covers the Sagay branch only.');
     Http::assertNothingSent();
 });
 

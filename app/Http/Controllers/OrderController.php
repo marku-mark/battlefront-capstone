@@ -36,6 +36,9 @@ class OrderController extends Controller
         /** @var User $customer */
         $customer = $request->user();
         $order = $placeCustomerOrder->execute($customer, $request->checkoutData(), $request->file('payment_proof'));
+        if ($request->filled('direct_purchase_key')) {
+            $request->session()->forget('direct_purchase');
+        }
         $toast = ['type' => 'success', 'message' => 'Order placed successfully.'];
 
         if ($order->payment_method === PaymentMethod::Online) {

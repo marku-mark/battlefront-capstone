@@ -3,6 +3,7 @@
 namespace App\Services\Chatbot;
 
 use App\Actions\Chatbot\CategorizeChatbotQuery;
+use App\Actions\Chatbot\ClassifyChatbotInquiry;
 use App\Actions\Chatbot\Context\ResolveProductContext;
 use App\Actions\Chatbot\RenderChatbotFallback;
 use App\Actions\Chatbot\RouteChatbotQuery;
@@ -62,6 +63,17 @@ class ChatbotConversation
         foreach ($responseState['pending'] ?? [] as $topic => $question) {
             $response['presentation']['choices'][] = ['label' => str_replace(['faq:', '_'], ['', ' '], $topic), 'question' => $question];
         }
+        if (isset($responseState['pending_section']) || isset($responseState['pending_compound'])) {
+            $response['presentation']['clarification'] = true;
+            $parts = $responseState['pending_compound']['parts'] ?? array_column($responseState['multipart_sections'] ?? [], 'intent');
+            foreach (array_slice($parts, 0, 2) as $part) {
+                $heading = app(ChatbotMultipartResponse::class)->heading($part);
+                $response['presentation']['choices'][] = ['label' => $heading, 'question' => $heading];
+            }
+            if (isset($responseState['pending_compound'])) {
+                $response['presentation']['choices'][] = ['label' => app(ChatbotLocalizedResponse::class)->text('Both sections', $response['language']), 'question' => 'Both'];
+            }
+        }
         if (isset($responseState['product_clarification']) && $response['presentation']['choices'] === []) {
             foreach ($this->products->clarificationChoices($responseState['references']['product'] ?? []) as $product) {
                 $response['presentation']['choices'][] = ['label' => $product['name'], 'question' => $product['name']];
@@ -84,9 +96,47 @@ class ChatbotConversation
     {
         $subject = $contextScope.':'.($customer?->getKey() ?? 'guest');
         $state = $this->tokens->decode($token, $subject);
+        if (! $this->chatbot->containsSensitiveInput($message)) {
+            $explicitLanguage = $this->language->explicit($message);
+            if ($explicitLanguage !== null) {
+                $state['language_preference'] = $explicitLanguage;
+            }
+            $state['language'] = $state['language_preference'] ?? $this->language->select($message, $state['language'] ?? null);
+        }
+        if (! $this->chatbot->containsSensitiveInput($message)
+            && app(ChatbotBranchAvailability::class)->isGeneralOtherBranchStockQuestion($message)) {
+            unset($state['multipart_sections'], $state['pending_section'], $state['pending_compound'], $state['pending'],
+                $state['model_constraints'], $state['pending_catalog'], $state['product_clarification'], $state['references']['store'], $state['references']['product']);
+            $state['active'] = ChatbotQueryCategory::Store->value;
+
+            return $this->fallback('Stock information in this chat covers the Sagay branch only. For availability at other branches, please contact the branch directly.', $state, $subject);
+        }
+        $compound = app(ChatbotCompoundRequest::class)->resolve($message, $state);
+        if ($compound !== null && ($compound['clarification'] !== null || $compound['follow_up'] || count($compound['parts']) > 2)) {
+            if ($compound['clarification'] !== null) {
+                return $this->fallback($compound['clarification'], $compound['state'], $subject);
+            }
+            app(ChatbotProviderBudget::class)->reset();
+            $result = app(ChatbotMultipartResponse::class)->respond($compound['parts'], count($compound['parts']) > 2, $compound['state'], $customer, $state['language'] ?? 'en');
+
+            return ['message' => $result['message'], 'source' => $result['source'], 'context_token' => $this->tokens->encode($result['state'], $subject), 'presentation' => $result['presentation']];
+        }
+        if ($compound === null && (app(CatalogSearchIntent::class)->resolve($this->language->canonical($message)) !== null
+            || in_array(app(ClassifyChatbotInquiry::class)->execute($message)['category'], [ChatbotQueryCategory::Store, ChatbotQueryCategory::Faq, ChatbotQueryCategory::Order], true)
+            || $this->categorizer->isBlocked($message))) {
+            unset($state['multipart_sections'], $state['pending_section'], $state['pending_compound']);
+        }
         $modelLed = app(ModelLedChatbot::class);
         if ($modelLed->eligible($message, $state) && ! (trim($message) !== '' && $this->language->withoutLanguageRequest($message) === '')) {
             $result = $modelLed->respond($message, $state, $customer);
+
+            return ['message' => $result['message'], 'source' => $result['source'], 'context_token' => $this->tokens->encode($result['state'], $subject), 'presentation' => $result['presentation']];
+        }
+        $multipart = app(ChatbotMultipartResponse::class);
+        $parts = $compound['parts'] ?? $multipart->categoryList($message);
+        if (count($parts) === 2 && ! $this->chatbot->containsSensitiveInput($message)) {
+            app(ChatbotProviderBudget::class)->reset();
+            $result = $multipart->respond($parts, false, $compound['state'] ?? $state, $customer, $state['language'] ?? 'en');
 
             return ['message' => $result['message'], 'source' => $result['source'], 'context_token' => $this->tokens->encode($result['state'], $subject), 'presentation' => $result['presentation']];
         }

@@ -216,7 +216,7 @@ class ChatbotOrchestrationService
         if ($category === ChatbotQueryCategory::Product
             && $this->mentionsOtherBranch($scopeMessage)
             && preg_match('/\b(?:stock|stocks|available|availability|availble|avalable|stok)\b/u', $scopeMessage) === 1) {
-            return $this->fallback($category, 'Live inventory information covers the Sagay branch only. I cannot confirm stock at the other branches. Please ask about Sagay availability or contact the branch.');
+            return $this->fallback($category, 'Stock information in this chat covers the Sagay branch only. For availability at other branches, please contact the branch directly.');
         }
 
         if (! config('ai_integration.enabled') && $category === ChatbotQueryCategory::Product && preg_match('/\b(?:what products (?:do you have|are available)|what do you (?:sell|have)|browse (?:the )?catalog)\b/iu', $intentMessage) === 1) {

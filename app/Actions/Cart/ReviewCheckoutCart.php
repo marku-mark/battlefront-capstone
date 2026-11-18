@@ -6,6 +6,7 @@ use App\Enums\CartAvailability;
 use App\Models\CartItem;
 use App\Models\User;
 use App\Services\Cart\CartService;
+use App\Services\Order\DirectPurchase;
 use App\Services\PcBuilder\PcBuilderService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -19,14 +20,18 @@ class ReviewCheckoutCart
      *
      * @param  list<int>  $cartItemIds
      * @return array{
-     *     items: list<array{id: int, quantity: int, pc_build_group: array{uuid: string, name: string, validation: array<string, mixed>}|null, product: array{id: int, name: string, brand: string|null, image_url: string|null}, unit_price: string, line_total: string}>,
+     *     items: list<array{id: int|null, quantity: int, pc_build_group: array{uuid: string, name: string, validation: array<string, mixed>}|null, product: array{id: int, name: string, brand: string|null, image_url: string|null}, unit_price: string, line_total: string}>,
      *     item_count: int,
      *     total_quantity: int,
-     *     total: string
+     *     total: string, direct_purchase_key?: string, price_notice?: string|null
      * }
      */
     public function execute(User $customer, array $cartItemIds): array
     {
+        $purchase = app(DirectPurchase::class);
+        if (($selection = $purchase->selection()) !== null) {
+            return $purchase->review($selection);
+        }
         if (! $this->cartService->isValidCheckoutSelection($cartItemIds)) {
             throw CheckoutUnavailableException::invalidSelection();
         }

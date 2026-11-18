@@ -2,6 +2,7 @@
 
 namespace App\Ai\Agents;
 
+use App\Services\Chatbot\ChatbotIntentState;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Ai\Attributes\MaxTokens;
 use Laravel\Ai\Contracts\Agent;
@@ -19,7 +20,7 @@ class ChatbotUnderstandingAgent implements Agent, HasStructuredOutput
 
     public function instructions(): string
     {
-        return $this->baseInstructions().<<<'EXAMPLES'
+        return $this->baseInstructions().' Interpret operation explicitly: new_search starts a search, refine changes existing constraints, select identifies a displayed product, clarify requests missing information, and change_topic leaves the previous topic. A discovery/recommendation filter refinement searches the matching catalog with price_scope catalog; it does not select previous product IDs, even if the previous search had no results. For each constraint_updates field use set for an explicitly supplied value, clear for an explicit removal, and retain for an unchanged constraint. Values remain in the normal fields. Any brand clears both brand and excluded_brands; any price clears budget. Do not retain old constraints on a new search or topic. '.<<<'EXAMPLES'
 
 
             Interpret meaning rather than requiring exact wording. Honorifics (po), omitted question particles (ba/bala), informal spelling and English hardware terms do not change an availability question into missing_details. A component category is sufficient for discovery; an exact model is only needed for exact-model facts or compatibility. Keep reply language separate from search_query: use concise catalog terms for retrieval while retaining the customer's language. Do not translate model codes. Never remove negation or reinterpret a request to exclude a brand as a request for that brand. Do not infer availability from how a question is phrased.
@@ -48,6 +49,15 @@ class ChatbotUnderstandingAgent implements Agent, HasStructuredOutput
     public function schema(JsonSchema $schema): array
     {
         return [
+            'operation' => $schema->string()->enum(ChatbotIntentState::OPERATIONS)->required(),
+            'constraint_updates' => $schema->object(function (JsonSchema $schema): array {
+                $fields = [];
+                foreach (ChatbotIntentState::FIELDS as $field) {
+                    $fields[$field] = $schema->string()->enum(['set', 'clear', 'retain'])->required();
+                }
+
+                return $fields;
+            })->required(),
             'outcome' => $schema->string()->enum(['supported', 'clarify', 'unsupported'])->required(),
             'intent' => $schema->string()->enum(self::INTENTS)->required(),
             'language' => $schema->string()->enum(['en', 'tl', 'ceb', 'hil', 'und'])->required(),

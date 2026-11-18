@@ -57,6 +57,7 @@ use App\Http\Controllers\CustomerReturnRequestController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DeliveryLocationController;
 use App\Http\Controllers\DeliveryQuoteController;
+use App\Http\Controllers\DirectPurchaseController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\NotificationController as CustomerNotificationController;
 use App\Http\Controllers\OrderCancellationController;
@@ -168,6 +169,8 @@ Route::middleware(['auth', 'can:use-customer-cart'])->prefix('wishlist')->name('
     Route::post('/', [WishlistController::class, 'store'])->middleware('throttle:60,1')->name('store');
     Route::delete('/{product}', [WishlistController::class, 'destroy'])->whereNumber('product')->name('destroy');
 });
+
+Route::post('buy-now', [DirectPurchaseController::class, 'store'])->name('buy-now.store');
 
 // customer checkout preview
 Route::middleware(['auth', 'can:use-customer-cart'])

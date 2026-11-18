@@ -11,7 +11,8 @@ class ChatbotLanguage
     /** Phrase aliases affect matching only; original messages remain available to entity resolvers. */
     private const ALIASES = [
         '\b(?:walay budget limit|walay limit sa budget|dili na limitahan ang budget|wala nang budget limit|walang budget limit|wala na sang budget limit|wala na limit sa budget)\b' => 'no budget',
-        '\b(?:bisan ano nga presyo|kahit anong presyo|bisan ano nga price)\b' => 'any price',
+        '\b(?:bisan ano nga presyo|kahit anong presyo|bisan ano nga price|bisan unsang presyo)\b' => 'any price',
+        '\b(?:bisan unsang brand|kahit anong brand|bisan ano nga brand)\b' => 'any brand',
         '\bcpu(?:s)?\b(?!-|\s+(?:cooler|fan|cooling|thermal|paste|holder|stand|case)\b)' => 'processor',
         '\b(?:paano|unsaon) (?:gamitin|gamiton|paggamit|paggamit sa|gamiton ang|gamitin ang|paggamit sa ang) (?:ang |sa )?pc builder\b(?!\s+templates)' => 'how do i use pc builder',
         '\b(?:paano|unsaon) (?:pumili|magpili|pagpili) (?:ng |sang |og )?components (?:sa|in) pc builder\b' => 'how do i select components in pc builder',
@@ -66,6 +67,7 @@ class ChatbotLanguage
         '\b(?:(?:do you|does your (?:shop|store)) (?:carry|sell|stock)|have you got|(?:have you )?got any)\b' => 'available',
         '\b(?:may stock(?: (?:pa|ba))*(?: (?:kayo|kayong|kamo))?(?: (?:ng|sang))?|naay stock(?: sa)?|may ara(?: (?:pa|gid|bala))*(?: kamo)?(?: sang| nga)?|ara kamo(?: sang)?|(?:naa|aduna)(?: pa)?(?: ba)? (?:moy|mo)|(?:meron|mayroon)(?: (?:pa|rin|din))?(?: ba)? (?:kayong|kayo))\b' => 'available',
         '\b(?:merong|mayroong|naay)\b' => 'available',
+        '\bmay (.+?) kamo\b' => 'available $1',
         '\bba kayo\b' => 'available',
         '\b(?:may ara pa|ara pa|naa pa)\b' => 'available',
         '\b(?:ano (?:ang )?(?:mga )?(?:baligya|produkto) (?:ninyo|niyo)|unsa inyong (?:baligya|mga produkto)|anong (?:mga )?products (?:meron|mayroon) kayo)\b' => 'what products do you have',
@@ -171,7 +173,7 @@ class ChatbotLanguage
             'tl' => ['magkano', 'paano', 'nasaan', 'meron', 'merong', 'mayroon', 'mayroong', 'ba kayo', 'aking', 'kayong', 'niyan', 'po', 'hindi', 'irekomenda', 'mura'],
             'en' => ['how', 'where', 'what', 'which', 'do you', 'have you', 'got any', 'can i', 'recommend', 'compare', 'show me', 'help me'],
         ];
-        $scores = [];
+        $scores = preg_match('/\bmay\s+[^.!?]*?\bkamo\b/iu', $message) === 1 ? ['hil' => 2] : [];
         foreach ($patterns as $language => $phrases) {
             foreach ($phrases as $phrase) {
                 if (preg_match('/\b'.preg_quote($phrase, '/').'\b/iu', $message) === 1) {

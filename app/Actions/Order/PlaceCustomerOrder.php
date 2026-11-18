@@ -22,7 +22,7 @@ class PlaceCustomerOrder
     ) {}
 
     /**
-     * @param  array{cart_item_ids: list<int>, recipient_name: string, contact_number: string, fulfillment_method: string, delivery_address: string|null, delivery_address_components: array<string, mixed>|null, delivery_destination: string|null, payment_method: string, payment_channel: string|null, payment_bank: string|null, hosted_payment_method: string|null, checkout_submission_key: string|null}  $validated
+     * @param  array{direct_purchase?: array{product_id: int, quantity: int}|null, cart_item_ids: list<int>, recipient_name: string, contact_number: string, fulfillment_method: string, delivery_address: string|null, delivery_address_components: array<string, mixed>|null, delivery_destination: string|null, payment_method: string, payment_channel: string|null, payment_bank: string|null, hosted_payment_method: string|null, checkout_submission_key: string|null}  $validated
      */
     public function execute(User $customer, array $validated, ?UploadedFile $paymentProof): Order
     {
@@ -37,6 +37,7 @@ class PlaceCustomerOrder
         try {
             $checkout = [
                 'cart_item_ids' => $validated['cart_item_ids'],
+                'direct_purchase' => $validated['direct_purchase'] ?? null,
                 'recipient_name' => $validated['recipient_name'],
                 'contact_number' => $validated['contact_number'],
                 'fulfillment_method' => FulfillmentMethod::from($validated['fulfillment_method']),
@@ -51,6 +52,7 @@ class PlaceCustomerOrder
                 'checkout_request_fingerprint' => isset($validated['checkout_submission_key'])
                     ? hash('sha256', json_encode([
                         'cart_item_ids' => $validated['cart_item_ids'],
+                        'direct_purchase' => $validated['direct_purchase'] ?? null,
                         'recipient_name' => $validated['recipient_name'],
                         'contact_number' => $validated['contact_number'],
                         'fulfillment_method' => $validated['fulfillment_method'],

@@ -3,11 +3,131 @@
 use App\Actions\Chatbot\RenderChatbotFallback;
 use App\Ai\Agents\ChatbotIntentAgent;
 use App\Enums\ChatbotQueryCategory;
+use App\Models\Branch;
+use App\Models\Category;
+use App\Models\Product;
 use App\Services\Chatbot\ChatbotConversation;
 use App\Services\Chatbot\ChatbotLanguage;
 use App\Services\Chatbot\ChatbotLocalizedResponse;
 use App\Services\Chatbot\ChatbotProviderBudget;
 use Illuminate\Support\Facades\Http;
+
+test('short Hiligaynon availability detection does not classify every kamo phrase as Hiligaynon', function (string $question, string $language) {
+    expect(app(ChatbotLanguage::class)->detect($question))->toBe($language);
+})->with([
+    ['may keyboard kamo?', 'hil'],
+    ['may keyboard kamo sa sagay?', 'hil'],
+    ['naa kamo keyboard?', 'ceb'],
+]);
+
+test('empty constrained catalog replies translate application wording and preserve catalog identifiers', function (string $language) {
+    config(['ai_integration.localization_enabled' => true]);
+    $message = 'I found no available Sagay products matching these constraints: Atlas, the requested product, under PHP 500.00, excluding Beacon. Try changing the brand, model or budget.';
+
+    $localized = app(ChatbotLocalizedResponse::class)->text($message, $language, ['Atlas', 'Beacon']);
+
+    expect($localized)->toContain('Atlas', 'Beacon', 'PHP 500.00')
+        ->not->toContain('matching these constraints', 'the requested product', 'under ', 'excluding ', 'Try changing');
+})->with(['hil', 'tl', 'ceb']);
+
+test('Wi-Fi clarification and router follow up retain the selected language', function (string $question, string $language, string $clarification) {
+    config(['ai_integration.localization_enabled' => true, 'scout.driver' => 'null']);
+    Product::factory()->available()->for(Category::factory()->state(['name' => 'Monitor']))->create(['name' => 'Atlas Monitor']);
+    $router = Product::factory()->available()->for(Category::factory()->state(['name' => 'Networking']))->create(['name' => 'Atlas Router']);
+    $chat = app(ChatbotConversation::class);
+
+    $reply = $chat->respond($question, null, null, 'wifi-language');
+    $followUp = $chat->respond('ang router', null, $reply['context_token'], 'wifi-language');
+
+    expect($reply['language'])->toBe($language);
+    expect($reply['message'])->toContain($clarification);
+    expect($reply['presentation']['sections'][1]['intro'])->toBe($clarification);
+    expect($followUp['language'])->toBe($language);
+    expect($followUp['message'])->toContain($router->name)->not->toContain('Which product section', 'Do you mean');
+    Http::assertNothingSent();
+})->with([
+    ['may ara kamo monitor kag wifi?', 'hil', 'Wi-Fi adapter, router, ukon iban nga networking product ang imo ginatumod?'],
+    ['naa moy monitor ug wifi?', 'ceb', 'Wi-Fi adapter, router, o laing networking product ba imong pasabot?'],
+    ['meron kayong monitor at wifi?', 'tl', 'Wi-Fi adapter, router, o ibang networking product ba ang ibig mong sabihin?'],
+    ['do you have monitor and wifi?', 'en', 'Do you mean a Wi-Fi adapter, a router, or another networking product?'],
+]);
+
+test('early compound clarification uses the current language and preserves it', function (string $question) {
+    config(['ai_integration.localization_enabled' => true]);
+    $chat = app(ChatbotConversation::class);
+    $reply = $chat->respond('RAM and motherboard', null, null, 'early-language');
+
+    $reply = $chat->respond($question, null, $reply['context_token'], 'early-language');
+
+    expect($reply['language'])->toBe('hil');
+    expect($reply['message'])->toContain('Ano nga seksyon sang produkto', 'RAM ukon Motherboards')->not->toContain('Which product section');
+    $next = $chat->respond('RAM', null, $reply['context_token'], 'early-language');
+    expect($next['language'])->toBe('hil');
+    Http::assertNothingSent();
+})->with(['Under PHP 2000. Reply in Hiligaynon.', 'may ara kamo mas manubo sa PHP 2000?']);
+
+test('application clarifications have translations for each supported regional language', function (string $language) {
+    config(['ai_integration.localization_enabled' => true]);
+    foreach ([
+        'Do you mean a Wi-Fi adapter, a router, or another networking product?',
+        'Which product section should I refine: Printer or RAM?',
+        'Does that budget apply to both product types, or only RAM?',
+        'Which branch do you mean: Sagay City or Bacolod City?',
+        'Which product do you mean? Please provide its catalog name.',
+        'Which Battlefront branch do you mean? Please provide its city.',
+        'Please identify one exact product for alternatives.',
+        'The referenced product is no longer available in the catalog.',
+        'Please choose either lowest or highest price first.',
+        'Battlefront prices are in PHP. Please provide your budget in Philippine pesos.',
+        'Please provide a non-negative price range in PHP.',
+        'Please provide a price range whose minimum is below its maximum.',
+        'Please provide a smaller price amount in PHP.',
+        'Available quantity: 12.',
+    ] as $source) {
+        $translated = app(ChatbotLocalizedResponse::class)->text($source, $language);
+        expect($translated)->not->toBe($source);
+        expect(app(ChatbotLocalizedResponse::class)->text($source, 'en'))->toBe($source);
+    }
+})->with(['ceb', 'tl', 'hil']);
+
+test('other branch stock replies politely explain the Sagay scope in the selected language', function (string $question, string $language, string $scope, string $contact) {
+    config(['ai_integration.localization_enabled' => true, 'scout.driver' => 'null']);
+    Branch::factory()->create(['city' => 'Sagay City']);
+    Branch::factory()->create(['city' => 'Bacolod City', 'contact_number' => '09123456789']);
+    Product::factory()->available()->for(Category::factory()->state(['name' => 'RAM']))->create(['name' => 'Atlas RAM']);
+    $chat = app(ChatbotConversation::class);
+
+    $reply = $chat->respond($question, null, null, 'branch-language');
+
+    expect($reply['language'])->toBe($language);
+    expect($reply['message'])->toContain($scope)->not->toContain('out of stock', 'Walang stock', 'Wala sing stock', 'Walay stock');
+    expect(mb_strtolower($reply['message']))->toContain(mb_strtolower($contact));
+    expect($reply['presentation']['products'])->toBe([]);
+    expect(app(ChatbotProviderBudget::class)->usage()['calls'])->toBe(0);
+    Http::assertNothingSent();
+})->with([
+    ['Do you have RAM in Bacolod?', 'en', 'Stock information in this chat covers the Sagay branch only.', 'Please contact'],
+    ['Stock at Bacolod branch?', 'en', 'Stock information in this chat covers the Sagay branch only.', 'please contact'],
+    ['meron kayong RAM sa Bacolod?', 'tl', 'Para lamang sa Sagay branch', 'makipag-ugnayan'],
+    ['naa moy RAM sa Bacolod?', 'ceb', 'Para lamang sa Sagay branch', 'kontaka'],
+    ['may ara kamo RAM sa Bacolod?', 'hil', 'Para lamang sa Sagay branch', 'kontaka'],
+    ['May stock sa Bacolod? Reply in Tagalog.', 'tl', 'Para lamang sa Sagay branch', 'makipag-ugnayan'],
+    ['Stock at other branches? Reply in Cebuano.', 'ceb', 'Para lamang sa Sagay branch', 'kontaka'],
+    ['Stock at Bacolod branch? Reply in Hiligaynon.', 'hil', 'Para lamang sa Sagay branch', 'kontaka'],
+    ['may ara kamo stock sa iban nga branch?', 'hil', 'Para lamang sa Sagay branch', 'kontaka'],
+    ['naa moy stock sa ubang branch?', 'ceb', 'Para lamang sa Sagay branch', 'kontaka'],
+    ['meron kayong stock sa ibang branch?', 'tl', 'Para lamang sa Sagay branch', 'makipag-ugnayan'],
+]);
+
+test('other branch existence questions retain published branch information', function (string $question) {
+    config(['ai_integration.localization_enabled' => true]);
+    Branch::factory()->create(['city' => 'Bacolod City', 'address' => 'Published Bacolod address']);
+
+    $reply = app(ChatbotConversation::class)->respond($question, null, null, 'branch-existence');
+
+    expect($reply['message'])->toContain('Published Bacolod address')->not->toContain('Stock information in this chat', 'impormasyon parte sa stock', 'impormasyon tungkol sa stock', 'impormasyon sa stock');
+    Http::assertNothingSent();
+})->with(['may ara kamo branch sa Bacolod?', 'meron kayong branch sa Bacolod?', 'naa moy branch sa Bacolod?', 'Do you have a branch in Bacolod?']);
 
 test('branch availability introductions and fallbacks are localized', function (string $language) {
     config(['ai_integration.localization_enabled' => true]);

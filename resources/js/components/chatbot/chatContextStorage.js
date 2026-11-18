@@ -2,11 +2,40 @@ const key = 'battlefront_chat_context';
 const lifetime = 15 * 60 * 1000;
 const transcriptKey = 'battlefront_chat_transcript';
 
-export function safePresentation(value) {
+function privateInput(text) {
+    return [
+        /\b(?:password|passcode|senha|kontrasenyas|otp|pin|secret|credential|card number|cvv|api[ _-]?key)\s*(?::|=|\bis\b|\bko\b|\bnako\b)?\s*[\w@!#$%*.-]*\d[\w@!#$%*.-]*/iu,
+        /\b(?:sk-|AIza)[a-z0-9_-]{12,}\b|\b\d{4}[ -]?\d{4}[ -]?\d{4}[ -]?\d{4}\b/iu,
+        /\b(?:password|passcode|api[\s_-]*(?:key|secret|token)|access[\s_-]*token|internal[\s_-]*note)\s*(?::|=|\bis\b)\s*\S+/iu,
+        /\bbearer\s+[a-z0-9._~+/=-]+/iu,
+        /\bpayment-proofs[/\\]\S+/iu,
+        /\bpayment[\s_-]*proof(?:[\s_-]*path)?\s*[:=]\s*\S+/iu,
+        /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/iu,
+        /(?<!\d)(?:\+63[\s-]?|0)9(?:[\s-]?\d){9}(?!\d)/u,
+    ].some((pattern) => pattern.test(text));
+}
+
+function savedMessage(message) {
+    return message.role === 'customer' && privateInput(message.content)
+        ? {
+              ...message,
+              content: 'Question omitted from saved history for privacy.',
+              presentation: null,
+          }
+        : message;
+}
+
+export function safePresentation(value, nested = false) {
     if (!value || typeof value.intro !== 'string') return null;
     const text = (value) => typeof value === 'string' && value.length <= 12000;
     return {
+        ...(!nested && Array.isArray(value.sections) && value.sections.length > 0 ? {
+            sections: value.sections.slice(0, 3)
+                .filter((section) => section && text(section.heading) && typeof section.intro === 'string')
+                .map((section) => ({ ...safePresentation(section, true), heading: section.heading })),
+        } : {}),
         intro: value.intro.slice(0, 12000),
+        clarification: value.clarification === true,
         products: (Array.isArray(value.products) ? value.products : [])
             .filter(
                 (product) =>
@@ -84,13 +113,20 @@ export function readChatTranscript(storage, identity, now = Date.now()) {
         ) {
             throw new Error('invalid transcript');
         }
-        saved.messages = saved.messages.map((message, index) => ({
+        const containsPrivateInput = privateInput(saved.draft) || saved.messages.some(
+            (message) => message.role === 'customer' && privateInput(message.content),
+        );
+        saved.draft = privateInput(saved.draft) ? '' : saved.draft;
+        saved.messages = saved.messages.map(savedMessage).map((message, index) => ({
             id: index + 1,
             role: message.role,
             content: message.content,
             source: message.source === 'gemini' ? 'gemini' : 'fallback',
             presentation: safePresentation(message.presentation),
         }));
+        if (containsPrivateInput) {
+            writeChatTranscript(storage, identity, saved, saved.expiresAt);
+        }
         return saved;
     } catch {
         clearChatTranscript(storage);
@@ -108,19 +144,7 @@ export function writeChatTranscript(storage, identity, snapshot, expiresAt) {
             clearChatTranscript(storage);
             return;
         }
-        const privateInput = (text) =>
-            /\b(?:password|passcode|otp|pin|secret|api[ _-]?key)\s*(?::|=|is)?\s*\S*\d\S*|\b(?:password|passcode|api[ _-]?key)\s*[:=]\s*\S+|\bBearer\s+\S+|[\w.+-]+@[\w.-]+\.[a-z]{2,}|(?:\+63|0)9[\d -]{9,}/iu.test(
-                text,
-            );
-        const messages = snapshot.messages.slice(-60).map((message) =>
-            message.role === 'customer' && privateInput(message.content)
-                ? {
-                      ...message,
-                      content:
-                          'Question omitted from saved history for privacy.',
-                  }
-                : message,
-        );
+        const messages = snapshot.messages.slice(-60).map(savedMessage);
         const saved = JSON.stringify({
             ...snapshot,
             messages,

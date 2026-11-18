@@ -181,7 +181,8 @@ async function refreshQuote() {
             deliveryQuoteShow.url({
                 query: {
                     delivery_city_code: destination,
-                    cart_item_ids: props.cart.items.map((item) => item.id),
+                    cart_item_ids: props.cart.direct_purchase_key ? undefined : props.cart.items.map((item) => item.id),
+                    direct_purchase_key: props.cart.direct_purchase_key,
                 },
             }),
             { headers: { Accept: 'application/json' } },
@@ -225,6 +226,7 @@ defineOptions({
             class="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 p-4 sm:p-6 lg:p-8"
         >
             <PageHeader title="Checkout" heading-id="checkout-heading" />
+            <p v-if="cart.price_notice" role="status">{{ cart.price_notice }}</p>
 
             <Form
                 v-bind="storeOrder.form()"
@@ -237,8 +239,9 @@ defineOptions({
                 class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start"
                 v-slot="{ errors, processing, progress }"
             >
+                <input v-if="cart.direct_purchase_key" type="hidden" name="direct_purchase_key" :value="cart.direct_purchase_key" />
                 <input
-                    v-for="item in cart.items"
+                    v-for="item in (cart.direct_purchase_key ? [] : cart.items)"
                     :key="`selected-${item.id}`"
                     type="hidden"
                     name="cart_item_ids[]"

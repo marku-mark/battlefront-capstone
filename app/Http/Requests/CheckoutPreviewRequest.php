@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Services\Order\DirectPurchase;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -23,7 +24,8 @@ class CheckoutPreviewRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'cart_item_ids' => ['bail', 'required', 'array', 'list', 'min:1'],
+            'direct_purchase_key' => ['sometimes', 'required', 'uuid'],
+            'cart_item_ids' => ['bail', $this->filled('direct_purchase_key') ? 'sometimes' : 'required', 'array', 'list', 'min:1'],
             'cart_item_ids.*' => ['bail', 'required', 'integer', 'min:1', 'distinct'],
         ];
     }
@@ -31,6 +33,11 @@ class CheckoutPreviewRequest extends FormRequest
     /** @return list<int> */
     public function cartItemIds(): array
     {
+        if ($this->filled('direct_purchase_key')) {
+            app(DirectPurchase::class)->selection();
+
+            return [];
+        }
         $ids = [];
 
         foreach ($this->validated('cart_item_ids') as $id) {

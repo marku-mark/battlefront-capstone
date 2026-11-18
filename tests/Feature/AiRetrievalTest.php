@@ -8,9 +8,117 @@ use App\Services\Chatbot\Retrieval\CatalogProjectionRecorder;
 use App\Services\Chatbot\Retrieval\GeminiEmbeddingClient;
 use App\Services\Chatbot\Retrieval\Neo4jClient;
 use App\Services\Chatbot\Retrieval\QdrantClient;
+use App\Services\Chatbot\Retrieval\RetrievalFailure;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+
+it('rejects invalid payload identifiers before making a provider request', function (array $ids) {
+    expect(fn () => app(QdrantClient::class)->payloads($ids))
+        ->toThrow(RuntimeException::class, 'Invalid point identifiers.');
+    Http::assertNothingSent();
+})->with([
+    'associative identifiers' => [['product' => 1]],
+    'sparse identifiers' => [[1 => 1]],
+    'numeric string' => [['1']],
+    'float' => [[1.0]],
+    'boolean' => [[true]],
+    'null' => [[null]],
+    'nested array' => [[[1]]],
+    'zero' => [[0]],
+    'negative' => [[-1]],
+    'too many' => [range(1, 101)],
+]);
+
+it('skips payload requests for an empty identifier list', function () {
+    expect(app(QdrantClient::class)->payloads([]))->toBe([]);
+    Http::assertNothingSent();
+});
+
+it('accepts a full payload batch and returns only requested integer identifiers with payloads', function () {
+    config(['ai_integration.qdrant.enabled' => true, 'ai_integration.qdrant.url' => 'https://vector.example.test',
+        'ai_integration.qdrant.key' => 'fake', 'ai_integration.qdrant.collection' => 'products']);
+    Http::fake(['https://vector.example.test/collections/products/points' => Http::response(['result' => [
+        ['id' => 1, 'payload' => ['source_hash' => 'current']],
+        ['id' => 100, 'payload' => ['revision' => 2]],
+        ['id' => 101, 'payload' => ['source_hash' => 'foreign']],
+        ['id' => '2', 'payload' => ['source_hash' => 'wrong type']],
+        ['id' => 3, 'payload' => null],
+    ]])]);
+
+    expect(app(QdrantClient::class)->payloads(range(1, 100)))
+        ->toBe([1 => ['source_hash' => 'current'], 100 => ['revision' => 2]]);
+    Http::assertSentCount(1);
+    Http::assertSent(fn ($request): bool => $request['ids'] === range(1, 100)
+        && $request['with_payload'] === true && $request['with_vector'] === false);
+});
+
+it('distinguishes malformed payload envelopes from legitimately missing points', function (array $body, bool $valid) {
+    config(['ai_integration.qdrant.enabled' => true, 'ai_integration.qdrant.url' => 'https://vector.example.test',
+        'ai_integration.qdrant.key' => 'fake', 'ai_integration.qdrant.collection' => 'products']);
+    Http::fake(['https://vector.example.test/collections/products/points' => Http::response($body)]);
+
+    if ($valid) {
+        expect(app(QdrantClient::class)->payloads([1]))->toBe([]);
+    } else {
+        try {
+            app(QdrantClient::class)->payloads([1]);
+            $this->fail('Malformed payload data must be rejected.');
+        } catch (RetrievalFailure $exception) {
+            expect($exception->reason)->toBe('invalid_response');
+        }
+    }
+    Http::assertSentCount(1);
+})->with([
+    'missing points' => [['result' => []], true],
+    'missing result' => [[], false],
+    'null result' => [['result' => null], false],
+    'string result' => [['result' => 'unavailable'], false],
+    'object result' => [['result' => ['points' => []]], false],
+]);
+
+it('keeps catalog projection work pending without any provider or queue activity while offline', function (bool $active) {
+    $product = Product::factory()->available()->create(['is_active' => $active]);
+    $projection = CatalogProjection::query()->create(['product_id' => $product->id, 'revision' => 2, 'last_failure' => 'provider_unavailable']);
+    $before = $projection->refresh()->getAttributes();
+    config(['ai_integration.offline' => true, 'ai_integration.sync_enabled' => true,
+        'ai_integration.qdrant.enabled' => true, 'ai_integration.neo4j.enabled' => true,
+        'ai_integration.qdrant.url' => 'https://vector.example.test', 'ai_integration.qdrant.key' => 'fake',
+        'ai_integration.neo4j.url' => 'https://graph.example.test', 'ai_integration.neo4j.username' => 'test', 'ai_integration.neo4j.password' => 'fake',
+        'ai_integration.embedding.fallback_profiles' => [['model' => 'gemini-embedding-2', 'collection' => 'products_fallback']]]);
+    Queue::fake();
+
+    app()->call([new SyncCatalogProjection($product->id), 'handle']);
+
+    expect($projection->fresh()->getAttributes())->toBe($before);
+    Queue::assertNothingPushed();
+    Http::assertNothingSent();
+})->with(['eligible product' => true, 'removed product' => false]);
+
+it('distinguishes invalid vector search envelopes from valid empty results', function (array $body, bool $valid) {
+    config(['ai_integration.qdrant.enabled' => true, 'ai_integration.qdrant.url' => 'https://vector.example.test',
+        'ai_integration.qdrant.key' => 'fake', 'ai_integration.qdrant.collection' => 'products']);
+    Http::fake(['https://vector.example.test/collections/products/points/query' => Http::response($body)]);
+
+    if ($valid) {
+        expect(app(QdrantClient::class)->search([1.0]))->toBe([]);
+    } else {
+        try {
+            app(QdrantClient::class)->search([1.0]);
+            $this->fail('Malformed vector search data must be rejected.');
+        } catch (RetrievalFailure $exception) {
+            expect($exception->reason)->toBe('invalid_response');
+        }
+    }
+    Http::assertSentCount(1);
+})->with([
+    'empty points' => [['result' => ['points' => []]], true],
+    'missing result' => [[], false],
+    'missing points' => [['result' => []], false],
+    'null points' => [['result' => ['points' => null]], false],
+    'string points' => [['result' => ['points' => 'unavailable']], false],
+    'unordered points' => [['result' => ['points' => ['unexpected' => []]]], false],
+]);
 
 it('defers quota constrained projections without provider requests or failed attempts', function (bool $daily) {
     $this->travelTo(now()->setTimezone('America/Los_Angeles')->startOfDay()->addHours(12));
@@ -32,7 +140,7 @@ it('defers quota constrained projections without provider requests or failed att
 
 it('never connects when retrieval is disabled', function () {
     config(['ai_integration.qdrant.enabled' => false]);
-    expect(fn () => app(QdrantClient::class)->search([1.0]))->toThrow(RuntimeException::class, 'Qdrant unavailable.');
+    expect(fn () => app(QdrantClient::class)->search([1.0]))->toThrow(RetrievalFailure::class, 'Retrieval unavailable.');
     Http::assertNothingSent();
 });
 
@@ -46,7 +154,7 @@ it('bounds vector queries and accepts only revisioned candidates', function () {
 it('does not expose provider failures or credentials', function () {
     config(['ai_integration.qdrant.enabled' => true, 'ai_integration.qdrant.url' => 'https://vector.example.test', 'ai_integration.qdrant.key' => 'fake', 'ai_integration.qdrant.collection' => 'products']);
     Http::fake(['https://vector.example.test/collections/products/points/query' => Http::response(['error' => 'sensitive response'], 401)]);
-    expect(fn () => app(QdrantClient::class)->search([1.0]))->toThrow(RuntimeException::class, 'Qdrant unavailable.');
+    expect(fn () => app(QdrantClient::class)->search([1.0]))->toThrow(RetrievalFailure::class, 'Retrieval unavailable.');
     Http::assertSentCount(1);
 });
 

@@ -9,7 +9,7 @@ class CatalogDocumentBuilder
 {
     /**
      * @return array<string,mixed> */
-    public function build(Product $product): array
+    public function build(Product $product, ?string $embeddingModel = null): array
     {
         $product->loadMissing(['category', 'tags', 'componentProfile.currentApprovedRevision']);
         $profile = $product->componentProfile;
@@ -22,8 +22,8 @@ class CatalogDocumentBuilder
         }
         $data = [
             ...$classification,
-            'schema_version' => 2,
-            'embedding_model' => (string) config('ai_integration.embedding.model'),
+            'schema_version' => ($embeddingModel ?? config('ai_integration.embedding.model')) === 'gemini-embedding-2' ? 3 : 2,
+            'embedding_model' => $embeddingModel ?? (string) config('ai_integration.embedding.model'),
             'embedding_dimensions' => (int) config('ai_integration.embedding.dimensions'),
             'product_id' => (int) $product->id,
             'product_code' => $product->product_code,

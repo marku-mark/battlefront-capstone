@@ -117,9 +117,10 @@ test('mobile failures use the same private capture boundary', function () {
 test('a necessary ambiguity is reviewable without being declared a chatbot defect', function () {
     config(['ai_integration.full_catalog_pipeline' => true]);
     config(['ai_integration.enabled' => true, 'ai_integration.model_led' => true, 'ai_integration.gemini.tokens_per_minute' => 60000]);
-    ChatbotUnderstandingAgent::fake([failureReviewIntent(['outcome' => 'clarify', 'clarification' => 'cpu_meaning'])])->preventStrayPrompts();
+    ChatbotUnderstandingAgent::fake([failureReviewIntent(['outcome' => 'clarify', 'clarification' => 'missing_details'])])->preventStrayPrompts();
 
-    $this->postJson('/chatbot', ['message' => 'Do you have CPU?'])->assertOk();
+    $this->postJson('/chatbot', ['message' => 'Do you have a replacement for this part?'])->assertOk()
+        ->assertJsonPath('message', 'Please provide a product name or model, or clarify your Battlefront question.');
     Artisan::call('chatbot:failures');
     $report = json_decode(Artisan::output(), true, flags: JSON_THROW_ON_ERROR);
 

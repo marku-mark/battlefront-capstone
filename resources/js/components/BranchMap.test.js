@@ -195,5 +195,5 @@ test('branch map pins use only complete valid coordinates and escape managed tex
         ),
     );
     assert.ok(nodes.every((node) => !('innerHTML' in node)));
-    assert.match(await map.html(), /2 mapped/);
+    assert.match(await map.html(), /2 locations/);
 });

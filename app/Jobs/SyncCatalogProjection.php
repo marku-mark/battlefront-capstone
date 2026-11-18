@@ -6,6 +6,7 @@ use App\Models\CatalogProjection;
 use App\Models\Product;
 use App\Services\Chatbot\Retrieval\CatalogDocumentBuilder;
 use App\Services\Chatbot\Retrieval\EmbeddingBudgetExhausted;
+use App\Services\Chatbot\Retrieval\EmbeddingFallback;
 use App\Services\Chatbot\Retrieval\GeminiEmbeddingClient;
 use App\Services\Chatbot\Retrieval\Neo4jClient;
 use App\Services\Chatbot\Retrieval\QdrantClient;
@@ -45,7 +46,7 @@ class SyncCatalogProjection implements ShouldBeUniqueUntilProcessing, ShouldQueu
 
     public function handle(CatalogDocumentBuilder $builder, GeminiEmbeddingClient $embeddings, QdrantClient $qdrant, Neo4jClient $graph): void
     {
-        if (! config('ai_integration.sync_enabled')) {
+        if (config('ai_integration.offline') || ! config('ai_integration.sync_enabled')) {
             return;
         }
         $lock = Cache::lock('chatbot:projection:'.$this->productId, 90);
@@ -58,6 +59,9 @@ class SyncCatalogProjection implements ShouldBeUniqueUntilProcessing, ShouldQueu
             $projection = CatalogProjection::query()->where('product_id', $this->productId)->first();
             if (! $projection) {
                 return;
+            }
+            if (config('ai_integration.qdrant.enabled')) {
+                app(EmbeddingFallback::class)->enqueue($this->productId);
             }
             if ((! config('ai_integration.qdrant.enabled') || $projection->qdrant_revision >= $projection->revision)
                 && (! config('ai_integration.neo4j.enabled') || $projection->neo4j_revision >= $projection->revision)

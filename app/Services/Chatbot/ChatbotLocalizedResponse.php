@@ -8,6 +8,34 @@ class ChatbotLocalizedResponse
      * @var array<string, array{string, string, string}>
      */
     private const MESSAGES = [
+        'Your filters' => ['Imong mga filter', 'Mga filter mo', 'Imo mga filter'],
+        'Both sections' => ['Ang duha', 'Parehong seksyon', 'Ang duha ka seksyon'],
+        'Any brand' => ['Bisan unsang brand', 'Kahit anong brand', 'Bisan ano nga brand'],
+        'Any price' => ['Bisan unsang presyo', 'Kahit anong presyo', 'Bisan ano nga presyo'],
+        'Excluding' => ['Gawas sa', 'Hindi kasama ang', 'Luwas sa'],
+        'above' => ['labaw sa', 'higit sa', 'labaw sa'],
+        'at least' => ['dili moubos sa', 'hindi bababa sa', 'indi magnubo sa'],
+        'under' => ['ubos sa', 'mas mababa sa', 'manubo sa'],
+        'up to' => ['hangtod sa', 'hanggang', 'asta sa'],
+        'Available quantity: ' => ['Kadaghanon nga available: ', 'Bilang na available: ', 'Kadamuon nga available: '],
+        'Stock information in this chat covers the Sagay branch only.' => ['Para lamang sa Sagay branch ang impormasyon sa stock dinhi sa chat.', 'Para lamang sa Sagay branch ang impormasyon tungkol sa stock sa chat na ito.', 'Para lamang sa Sagay branch ang impormasyon parte sa stock diri sa chat.'],
+        'For availability at other branches, please contact the branch directly.' => ['Alang sa stock sa ubang mga branch, palihog kontaka direkta ang branch.', 'Para sa availability sa ibang branch, makipag-ugnayan po nang direkta sa branch.', 'Para sa stock sa iban nga branch, palihog kontaka sing direkta ang branch.'],
+        'Do you mean a Wi-Fi adapter, a router, or another networking product?' => ['Wi-Fi adapter, router, o laing networking product ba imong pasabot?', 'Wi-Fi adapter, router, o ibang networking product ba ang ibig mong sabihin?', 'Wi-Fi adapter, router, ukon iban nga networking product ang imo ginatumod?'],
+        'Which product do you mean? Please provide its catalog name.' => ['Unsang produkto imong pasabot? Ihatag ang ngalan niini sa katalogo.', 'Aling produkto ang tinutukoy mo? Ibigay ang pangalan nito sa katalogo.', 'Ano nga produkto ang imo ginatumod? Ihatag ang ngalan sini sa katalogo.'],
+        'Which Battlefront branch do you mean? Please provide its city.' => ['Unsang Battlefront branch imong pasabot? Ihatag ang siyudad niini.', 'Aling Battlefront branch ang tinutukoy mo? Ibigay ang lungsod nito.', 'Ano nga Battlefront branch ang imo ginatumod? Ihatag ang siyudad sini.'],
+        'Please identify one exact product for alternatives.' => ['Ihatag ang usa ka eksaktong produkto aron makapangita og mga kapilian.', 'Tukuyin ang isang eksaktong produkto para makahanap ng mga alternatibo.', 'Ihatag ang isa ka eksakto nga produkto agod makapangita sang mga kapilian.'],
+        'The referenced product is no longer available in the catalog.' => ['Wala na sa katalogo ang maong produkto.', 'Wala na sa katalogo ang tinutukoy na produkto.', 'Wala na sa katalogo ang ginatumod nga produkto.'],
+        'Please tell me which product, branch, order or support question you would like help with.' => ['Ihatag ang produkto, branch, order o pangutana nga imong gikinahanglang tabang.', 'Sabihin kung aling produkto, branch, order o tanong ang kailangan mo ng tulong.', 'Ihatag ang produkto, branch, order ukon pamangkot nga kinahanglan mo sang bulig.'],
+        'Please choose either lowest or highest price first.' => ['Pilia una ang pinakaubos o pinakataas nga presyo.', 'Piliin muna ang pinakamababa o pinakamataas na presyo.', 'Pilia anay ang pinakamanubo ukon pinakamataas nga presyo.'],
+        'Please provide a non-negative price range in PHP.' => ['Ihatag ang price range sa PHP nga dili negatibo.', 'Magbigay ng price range sa PHP na hindi negatibo.', 'Ihatag ang price range sa PHP nga indi negatibo.'],
+        'Please provide a price range whose minimum is below its maximum.' => ['Ihatag ang price range nga ang minimum mas ubos sa maximum.', 'Magbigay ng price range na mas mababa ang minimum kaysa maximum.', 'Ihatag ang price range nga ang minimum mas manubo sa maximum.'],
+        'Please provide a smaller price amount in PHP.' => ['Ihatag ang mas gamay nga kantidad sa PHP.', 'Magbigay ng mas maliit na halaga sa PHP.', 'Ihatag ang mas gamay nga kantidad sa PHP.'],
+        'Battlefront prices are in PHP. Please provide your budget in Philippine pesos.' => ['PHP ang mga presyo sa Battlefront. Ihatag ang imong budget sa Philippine pesos.', 'Nasa PHP ang mga presyo sa Battlefront. Ibigay ang iyong budget sa Philippine pesos.', 'PHP ang mga presyo sa Battlefront. Ihatag ang imo budget sa Philippine pesos.'],
+        'I can handle up to two separate requests per message. Please send up to two products or questions first, then send the rest separately.' => ['Hangtod duha ka lahi nga hangyo matag mensahe ang akong matubag. Ipadala una ang hangtod duha ka produkto o pangutana, unya ipadala ang uban sa laing mensahe.', 'Hanggang dalawang magkakahiwalay na kahilingan ang kaya kong sagutin sa bawat mensahe. Magpadala muna ng hanggang dalawang produkto o tanong, pagkatapos ay ipadala nang hiwalay ang natitira.', 'Hasta duha ka separado nga pangabay kada mensahe ang akon masabat. Ipadala anay ang hasta duha ka produkto ukon pamangkot, dayon ipadala ang nabilin sa lain nga mensahe.'],
+        'Please clarify this part with a product name or a specific Battlefront question.' => ['Palihog klaroha kini nga bahin gamit ang ngalan sa produkto o piho nga pangutana bahin sa Battlefront.', 'Pakilinaw ang bahaging ito gamit ang pangalan ng produkto o tiyak na tanong tungkol sa Battlefront.', 'Palihog klaruha ini nga bahin gamit ang ngalan sang produkto ukon espesipiko nga pamangkot parte sa Battlefront.'],
+        'This part could not be checked in time. Please send it again separately.' => ['Wala masusi kini nga bahin sa gitakdang oras. Palihog ipadala kini pag-usab sa laing mensahe.', 'Hindi nasuri ang bahaging ito sa takdang oras. Pakipadala itong muli nang hiwalay.', 'Wala nausisa ini nga bahin sa gintalana nga oras. Palihog ipadala ini liwat sa lain nga mensahe.'],
+        'I could not find verified information for this part. Please ask it separately or contact the store.' => ['Wala koy nakitang napamatud-ang impormasyon alang niini nga bahin. Pangutana niini sa laing mensahe o kontaka ang tindahan.', 'Wala akong makitang beripikadong impormasyon para sa bahaging ito. Itanong ito nang hiwalay o makipag-ugnayan sa tindahan.', 'Wala ako sing nakita nga napamatud-an nga impormasyon para sini nga bahin. Ipamangkot ini sa lain nga mensahe ukon kontaka ang tindahan.'],
+        'Please ask about your order separately so I can check your account securely.' => ['Palihog ipangutana ang imong order sa laing mensahe aron masusi nako ang imong account nga luwas.', 'Pakitanong nang hiwalay ang tungkol sa iyong order para masuri ko nang ligtas ang iyong account.', 'Palihog ipamangkot ang imo order sa lain nga mensahe agod mausisa ko ang imo account sing luwas.'],
         'By CPU, do you mean a processor or a complete desktop system unit?' => ['Sa CPU, processor ba o kompleto nga desktop system unit imong pasabot?', 'Sa CPU, processor ba o kumpletong desktop system unit ang ibig mong sabihin?', 'Sa CPU, processor ukon kompleto nga desktop system unit ang imo ginatumod?'],
         'Please sign in with your customer account to check your order status.' => ['Palihog sign in gamit ang imong customer account aron makita ang status sa order.', 'Mag-sign in gamit ang iyong customer account para makita ang status ng order.', 'Palihog mag-sign in gamit ang imo customer account agod makita ang status sang order.'],
         'These matching products are available at the Sagay branch.' => ['Adunay stock niining mga produkto sa Sagay branch.', 'May stock ng mga produktong ito sa Sagay branch.', 'May stock sini nga mga produkto sa Sagay branch.'],
@@ -17,6 +45,9 @@ class ChatbotLocalizedResponse
         'Please contact the branch before visiting.' => ['Palihog kontaka ang branch sa dili pa mobisita.', 'Makipag-ugnayan muna sa branch bago bumisita.', 'Palihog kontaka ang branch antes magbisita.'],
         'Published branch information is currently unavailable.' => ['Wala pay impormasyon sa branch karon.', 'Hindi pa makuha ang impormasyon ng branch.', 'Wala anay impormasyon sang branch subong.'],
         'I found no available Sagay products' => ['Wala koy nakitang available nga produkto sa Sagay', 'Wala akong nakitang available na produkto sa Sagay', 'Wala ako sing nakita nga available nga produkto sa Sagay'],
+        'I found no available products' => ['Wala koy nakitang available nga produkto', 'Wala akong nakitang available na produkto', 'Wala ako sing nakita nga available nga produkto'],
+        'matching these constraints: ' => ['nga mohaom niini nga mga kondisyon: ', 'na tugma sa mga kondisyong ito: ', 'nga nagaigo sa sini nga mga kondisyon: '],
+        'the requested product' => ['ang gipangitang produkto', 'ang hinahanap na produkto', 'ang ginapangita nga produkto'],
         'matching all of these constraints.' => ['nga mohaom sa tanang kondisyon.', 'na tugma sa lahat ng kondisyong ito.', 'nga nagaigo sa tanan nga kondisyon.'],
         'Try changing the brand, model or budget.' => ['Sulayi pag-ilis sa brand, modelo o budget.', 'Subukang baguhin ang brand, modelo o budget.', 'Tilawi pag-ilis sang brand, modelo ukon budget.'],
         'Which branch do you mean: ' => ['Unsang branch imong pasabot: ', 'Aling branch ang tinutukoy mo: ', 'Ano nga branch ang imo ginatumod: '],
@@ -81,6 +112,19 @@ class ChatbotLocalizedResponse
         }
         if (isset(self::MESSAGES[$message])) {
             return self::MESSAGES[$message][$index];
+        }
+        if (preg_match('/^Which product section should I refine: (.+)\?$/u', $message, $match) === 1) {
+            $sections = str_replace(' or ', [' o ', ' o ', ' ukon '][$index], $match[1]);
+
+            return sprintf(['Unsang seksyon sa produkto ang imong ipaangay: %s?', 'Aling seksyon ng produkto ang babaguhin ko: %s?', 'Ano nga seksyon sang produkto ang akon bag-uhon: %s?'][$index], $sections);
+        }
+        if (preg_match('/^Does that budget apply to both product types, or only (.+)\?$/u', $message, $match) === 1) {
+            return sprintf(['Para ba sa duha ka klase sa produkto kana nga budget, o sa %s lamang?', 'Para ba sa parehong uri ng produkto ang budget na iyon, o sa %s lamang?', 'Para bala sa duha ka klase sang produkto ina nga budget, ukon sa %s lang?'][$index], $match[1]);
+        }
+        if (preg_match('/^Which branch do you mean: (.+)\?$/u', $message, $match) === 1) {
+            $branches = str_replace(' or ', [' o ', ' o ', ' ukon '][$index], $match[1]);
+
+            return sprintf(['Unsang branch imong pasabot: %s?', 'Aling branch ang tinutukoy mo: %s?', 'Ano nga branch ang imo ginatumod: %s?'][$index], $branches);
         }
         $custom = config('ai_integration.localized_answers.'.hash('sha256', $message).'.'.$language);
         if (is_string($custom) && trim($custom) !== '') {

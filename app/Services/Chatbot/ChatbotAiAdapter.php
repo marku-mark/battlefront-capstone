@@ -4,6 +4,8 @@ namespace App\Services\Chatbot;
 
 use App\Ai\Agents\ChatbotEvidenceAgent;
 use App\Ai\Agents\ChatbotIntentAgent;
+use App\Ai\Agents\ChatbotMultipartAnswerAgent;
+use App\Ai\Agents\ChatbotMultipartUnderstandingAgent;
 use App\Ai\Agents\ChatbotResponseAgent;
 use App\Ai\Agents\ChatbotUnderstandingAgent;
 use App\Ai\Agents\ChatbotValidationAgent;
@@ -13,11 +15,13 @@ use GuzzleHttp\Exception\NetworkTimeoutException;
 use GuzzleHttp\Exception\ResponseTimeoutException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use InvalidArgumentException;
 use JsonException;
+use Laravel\Ai\Attributes\MaxTokens;
 use Laravel\Ai\Exceptions\InsufficientCreditsException;
 use Laravel\Ai\Exceptions\ProviderConnectionException;
 use Laravel\Ai\Exceptions\ProviderOverloadedException;
@@ -32,11 +36,12 @@ class ChatbotAiAdapter
      * @return array<string, mixed>|null */
     public function understand(string $message, array $publicState): ?array
     {
+        app(ChatbotFailureTrace::class)->understanding = null;
         if (config('ai_integration.offline') || app(ChatbotOrchestrationService::class)->containsSensitiveInput($message)) {
             return null;
         }
         $prompt = $this->preparePrompt(mb_substr($message, 0, 1000), $publicState);
-        $agent = new ChatbotUnderstandingAgent;
+        $agent = config('ai_integration.multipart') ? new ChatbotMultipartUnderstandingAgent : new ChatbotUnderstandingAgent;
         $budget = app(ChatbotProviderBudget::class);
         if (! $budget->reserve($prompt."\n".$agent->instructions())) {
             app(ChatbotFailureTrace::class)->record('budget_exhausted', 'scope');
@@ -44,21 +49,37 @@ class ChatbotAiAdapter
             return null;
         }
         $started = hrtime(true);
+        $timeout = max(1, min(8, (int) config('ai_integration.gemini.scope_timeout_seconds', 6), $budget->remainingSeconds()));
         try {
-            $response = $agent->prompt($prompt, provider: $this->roleProvider('scope'), model: (string) config('ai_integration.gemini.model'), timeout: min(4, $budget->remainingSeconds()));
+            $response = $this->promptWithFallback($agent, $prompt, 'scope', $timeout);
             $this->logUsage('scope', $response);
             $budget->recordStage('scope', 'completed', (int) ((hrtime(true) - $started) / 1_000_000));
             if (! $response instanceof StructuredAgentResponse) {
                 $budget->recordStage('scope', 'failed');
                 app(ChatbotFailureTrace::class)->record('understanding_invalid_output', 'scope');
-                $this->logAttempt($started, 4, 'understanding_invalid_response');
+                $this->logAttempt($started, $timeout, 'understanding_invalid_response');
 
                 return null;
             }
             $data = $response->structured;
+            $parts = [];
+            $overflow = false;
+            if (config('ai_integration.multipart')) {
+                $parts = $data['parts'] ?? [];
+                $overflow = $data['parts_overflow'] ?? false;
+                unset($data['parts'], $data['parts_overflow']);
+                if (! is_array($parts) || ! array_is_list($parts) || count($parts) > 3 || ! is_bool($overflow)) {
+                    app(ChatbotFailureTrace::class)->record('understanding_invalid_output', 'scope');
+
+                    return null;
+                }
+            }
             $defaults = ['branch' => '', 'availability' => 'any', 'sort' => 'relevance', 'minimum_php' => null, 'minimum_inclusive' => true, 'maximum_inclusive' => true, 'price_scope' => 'catalog', 'product_role' => 'main'];
             $data = [...$defaults, ...$data];
-            $validator = Validator::make($data, [
+            $rules = [
+                'operation' => ['sometimes', Rule::in(ChatbotIntentState::OPERATIONS)],
+                'constraint_updates' => ['sometimes', 'array:'.implode(',', ChatbotIntentState::FIELDS)],
+                'constraint_updates.*' => ['required', Rule::in(['set', 'clear', 'retain'])],
                 'outcome' => ['required', Rule::in(['supported', 'clarify', 'unsupported'])],
                 'intent' => ['required', Rule::in(ChatbotUnderstandingAgent::INTENTS)],
                 'language' => ['required', Rule::in(['en', 'tl', 'ceb', 'hil', 'und'])],
@@ -78,12 +99,13 @@ class ChatbotAiAdapter
                 'availability' => ['required', Rule::in(['any', 'in_stock'])],
                 'reference' => ['required', Rule::in(['new', 'previous'])], 'position' => ['required', 'integer', 'min:0', 'max:6'],
                 'clarification' => ['required', Rule::in(['none', 'cpu_meaning', 'missing_reference', 'mixed_topics', 'missing_details'])],
-            ]);
+            ];
+            $validator = Validator::make($data, $rules);
 
-            if ($validator->fails() || count($data) !== 23) {
+            if ($validator->fails() || array_diff(array_keys($data), array_keys($rules)) !== []) {
                 $budget->recordStage('scope', 'failed');
                 app(ChatbotFailureTrace::class)->record('understanding_invalid_output', 'scope');
-                $this->logAttempt($started, 4, 'understanding_invalid_output');
+                $this->logAttempt($started, $timeout, 'understanding_invalid_output');
 
                 return null;
             }
@@ -95,13 +117,37 @@ class ChatbotAiAdapter
                 return null;
             }
 
-            return $validator->validated();
+            $validatedParts = [];
+            foreach ($parts as $part) {
+                if (! is_array($part)) {
+                    return null;
+                }
+                $part = [...$defaults, ...$part];
+                $partValidator = Validator::make($part, $rules);
+                if (array_diff(array_keys($part), array_keys($rules)) !== [] || $partValidator->fails()
+                    || app(ChatbotOrchestrationService::class)->containsSensitiveInput($part['search_query'] ?? '')
+                    || ($part['branch'] !== '' && mb_stripos($message, $part['branch']) === false
+                        && mb_strtolower($part['branch']) !== mb_strtolower($publicState['constraints']['branch'] ?? ''))) {
+                    app(ChatbotFailureTrace::class)->record('understanding_invalid_output', 'scope');
+
+                    return null;
+                }
+                $validatedParts[] = $partValidator->validated();
+            }
+
+            $overflow = $overflow || count($validatedParts) > 2;
+            app(ChatbotFailureTrace::class)->understanding = [
+                ...array_intersect_key($validator->validated(), array_flip(['outcome', 'intent', 'operation', 'attributes', 'clarification'])),
+                'parts' => array_map(fn (array $part): array => array_intersect_key($part, array_flip(['outcome', 'intent', 'operation', 'attributes', 'clarification'])), $validatedParts),
+            ];
+
+            return [...$validator->validated(), ...($validatedParts !== [] || $overflow ? ['parts' => $validatedParts, 'parts_overflow' => $overflow] : [])];
         } catch (Throwable $exception) {
             $budget->recordStage('scope', 'failed', (int) ((hrtime(true) - $started) / 1_000_000));
             $details = $this->failureDetails($exception);
             app(ChatbotFailureTrace::class)->record($details['failure'], 'scope');
             $budget->recordFailure();
-            $this->logAttempt($started, 4, $details['failure'], $details['status'], $exception::class);
+            $this->logAttempt($started, $timeout, $details['failure'], $details['status'], $exception::class);
 
             return null;
         }
@@ -158,15 +204,15 @@ class ChatbotAiAdapter
         $currentStage = 'generation';
         $stageStarted = hrtime(true);
         try {
-            $response = (new ChatbotEvidenceAgent)->prompt($prompt,
-                provider: $this->roleProvider('response'),
-                model: (string) config('ai_integration.gemini.model'), timeout: $responseTimeout);
+            $agent = isset($context['parts']) ? new ChatbotMultipartAnswerAgent : new ChatbotEvidenceAgent;
+            $response = $this->promptWithFallback($agent, $prompt, 'response', $responseTimeout);
             $this->logUsage('response', $response);
             $budget->recordStage('generation', 'completed', (int) ((hrtime(true) - $stageStarted) / 1_000_000));
             Log::info('Chatbot stage completed.', ['role' => 'response', 'duration_ms' => (int) ((hrtime(true) - $stageStarted) / 1_000_000)]);
-            $natural = $response instanceof StructuredAgentResponse && array_key_exists('answer', $response->structured);
+            $natural = $response instanceof StructuredAgentResponse && (array_key_exists('answer', $response->structured) || isset($context['parts']));
             $text = $response instanceof StructuredAgentResponse
-                ? ($natural ? $renderer->draft($evidence, $response->structured, $intent) : $renderer->render($renderer->evidence($context), $response->structured)) : null;
+                ? (isset($context['parts']) ? $renderer->multipartDraft($context, $response->structured)
+                    : ($natural ? $renderer->draft($evidence, $response->structured, $intent) : $renderer->render($renderer->evidence($context), $response->structured))) : null;
             if ($text === null) {
                 $budget->recordStage('generation', 'failed');
                 app(ChatbotFailureTrace::class)->record('validation_failed', 'generation');
@@ -183,13 +229,23 @@ class ChatbotAiAdapter
                 }
                 $stageStarted = hrtime(true);
                 $currentStage = 'validation';
-                $verdict = (new ChatbotValidationAgent)->prompt($review,
-                    provider: $this->roleProvider('validation'),
-                    model: (string) config('ai_integration.gemini.model'), timeout: max(1, min(60, (config('ai_integration.full_catalog_pipeline') ? 5 : (int) config('ai_integration.gemini.validation_timeout_seconds', 20)), $budget->remainingSeconds())));
+                $verdict = $this->promptWithFallback(new ChatbotValidationAgent, $review, 'validation', max(1, min(60, (config('ai_integration.full_catalog_pipeline') ? 10 : (int) config('ai_integration.gemini.validation_timeout_seconds', 20)), $budget->remainingSeconds())));
                 $this->logUsage('validation', $verdict);
                 $budget->recordStage('validation', 'completed', (int) ((hrtime(true) - $stageStarted) / 1_000_000));
                 Log::info('Chatbot stage completed.', ['role' => 'validation', 'duration_ms' => (int) ((hrtime(true) - $stageStarted) / 1_000_000)]);
-                if (! $verdict instanceof StructuredAgentResponse || $verdict->structured !== ['verdict' => 'approve']) {
+                $reviewData = $verdict instanceof StructuredAgentResponse ? $verdict->structured : [];
+                $legacyApproval = $reviewData === ['verdict' => 'approve'];
+                $validReview = Validator::make(['review' => $reviewData], [
+                    'review' => ['required', 'array:verdict,reason'],
+                    'review.verdict' => ['required', Rule::in(['approve', 'reject'])],
+                    'review.reason' => ['required', Rule::in(['none', ...ChatbotValidationAgent::REJECTION_REASONS])],
+                ])->passes();
+                if (! $legacyApproval && (! $validReview || $reviewData['verdict'] !== 'approve' || $reviewData['reason'] !== 'none')) {
+                    $reason = $validReview && $reviewData['verdict'] === 'reject'
+                        && in_array($reviewData['reason'], ChatbotValidationAgent::REJECTION_REASONS, true)
+                        ? $reviewData['reason'] : 'invalid_review';
+                    app(ChatbotFailureTrace::class)->reviewReason = $reason;
+                    Log::notice('Chatbot review rejected.', ['reason' => $reason]);
                     $budget->recordStage('validation', 'failed');
                     app(ChatbotFailureTrace::class)->record('validation_failed', 'validation');
 
@@ -266,12 +322,74 @@ class ChatbotAiAdapter
         return $name;
     }
 
+    private function promptWithFallback(ChatbotUnderstandingAgent|ChatbotEvidenceAgent|ChatbotIntentAgent|ChatbotValidationAgent|ChatbotResponseAgent $agent, string $prompt, string $role, int $timeout): AgentResponse
+    {
+        $primary = (string) config('ai_integration.gemini.model');
+        $models = [$primary];
+        if (config('ai_integration.gemini.fallback_enabled')) {
+            foreach ((array) config('ai_integration.gemini.fallback_models', []) as $model) {
+                if (in_array($model, ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-2.5-flash-lite'], true)) {
+                    $models[] = $model;
+                }
+            }
+        }
+        $budget = app(ChatbotProviderBudget::class);
+        $started = microtime(true);
+        $attempted = false;
+        $last = null;
+        foreach (array_values(array_unique($models)) as $model) {
+            $cooldownKey = 'chatbot:model:cooldown:'.hash('sha256', $model.'|'.(string) (config('ai_integration.gemini.'.$role.'_key') ?: config('ai.providers.gemini.key')));
+            if (config('ai_integration.gemini.fallback_enabled') && Cache::has($cooldownKey)) {
+                continue;
+            }
+            $remaining = min($budget->remainingSeconds(), (int) ceil($timeout - (microtime(true) - $started)));
+            if ($remaining < 1 || ($attempted && ! $budget->reserveRetry($prompt))) {
+                break;
+            }
+            $attempted = true;
+            try {
+                $response = $agent->prompt($prompt, provider: $this->roleProvider($role), model: $model, timeout: $remaining);
+                $response->meta->model ??= $model;
+                $attributes = (new \ReflectionClass($agent))->getAttributes(MaxTokens::class);
+                $limit = $attributes !== [] ? $attributes[0]->newInstance()->value : null;
+                $trace = app(ChatbotFailureTrace::class);
+                if (count($trace->providerResponses) < 3) {
+                    $trace->providerResponses[] = ['role' => $role, 'model' => $model,
+                        'output_tokens' => (int) $response->usage->completionTokens, 'output_limit' => $limit,
+                        'limit_reached' => $limit !== null && $response->usage->completionTokens >= $limit];
+                }
+
+                return $response;
+            } catch (Throwable $exception) {
+                $budget->recordFailedAttempt();
+                $details = $this->failureDetails($exception);
+                $switchable = in_array($details['failure'], ['rate_limited', 'provider_overloaded'], true)
+                    || ($details['status'] !== null && $details['status'] >= 500 && $details['status'] <= 599);
+                if (! config('ai_integration.gemini.fallback_enabled') || ! $switchable) {
+                    throw $exception;
+                }
+                $last = $exception;
+                $seconds = max(1, min(86400, (int) config('ai_integration.gemini.model_cooldown_seconds', 60)));
+                for ($cause = $exception; $cause !== null; $cause = $cause->getPrevious()) {
+                    if ($cause instanceof RequestException && ctype_digit((string) $cause->response->header('Retry-After'))) {
+                        $seconds = max($seconds, min(86400, (int) $cause->response->header('Retry-After')));
+                    }
+                }
+                Cache::put($cooldownKey, true, $seconds);
+                Log::notice('Chatbot model temporarily unavailable.', ['role' => $role, 'model' => $model, 'failure' => $details['failure']]);
+            }
+        }
+
+        throw $last ?? RateLimitedException::forProvider('gemini');
+    }
+
     private function logUsage(string $role, AgentResponse $response): void
     {
         app(ChatbotProviderBudget::class)->recordUsage((int) $response->usage->promptTokens, (int) $response->usage->completionTokens);
+        app(ChatbotProviderBudget::class)->recordRoleUsage($role, (int) $response->usage->promptTokens, (int) $response->usage->completionTokens);
         Log::info('Chatbot provider usage.', [
             'role' => $role,
-            'model' => (string) config('ai_integration.gemini.model'),
+            'model' => $response->meta->model ?? (string) config('ai_integration.gemini.model'),
             'input_tokens' => $response->usage->promptTokens,
             'output_tokens' => $response->usage->completionTokens,
         ]);
@@ -301,13 +419,14 @@ class ChatbotAiAdapter
                 }
             }
             $prompt = $this->preparePrompt($message, ['allowed_intents' => $allowed]);
-            if (config('ai_integration.enabled') && ! app(ChatbotProviderBudget::class)->reserve($prompt)) {
+            $routeModels = config('ai_integration.enabled') || config('ai_integration.gemini.fallback_enabled');
+            if ($routeModels && ! app(ChatbotProviderBudget::class)->reserve($prompt)) {
                 return null;
             }
-            $response = config('ai_integration.enabled')
-                ? $agent->prompt($prompt, provider: $this->roleProvider('scope'), model: (string) config('ai_integration.gemini.model'), timeout: min($agent->timeout(), config('ai_integration.adaptive') ? 4 : $agent->timeout(), app(ChatbotProviderBudget::class)->remainingSeconds()))
+            $response = $routeModels
+                ? $this->promptWithFallback($agent, $prompt, 'scope', min($agent->timeout(), config('ai_integration.adaptive') ? 4 : $agent->timeout(), app(ChatbotProviderBudget::class)->remainingSeconds()))
                 : $agent->prompt($prompt);
-            if (config('ai_integration.enabled')) {
+            if ($routeModels) {
                 $this->logUsage('scope', $response);
             }
             if (! $response instanceof StructuredAgentResponse) {
@@ -367,7 +486,16 @@ class ChatbotAiAdapter
         $started = hrtime(true);
 
         try {
-            $text = trim($agent->prompt($preparedPrompt, timeout: min($agent->timeout(), $remaining))->text);
+            if (config('ai_integration.gemini.fallback_enabled')) {
+                if (! app(ChatbotProviderBudget::class)->reserve($preparedPrompt)) {
+                    return ['successful' => false, 'text' => null, 'failure' => 'budget_exhausted'];
+                }
+                $response = $this->promptWithFallback($agent, $preparedPrompt, 'response', min($agent->timeout(), $remaining));
+                $this->logUsage('response', $response);
+                $text = trim($response->text);
+            } else {
+                $text = trim($agent->prompt($preparedPrompt, timeout: min($agent->timeout(), $remaining))->text);
+            }
         } catch (Throwable $exception) {
             $details = $this->failureDetails($exception);
             app(ChatbotFailureTrace::class)->record($details['failure'], 'generation');

@@ -105,7 +105,7 @@ test('evaluation reports which checks failed instead of only a combined result',
 
     expect($exitCode)->toBe(1);
     expect($report['results'][0]['checks'])->toBe([
-        'language' => false, 'routing' => false, 'attributes' => false, 'clarification' => null, 'required_text' => false, 'forbidden_text' => false,
+        'language' => false, 'routing' => false, 'attributes' => false, 'clarification' => null, 'parts' => null, 'required_text' => false, 'forbidden_text' => false, 'intent_state' => null,
     ]);
     Http::assertNothingSent();
 });

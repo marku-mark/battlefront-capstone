@@ -4,6 +4,7 @@ use App\Ai\Agents\ChatbotEvidenceAgent;
 use App\Ai\Agents\ChatbotUnderstandingAgent;
 use App\Ai\Agents\ChatbotValidationAgent;
 use App\Jobs\SyncCatalogProjection;
+use App\Models\Category;
 use App\Models\Product;
 use App\Services\Chatbot\ChatbotProviderBudget;
 use App\Services\Chatbot\GraphCatalogCandidates;
@@ -58,21 +59,21 @@ test('projection dispatch deduplicates pending product work', function () {
     Queue::assertPushed(SyncCatalogProjection::class, 1);
 });
 
-test('public catalog turns require understanding retrieval generation and approved review', function (string $verdict, string $source) {
+test('catalog turns review current facts and expand candidates only for discovery', function (string $verdict, string $source, bool $exact) {
     config(['ai_integration.enabled' => true, 'ai_integration.full_catalog_pipeline' => true, 'ai_integration.model_led' => false,
         'ai_integration.gemini.max_calls' => 3, 'ai_integration.gemini.tokens_per_minute' => 100000]);
-    $product = Product::factory()->available()->create(['name' => 'Atlas SSD']);
-    ChatbotUnderstandingAgent::fake([['outcome' => 'supported', 'intent' => 'facts', 'language' => 'en', 'category_key' => 'other', 'search_query' => 'Atlas SSD',
-        'product_mentions' => ['Atlas SSD'], 'attributes' => ['stock'], 'maximum_php' => null, 'excluded_brands' => [], 'brand' => '', 'capacity' => '', 'use_case' => '', 'reference' => 'new', 'position' => 0, 'clarification' => 'none']])->preventStrayPrompts();
+    $product = Product::factory()->available()->for(Category::factory()->state(['name' => 'Storage']))->create(['name' => 'Atlas SSD']);
+    ChatbotUnderstandingAgent::fake([['outcome' => 'supported', 'intent' => $exact ? 'facts' : 'discovery', 'language' => 'en', 'category_key' => 'storage', 'search_query' => $exact ? 'Atlas SSD' : 'SSD',
+        'product_mentions' => $exact ? ['Atlas SSD'] : [], 'attributes' => ['stock'], 'maximum_php' => null, 'excluded_brands' => [], 'brand' => '', 'capacity' => '', 'use_case' => '', 'reference' => 'new', 'position' => 0, 'clarification' => 'none']])->preventStrayPrompts();
     ChatbotEvidenceAgent::fake([['answer' => 'Atlas SSD is available.', 'evidence_ids' => ['product:'.$product->id]]])->preventStrayPrompts();
     ChatbotValidationAgent::fake([['verdict' => $verdict]])->preventStrayPrompts();
-    $this->mock(SemanticCatalogCandidates::class)->shouldReceive('ids')->once()->andReturn([]);
-    $this->mock(GraphCatalogCandidates::class)->shouldReceive('forSeeds')->once()->andReturn([]);
-    $this->postJson('/chatbot', ['message' => 'Is Atlas SSD available?'])->assertOk()->assertJsonPath('source', $source);
+    $this->mock(SemanticCatalogCandidates::class)->shouldReceive('ids')->times($exact ? 0 : 1)->andReturn([]);
+    $this->mock(GraphCatalogCandidates::class)->shouldReceive('forSeeds')->times($exact ? 0 : 1)->andReturn([]);
+    $this->postJson('/chatbot', ['message' => $exact ? 'Is Atlas SSD available?' : 'Show me SSDs'])->assertOk()->assertJsonPath('source', $source);
     ChatbotUnderstandingAgent::assertPromptedTimes(1);
     ChatbotEvidenceAgent::assertPromptedTimes(1);
     ChatbotValidationAgent::assertPromptedTimes(1);
-})->with([['approve', 'gemini'], ['reject', 'fallback']]);
+})->with([['approve', 'gemini'], ['reject', 'fallback']])->with(['exact selection' => true, 'catalog discovery' => false]);
 
 test('expired turns cannot reserve calls or start retrieval', function () {
     config(['ai_integration.full_catalog_pipeline' => true]);

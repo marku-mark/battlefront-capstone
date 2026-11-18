@@ -8,6 +8,7 @@ use App\Actions\Chatbot\Context\ResolveFaqContext;
 use App\Actions\Chatbot\Context\ResolveProductContext;
 use App\Actions\Chatbot\Context\ResolveStoreContext;
 use App\Actions\Chatbot\RenderChatbotFallback;
+use App\Actions\Chatbot\RouteChatbotQuery;
 use App\Enums\ChatbotQueryCategory;
 use App\Models\Product;
 use App\Models\User;
@@ -20,8 +21,24 @@ class ModelLedChatbot
     /** @param array<string, mixed> $state */
     public function eligible(string $message, array $state = []): bool
     {
+        if (! config('ai_integration.enabled') || (! config('ai_integration.model_led') && ! config('ai_integration.full_catalog_pipeline'))) {
+            return false;
+        }
         $boundary = app(ClassifyChatbotInquiry::class);
         $canonical = $this->language->canonical($message);
+        $routing = app(RouteChatbotQuery::class)->execute($message);
+        if ($routing['category'] === ChatbotQueryCategory::Faq
+            && array_all(array_keys($routing['choices']), fn (string $topic): bool => $topic === 'faq' || str_starts_with($topic, 'faq:'))) {
+            return false;
+        }
+        if (config('ai_integration.multipart') && array_any($this->language->clauses($message), fn (string $clause): bool => $boundary->execute($clause)['category'] === ChatbotQueryCategory::Order)) {
+            return false;
+        }
+        if (config('ai_integration.multipart') && preg_match('/[?;]\s*\S|\R|\b(?:and|at|kag|ug|og|pati|tsaka)\b|,(?!\d)|&/iu', trim($message)) === 1) {
+            return ! $boundary->containsSensitiveInput($message)
+                && $boundary->execute($message)['category'] !== ChatbotQueryCategory::Order
+                && preg_match('/\bbf[\s\W_]*\d+\b/iu', $message) !== 1;
+        }
         $branchCatalog = app(ChatbotBranchAvailability::class)->supports($message, $state)
             || in_array($state['pending_catalog']['reason'] ?? null, ['unknown_branch', 'ambiguous_branch'], true);
         if (config('ai_integration.full_catalog_pipeline') && ! $branchCatalog && in_array($boundary->execute($message)['category'], [ChatbotQueryCategory::Faq, ChatbotQueryCategory::Store, ChatbotQueryCategory::Order], true)) {
@@ -31,15 +48,11 @@ class ModelLedChatbot
             return false;
         }
         $catalog = app(CatalogSearchIntent::class)->resolve(trim($canonical, " \t\n\r\0\x0B?.!"));
-        if (! $branchCatalog && ! config('ai_integration.full_catalog_pipeline') && $catalog !== null && preg_match('/\b(?:compare|recommend|suggest|compatible|compatibility|versus|vs|best|gaming|editing|streaming|not|dili|indi|hindi|wala|except|exclude|without|under|below|above|between|budget|usd|dollars?|eur)\b|[$€]/iu', $canonical) !== 1) {
-            return false;
-        }
         if (! $branchCatalog && $boundary->execute($message)['category'] === ChatbotQueryCategory::Store) {
             return false;
         }
 
-        return config('ai_integration.enabled') && (config('ai_integration.model_led') || config('ai_integration.full_catalog_pipeline'))
-            && ! $boundary->containsSensitiveInput($message)
+        return ! $boundary->containsSensitiveInput($message)
             && $boundary->execute($message)['category'] !== ChatbotQueryCategory::Order
             && preg_match('/\bbf[\s\W_]*\d+\b/iu', $message) !== 1;
     }
@@ -60,6 +73,15 @@ class ModelLedChatbot
         $source = 'fallback';
         $text = 'The chatbot is temporarily unavailable. Please try again later.';
         try {
+            $compound = app(ChatbotCompoundRequest::class)->resolve($message, $state);
+            if ($compound !== null && ($compound['clarification'] !== null || $compound['follow_up'] || count($compound['parts']) > 2)) {
+                if ($compound['clarification'] !== null) {
+                    return ['message' => $compound['clarification'], 'source' => 'fallback', 'state' => $compound['state'], 'category' => $category,
+                        'presentation' => app(ChatbotPresentation::class)->build(['category' => $category, 'message' => $compound['clarification']], [], $message, $customer, $language)];
+                }
+
+                return app(ChatbotMultipartResponse::class)->respond($compound['parts'], count($compound['parts']) > 2, $compound['state'], $customer, $language);
+            }
             $pendingCatalog = $state['pending_catalog'] ?? null;
             unset($state['pending_catalog']);
             $previous = Product::query()->customerEligible()->whereIn('id', array_slice($state['references']['product'] ?? [], 0, 6))->get(['id', 'name'])->keyBy('id');
@@ -76,6 +98,29 @@ class ModelLedChatbot
                 unset($state['pending_clarification']);
                 $intent = $this->ai->understand($message, $public);
             }
+            if (($intent['clarification'] ?? null) === 'cpu_meaning'
+                && (app(CatalogSearchIntent::class)->resolve(trim($this->language->canonical($message), ' ?.!'))['category'] ?? null) === 'Processor') {
+                $intent = [...$intent, 'outcome' => 'supported', 'intent' => 'discovery', 'category_key' => 'processor',
+                    'search_query' => 'processor', 'clarification' => 'none'];
+            }
+            if (config('ai_integration.multipart') && ! ($intent['parts_overflow'] ?? false)) {
+                $parts = $compound['parts'] ?? app(ChatbotMultipartResponse::class)->categoryList($message);
+                if ($parts !== [] && count($parts) >= count($intent['parts'] ?? [])) {
+                    $intent = [...($intent ?? []), 'parts' => array_slice($parts, 0, 2), 'parts_overflow' => count($parts) > 2];
+                }
+            }
+            if (config('ai_integration.multipart') && (($intent['parts'] ?? []) !== [] || ($intent['parts_overflow'] ?? false))) {
+                $language = $explicitLanguage ?? $state['language_preference'] ?? $this->language->detect($message)
+                    ?? (($intent['language'] ?? 'und') === 'und' ? $language : $intent['language']);
+                if ($explicitLanguage !== null) {
+                    $state['language_preference'] = $language;
+                }
+
+                $result = app(ChatbotMultipartResponse::class)->respond($intent['parts'] ?? [], $intent['parts_overflow'] ?? false, $compound['state'] ?? $state, $customer, $language);
+                $source = $result['source'];
+
+                return $result;
+            }
             if ($intent !== null && is_array($pendingCatalog)) {
                 $resumed = $this->resumePendingCatalog($message, $intent, $pendingCatalog);
                 if ($resumed !== null) {
@@ -83,7 +128,7 @@ class ModelLedChatbot
                     $intent = $resumed['intent'];
                 }
             }
-            if ($intent === null && (config('ai_integration.full_catalog_pipeline') || app(ChatbotBranchAvailability::class)->supports($message, $state))) {
+            if ($intent === null) {
                 $context = app(ChatbotBranchAvailability::class)->supports($message, $state)
                     ? app(ChatbotBranchAvailability::class)->localContext($message, $state)
                     : app(ResolveProductContext::class)->execute($message);
@@ -92,7 +137,7 @@ class ModelLedChatbot
             if ($intent === null && $trace->event === null) {
                 $trace->record('understanding_failed', 'scope');
             }
-            if ($intent === null && ($context['products'] ?? []) === []) {
+            if ($intent === null && $context === []) {
                 $category = ChatbotQueryCategory::Unsupported;
                 $language = $explicitLanguage ?? $state['language_preference'] ?? $state['language'] ?? $language;
                 $text = 'I can only help with Battlefront products, your orders, store information, payment methods, pickup, and delivery.';
@@ -100,7 +145,8 @@ class ModelLedChatbot
             if ($intent !== null) {
                 $trace->scope = $intent['outcome'] === 'unsupported' ? 'unsupported' : ($intent['intent'] === 'private' ? 'private' : 'public');
                 $trace->publicScopeConfirmed = $trace->scope === 'public';
-                $language = $explicitLanguage ?? $state['language_preference'] ?? ($intent['language'] === 'und' ? $language : $intent['language']);
+                $language = $explicitLanguage ?? $state['language_preference'] ?? $this->language->detect($message)
+                    ?? ($intent['language'] === 'und' ? $language : $intent['language']);
                 if ($intent['outcome'] === 'unsupported') {
                     $category = ChatbotQueryCategory::Unsupported;
                     $language = $explicitLanguage ?? $state['language_preference'] ?? $state['language'] ?? $language;
@@ -146,8 +192,19 @@ class ModelLedChatbot
                         ChatbotQueryCategory::Faq => 'Approved information for that question is currently unavailable.',
                         default => "I couldn't find a matching product in the current Battlefront catalog. Please try the product name, brand, category, or tag.",
                     };
-                    if (! isset($context['branch_availability_message']) && $context !== [] && (($context['products'] ?? []) !== [] || ($context['branches'] ?? []) !== [] || ($context['knowledge'] ?? []) !== [] || isset($context['guidance']) || isset($context['compatibility']))) {
+                    if (! isset($context['clarification'])
+                        && (! isset($context['branch_availability_message']) || config('ai_integration.full_catalog_pipeline'))
+                        && app(ChatbotGroundedResponse::class)->conversationalEvidence($context) !== []) {
                         $context['interpreted_intent'] = ['focus' => $intent['intent'], 'requested_attributes' => $intent['attributes'], 'maximum_php' => $intent['maximum_php'], 'excluded_terms' => $intent['excluded_brands'], 'price_selection' => $context['price_selection'] ?? null];
+                        if (isset($context['selection_constraints'])) {
+                            $resolved = $context['selection_constraints'];
+                            $context['interpreted_intent']['maximum_php'] = $resolved['price']['maximum'] ?? null;
+                            $context['interpreted_intent']['minimum_php'] = $resolved['price']['minimum'] ?? null;
+                            $context['interpreted_intent']['excluded_terms'] = $resolved['excluded_brands'];
+                            $context['interpreted_intent']['resolved_constraints'] = $resolved;
+                        }
+                        $context['interpreted_intent']['required_product_ids'] = in_array($intent['intent'], ['comparison', 'compatibility'], true)
+                            ? array_column($context['products'] ?? [], 'id') : [];
                         $draft = $this->ai->grounded($message, $context, $language, scopeChecked: true);
                         if ($draft['successful']) {
                             $text = $draft['text'];
@@ -183,8 +240,14 @@ class ModelLedChatbot
                 $text = app(ChatbotLocalizedResponse::class)->text($text, $language, array_column($context['products'] ?? [], 'name'));
             }
             $result = ['category' => $category, 'message' => $text, 'source' => $source];
+            $presentation = app(ChatbotPresentation::class)->build($result, $context, $message, $customer, $language);
+            if (in_array($intent['clarification'] ?? null, ['missing_reference'], true)
+                || in_array($context['clarification_code'] ?? null, ['identify_product', 'identify_alternative_anchor'], true)) {
+                $presentation['clarification'] = true;
+                $presentation['choices'] = array_map(fn (array $product): array => ['label' => $product['name'], 'question' => $product['name']], $publicProducts);
+            }
 
-            return [...$result, 'state' => $state, 'presentation' => app(ChatbotPresentation::class)->build($result, $context, $message, $customer, $language)];
+            return [...$result, 'state' => $state, 'presentation' => $presentation];
         } finally {
             $budget->recordTurn((int) ((hrtime(true) - $started) / 1_000_000), $source);
             $budget->releaseTurn();

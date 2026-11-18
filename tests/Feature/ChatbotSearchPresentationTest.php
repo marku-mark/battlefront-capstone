@@ -8,9 +8,38 @@ use App\Models\Category;
 use App\Models\Product;
 use App\Repositories\Catalog\CatalogSearch;
 use App\Services\Chatbot\ChatbotConversation;
+use App\Services\Chatbot\ChatbotLanguage;
 use App\Services\Chatbot\ChatbotPresentation;
 use App\Services\Chatbot\PublicChatbotQuery;
 use App\Services\Chatbot\SemanticCatalogCandidates;
+
+test('conversational stock summaries leave one natural opening above authoritative cards', function (string $summary, string $opening) {
+    $presentation = app(ChatbotPresentation::class)->build([
+        'category' => ChatbotQueryCategory::Product, 'source' => 'gemini',
+        'message' => $summary."\n\nCheck your connector before buying.",
+    ], ['products' => [
+        ['id' => 7, 'name' => 'AOC Gaming Keyboard GK410"', 'price' => '1500.00', 'inventory' => ['status' => 'low_stock', 'quantity' => 2]],
+        ['id' => 8, 'name' => 'Atlas Keyboard', 'price' => '650.00', 'inventory' => ['status' => 'low_stock', 'quantity' => 1]],
+    ]], 'may keyboard kamo?', null, 'hil');
+
+    expect($presentation['intro'])->toBe($opening."\n\nCheck your connector before buying.");
+    expect(array_column($presentation['products'], 'id'))->toBe([7, 8]);
+})->with([
+    ['May ara kami sang mga keyboard sa Sagay branch: AOC Gaming Keyboard GK410 (PHP 1,500.00, 2 left), and Atlas Keyboard (PHP 650.00, 1 left).', 'May ara kami sang mga keyboard sa Sagay branch:'],
+    ['May ara kami sang mga keyboard sa Sagay branch. AOC Gaming Keyboard GK410 (PHP 1,500.00, 2 left), and Atlas Keyboard (PHP 650.00, 1 left).', 'May ara kami sang mga keyboard sa Sagay branch.'],
+]);
+
+test('interpreted filters offer explicit removals without being counted as clarification', function () {
+    $presentation = app(ChatbotPresentation::class)->build(['category' => ChatbotQueryCategory::Product, 'message' => 'Matching products.'], [
+        'selection_constraints' => ['brand' => 'Atlas', 'excluded_brands' => ['Beacon'], 'price' => ['maximum' => '3000.00', 'maximum_inclusive' => false]],
+    ], 'RAM under PHP 3000', null, 'tl');
+    expect($presentation['clarification'])->toBeFalse();
+    expect($presentation['facts'][0]['value'])->toContain('Atlas', '3,000.00', 'Beacon');
+    expect($presentation['choices'])->toHaveCount(2);
+    foreach ($presentation['choices'] as $index => $choice) {
+        expect(mb_strtolower(app(ChatbotLanguage::class)->canonical($choice['question'])))->toBe($index === 0 ? 'any brand' : 'any price');
+    }
+});
 
 beforeEach(function () {
     Product::disableSearchSyncing();
@@ -284,3 +313,117 @@ test('recommendation retrieval uses chatbot facts while preserving the requested
     expect(array_column($result['products'], 'id'))->toBe([$printer->id])
         ->and($result)->not->toHaveKey('search_query');
 });
+
+test('presentation preserves complete reasoning and clarification instead of cutting at product names', function (string $question, array $extra, string $message) {
+    $presentation = app(ChatbotPresentation::class)->build([
+        'category' => ChatbotQueryCategory::Product, 'message' => $message,
+    ], [...$extra, 'products' => [[
+        'id' => 7, 'name' => 'Example Laptop', 'price' => '2200.00',
+        'inventory' => ['status' => 'in_stock', 'quantity' => 5],
+    ]]], $question, null, 'en');
+
+    expect($presentation['intro'])->toBe($message)
+        ->and($presentation['products'])->toBe([]);
+})->with([
+    'comparison' => ['Compare Example Laptop with another laptop', [], 'Example Laptop costs less. Performance evidence is unavailable.'],
+    'recommendation' => ['Recommend a laptop', [], 'Consider Example Laptop. Verified performance specifications are unavailable.'],
+    'compatibility' => ['Will these parts work?', ['compatibility' => ['status' => 'unknown']], 'Example Laptop: [unknown] Missing reviewed evidence.'],
+    'clarification' => ['laptop', ['clarification' => 'Which product do you mean?'], 'Which product do you mean? Example Laptop or another model?'],
+]);
+
+test('listing intros never leave a dangling bullet or number before product cards', function (string $marker) {
+    $presentation = app(ChatbotPresentation::class)->build([
+        'category' => ChatbotQueryCategory::Product,
+        'message' => 'Here are the matching products.
+
+'.$marker.' Example Laptop - PHP 2,200.00.',
+    ], ['products' => [[
+        'id' => 7, 'name' => 'Example Laptop', 'price' => '2200.00',
+        'inventory' => ['status' => 'in_stock'],
+    ]]], 'laptop', null, 'en');
+
+    expect($presentation['intro'])->toBe('Here are the matching products.')
+        ->and($presentation['products'])->toHaveCount(1);
+})->with(['-', '*', '1.', '1)']);
+
+test('reviewed labeled product lists are rendered once as authoritative cards', function (string $language, string $nameLabel, string $priceLabel, string $stockLabel) {
+    $message = "Matching RAM options:\n\n{$nameLabel}: Atlas RAM\n{$priceLabel}: PHP 900.00\n{$stockLabel}: 5 available\nLink: View Product\n\n"
+        ."{$nameLabel}: Orion RAM\n{$priceLabel}: PHP 1,600.00\n{$stockLabel}: 3 available\nLink: View Product\n\nMemory generations differ; check your motherboard specifications.";
+    $products = [
+        ['id' => 7, 'name' => 'Atlas RAM', 'price' => '900.00', 'inventory' => ['status' => 'in_stock', 'quantity' => 5]],
+        ['id' => 8, 'name' => 'Orion RAM', 'price' => '1600.00', 'inventory' => ['status' => 'in_stock', 'quantity' => 3]],
+    ];
+
+    $presentation = app(ChatbotPresentation::class)->build([
+        'category' => ChatbotQueryCategory::Product, 'message' => $message, 'source' => 'gemini',
+    ], ['products' => $products], 'do you have RAM?', null, $language);
+
+    expect($presentation['intro'])->toContain('Matching RAM options:', 'Memory generations differ')
+        ->not->toContain($nameLabel.':', 'View Product', '900.00', '1,600.00');
+    expect(array_column($presentation['products'], 'name'))->toBe(['Atlas RAM', 'Orion RAM']);
+})->with([
+    ['en', 'Product name', 'Price', 'Availability'],
+    ['tl', 'Pangalan ng produkto', 'Presyo', 'Katayuan ng stock'],
+    ['ceb', 'Ngalan sa produkto', 'Presyo', 'Kahimtang sa stock'],
+    ['hil', 'Ngalan sang produkto', 'Presyo', 'Kahimtangan sang stock'],
+]);
+
+test('plain factual model listings do not repeat cards while explanations remain', function (string $listing) {
+    $presentation = app(ChatbotPresentation::class)->build([
+        'category' => ChatbotQueryCategory::Product, 'source' => 'gemini',
+        'message' => "Yes, we have RAM in stock at Sagay:\n\n".$listing."\n\nAtlas RAM uses DDR4; check your motherboard specifications.",
+    ], ['products' => [[
+        'id' => 7, 'name' => 'Atlas RAM', 'price' => '900.00', 'inventory' => ['status' => 'in_stock', 'quantity' => 5],
+    ]]], 'do you have RAM?', null, 'en');
+
+    expect($presentation['intro'])->toBe("Yes, we have RAM in stock at Sagay:\n\nAtlas RAM uses DDR4; check your motherboard specifications.");
+    expect($presentation['products'][0]['price'])->toBe('900.00');
+})->with([
+    'Atlas RAM is priced at PHP 900.00 with 5 units available.',
+    'Atlas RAM — PHP 900.00. In stock at Sagay.',
+    'PHP 900.00 ang presyo sang Atlas RAM.',
+]);
+
+test('router stock prose and labeled fields tolerate spacing without duplicating authoritative cards', function (string $listing) {
+    config(['ai_integration.localization_enabled' => true]);
+    $name = 'NETIS WF2409E 300Mbps Wireless Router 300mbps 3*5dBi ANTENNA';
+    $intro = 'Ari ang mga available nga router kag ang ila stock sa Sagay:';
+    $presentation = app(ChatbotPresentation::class)->build([
+        'category' => ChatbotQueryCategory::Product, 'source' => 'gemini', 'message' => $intro."\n\n".$listing,
+    ], ['products' => [[
+        'id' => 7, 'name' => $name, 'price' => '450.00', 'inventory' => ['status' => 'in_stock', 'quantity' => 20],
+    ]]], 'router', null, 'hil');
+
+    expect($presentation['intro'])->toBe($intro);
+    expect($presentation['products'][0])->toMatchArray(['name' => $name, 'price' => '450.00', 'stock' => 'May stock sa Sagay — 20 ang available']);
+})->with([
+    'NETIS WF2409E  300Mbps Wireless Router 300mbps 3*5dBi ANTENNA — PHP 450.00, may yara 20 ka stock.',
+    "Product name: NETIS WF2409E  300Mbps Wireless Router 300mbps 3*5dBi ANTENNA\nPrice: PHP 450.00\nAvailability: , may yara 20 ka stock\nLink: View Product",
+    "- **Product name:** NETIS WF2409E  300Mbps Wireless Router 300mbps 3*5dBi ANTENNA\n- **Price:** PHP 450.00\n- **Availability:** , may yara 20 ka stock\n- **Link:** View Product",
+]);
+
+test('support and error presentation preserves approved reply text', function (ChatbotQueryCategory $category, string $message, string $kind) {
+    $presentation = app(ChatbotPresentation::class)->build([
+        'category' => $category, 'message' => $message,
+    ], [], '', null, 'en');
+
+    expect($presentation['intro'])->toBe($message)
+        ->and($presentation['products'])->toBe([])
+        ->and($presentation['facts'])->toBe([]);
+    if ($kind !== '') {
+        expect(array_column($presentation['actions'], 'kind'))->toBe([$kind]);
+    } else {
+        expect($presentation['actions'])->toBe([]);
+    }
+})->with([
+    'faq' => [ChatbotQueryCategory::Faq, 'Pickup is available.
+
+Follow the checkout instructions.', ''],
+    'store' => [ChatbotQueryCategory::Store, 'Sagay branch.
+
+Published hours are unavailable.', 'branches'],
+    'private' => [ChatbotQueryCategory::Order, 'Please sign in to check your order.', 'login'],
+    'unsupported' => [ChatbotQueryCategory::Unsupported, 'Please ask a Battlefront question.', 'catalog'],
+    'timeout' => [ChatbotQueryCategory::Product, 'The chatbot took too long to respond. Please try again.', 'catalog'],
+    'empty catalog' => [ChatbotQueryCategory::Product, 'No matching products were found.', 'catalog'],
+]);

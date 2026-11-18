@@ -10,7 +10,22 @@ class ChatbotGroundedResponse
      * @return array<string, string> */
     public function conversationalEvidence(array $context): array
     {
+        if (isset($context['parts'])) {
+            $evidence = [];
+            foreach ($context['parts'] as $part) {
+                foreach ($this->conversationalEvidence($part['context']) as $id => $text) {
+                    $evidence[$part['id'].':'.$id] = $text;
+                }
+            }
+
+            return $evidence;
+        }
         $evidence = $this->evidence($context);
+        foreach (['no_match_message', 'branch_availability_message'] as $field) {
+            if (is_string($context[$field] ?? null) && $context[$field] !== '') {
+                $evidence['selection:'.$field] = 'Authoritative retrieval outcome: '.$context[$field];
+            }
+        }
         if (isset($context['price_selection'])) {
             $evidence['selection:ranking'] = 'Authoritative selection order and PHP price scope; catalog extrema apply only to the matching eligible catalog, selected_products only to the referenced selection: '.json_encode($context['price_selection'], JSON_THROW_ON_ERROR);
         }
@@ -46,22 +61,72 @@ class ChatbotGroundedResponse
         return $evidence;
     }
 
+    /** @param array<string, mixed> $context
+     * @param array<string, mixed> $selection */
+    public function multipartDraft(array $context, array $selection): ?string
+    {
+        $answers = $selection['answers'] ?? null;
+        $parts = $context['parts'] ?? [];
+        if (array_keys($selection) !== ['answers'] || ! is_array($answers) || ! array_is_list($answers)
+            || count($answers) !== count($parts) || count($parts) < 1 || count($parts) > 2) {
+            return null;
+        }
+        $sections = [];
+        foreach ($parts as $index => $part) {
+            $answer = $answers[$index];
+            if (! is_array($answer) || count($answer) !== 3 || ($answer['part_id'] ?? null) !== $part['id']
+                || ! is_array($answer['evidence_ids'] ?? null) || ! array_is_list($answer['evidence_ids'])) {
+                return null;
+            }
+            $ids = [];
+            foreach ($answer['evidence_ids'] as $id) {
+                if (! is_string($id) || ! str_starts_with($id, $part['id'].':')) {
+                    return null;
+                }
+                $ids[] = substr($id, strlen($part['id']) + 1);
+            }
+            $text = $this->draft($this->conversationalEvidence($part['context']), [
+                'answer' => $answer['answer'] ?? null, 'evidence_ids' => $ids,
+            ], [...$part['intent'], 'price_selection' => $part['context']['price_selection'] ?? null]);
+            if ($text === null) {
+                return null;
+            }
+            $sections[] = ($part['heading'] ?? app(ChatbotMultipartResponse::class)->heading($part['intent'])).":\n\n".$text;
+        }
+
+        return implode("\n\n", $sections);
+    }
+
     /** @param array<string, string> $evidence
      * @param array<string, mixed> $selection
      * @param array<string, mixed> $intent */
     public function draft(array $evidence, array $selection, array $intent = []): ?string
     {
+        $trace = app(ChatbotFailureTrace::class);
+        $trace->draftReason = 'grounding_rejected';
         if (count($selection) !== 2 || ! array_key_exists('answer', $selection) || ! array_key_exists('evidence_ids', $selection)
             || ! is_string($selection['answer']) || trim($selection['answer']) === '' || mb_strlen($selection['answer']) > 4000) {
+            $trace->draftReason = 'invalid_structure';
+
             return null;
         }
         $references = $this->render($evidence, ['evidence_ids' => $selection['evidence_ids']]);
         if ($references === null) {
+            $trace->draftReason = 'unknown_evidence';
+
             return null;
+        }
+        foreach ($intent['required_product_ids'] ?? [] as $productId) {
+            if (! in_array('product:'.$productId, $selection['evidence_ids'], true)) {
+                $trace->draftReason = 'missing_product_evidence';
+
+                return null;
+            }
         }
         $answer = trim($selection['answer']);
         if (! $this->validPriceSelection($answer, $evidence, $selection['evidence_ids'], $intent['price_selection'] ?? null)) {
             Log::notice('Chatbot ranking validation rejected.', ['status' => 'order_or_price_claim_mismatch']);
+            $trace->draftReason = 'price_scope_mismatch';
 
             return null;
         }
@@ -95,11 +160,16 @@ class ChatbotGroundedResponse
         if (is_numeric($intent['maximum_php'] ?? null)) {
             $numbers[] = (string) (float) $intent['maximum_php'];
         }
+        if (is_numeric($intent['minimum_php'] ?? null)) {
+            $numbers[] = (string) (float) $intent['minimum_php'];
+        }
         if (is_numeric($intent['price_comparison']['difference_php'] ?? null)) {
             $numbers[] = (string) (float) $intent['price_comparison']['difference_php'];
         }
         foreach ($claims[0] as $claim) {
             if (! in_array((string) (float) str_replace(',', '', $claim), $numbers, true)) {
+                $trace->draftReason = 'unsupported_number';
+
                 return null;
             }
         }
@@ -134,6 +204,8 @@ class ChatbotGroundedResponse
         if (str_contains($references, 'Demo item only') && ! preg_match('/\b(?:demo|sample)\b/iu', $answer)) {
             return null;
         }
+
+        $trace->draftReason = null;
 
         return $this->spaceProductEntries($answer, $productFacts);
     }
@@ -239,6 +311,9 @@ class ChatbotGroundedResponse
                 default => 'Stock is unconfirmed',
             };
             $text = $product['name'].' — PHP '.number_format((float) $price, 2).'. '.$status.'.';
+            if (is_int($product['inventory']['quantity'] ?? null) && $product['inventory']['quantity'] >= 0) {
+                $text .= ' Available quantity: '.$product['inventory']['quantity'].'.';
+            }
             if ($product['is_demo'] ?? false) {
                 $text .= ' Demo item only; listed prices are samples and Battlefront stock is unconfirmed.';
             }

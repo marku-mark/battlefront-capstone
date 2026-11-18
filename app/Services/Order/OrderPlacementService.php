@@ -33,6 +33,7 @@ use InvalidArgumentException;
 
 /**
  * @phpstan-type CheckoutData array{
+ *     direct_purchase?: array{product_id: int, quantity: int}|null,
  *     cart_item_ids: list<int>,
  *     recipient_name: string, contact_number: string, fulfillment_method: FulfillmentMethod,
  *     delivery_address: string|null, payment_method: PaymentMethod, payment_proof_path: string|null,
@@ -53,6 +54,7 @@ class OrderPlacementService
      * Create an order and consume its cart and stock atomically.
      *
      * @param  array{
+     *     direct_purchase?: array{product_id: int, quantity: int}|null,
      *     cart_item_ids: list<int>,
      *     recipient_name: string,
      *     contact_number: string,
@@ -98,7 +100,7 @@ class OrderPlacementService
 
             $cartItemIds = $checkout['cart_item_ids'];
 
-            if (! $this->cartService->isValidCheckoutSelection($cartItemIds)) {
+            if (! isset($checkout['direct_purchase']) && ! $this->cartService->isValidCheckoutSelection($cartItemIds)) {
                 throw OrderPlacementException::invalidSelection();
             }
 
@@ -118,25 +120,29 @@ class OrderPlacementService
                 ->lockForUpdate()
                 ->first();
 
-            if ($cart === null) {
+            if ($cart === null && ! isset($checkout['direct_purchase'])) {
                 throw OrderPlacementException::emptyCart();
             }
 
             /** @var Collection<int, CartItem> $cartItems */
             $cartItems = CartItem::query()
-                ->where('cart_id', $cart->id)
+                ->where('cart_id', $cart?->id)
                 ->whereKey($cartItemIds)
                 ->orderBy('product_id')
                 ->lockForUpdate()
                 ->get();
 
-            if ($cartItems->count() !== count($cartItemIds)) {
+            if (isset($checkout['direct_purchase'])) {
+                $selection = $checkout['direct_purchase'];
+                $cartItems = new Collection([new CartItem(['product_id' => $selection['product_id'], 'quantity' => $selection['quantity']])]);
+            }
+            if (! isset($checkout['direct_purchase']) && $cartItems->count() !== count($cartItemIds)) {
                 throw OrderPlacementException::invalidSelection();
             }
 
             $selectedBuildGroupIds = $cartItems->pluck('pc_build_cart_group_id')->filter()->unique()->values();
             $buildGroups = PcBuildCartGroup::query()
-                ->where('cart_id', $cart->id)
+                ->where('cart_id', $cart?->id)
                 ->whereKey($selectedBuildGroupIds)
                 ->orderBy('id')
                 ->lockForUpdate()
@@ -165,6 +171,9 @@ class OrderPlacementService
                 ->lockForUpdate()
                 ->get()
                 ->keyBy('id');
+            if ($products->count() !== count(array_unique($productIds))) {
+                throw OrderPlacementException::unavailableItems();
+            }
             $buildSnapshots = $this->validatePcBuildGroups($cartItems, $buildGroups);
             $categories = Category::query()
                 ->whereKey($products->pluck('category_id')->unique()->all())
@@ -325,13 +334,16 @@ class OrderPlacementService
                 ]);
             }
 
-            $cart->items()->whereKey($cartItemIds)->delete();
-            if ($selectedBuildGroupIds->isNotEmpty()) {
-                $cart->pcBuildGroups()->whereKey($selectedBuildGroupIds)->delete();
-            }
+            if (! isset($checkout['direct_purchase'])) {
+                $cart->items()->whereKey($cartItemIds)->delete();
+                if ($selectedBuildGroupIds->isNotEmpty()) {
+                    $cart->pcBuildGroups()->whereKey($selectedBuildGroupIds)->delete();
+                }
 
-            if (! $cart->items()->exists()) {
-                $cart->delete();
+                if (! $cart->items()->exists()) {
+                    $cart->delete();
+                }
+
             }
 
             $this->notifications->afterCommit($order, 'order.placed');

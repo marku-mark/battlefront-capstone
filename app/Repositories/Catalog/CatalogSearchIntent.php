@@ -168,6 +168,22 @@ class CatalogSearchIntent
         return $ambiguous ? null : $best;
     }
 
+    /** @return array{category: string, query: string}|null */
+    public function resolveStandalone(string $query): ?array
+    {
+        $normalized = $this->normalize(trim($query, " \t\n\r\0\x0B?.!"));
+        foreach (self::SPECIFIC_PARTS as $category => $terms) {
+            foreach ($terms as $alias => $replacement) {
+                if ($normalized === $this->normalize($alias)) {
+                    return ['category' => $category, 'query' => $replacement];
+                }
+            }
+        }
+        $intent = $this->resolve($normalized);
+
+        return ($intent['query'] ?? null) === '' ? $intent : null;
+    }
+
     public function normalizeQuery(string $query): string
     {
         return preg_replace('/\b(\d+)\s+(gb|tb|mhz|ghz|w|mm)\b/iu', '$1$2', Str::squish($query)) ?? $query;

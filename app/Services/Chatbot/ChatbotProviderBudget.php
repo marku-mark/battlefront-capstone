@@ -127,6 +127,25 @@ class ChatbotProviderBudget
         return true;
     }
 
+    public function reserveRetry(string $input): bool
+    {
+        if ($this->calls + $this->prepaidCalls >= max(1, min(3, (int) config('ai_integration.gemini.max_calls', 3)))) {
+            return false;
+        }
+        $prepaid = $this->prepaidCalls;
+        $this->prepaidCalls = 0;
+        try {
+            return $this->reserve($input);
+        } finally {
+            $this->prepaidCalls = $prepaid;
+        }
+    }
+
+    public function recordFailedAttempt(): void
+    {
+        array_shift($this->reservations);
+    }
+
     private function acquireTurn(): bool
     {
         if ($this->lease !== null) {
@@ -238,7 +257,14 @@ class ChatbotProviderBudget
 
     public function recordStage(string $stage, string $status, int $durationMs = 0): void
     {
-        if (! in_array($stage, ['scope', 'generation', 'validation', 'qdrant', 'neo4j'], true) || ! in_array($status, ['completed', 'failed', 'cache_hit', 'cache_miss', 'disabled', 'unsafe_query', 'empty_query', 'circuit_open', 'no_current_seeds'], true)) {
+        if (! in_array($stage, ['scope', 'generation', 'validation', 'qdrant', 'neo4j'], true) || ! in_array($status, ['completed', 'failed', 'cache_hit', 'cache_miss', 'disabled', 'unsafe_query', 'empty_query', 'circuit_open', 'no_current_seeds', 'invalid_configuration', 'deadline_exceeded', 'provider_http', 'transport', 'invalid_response', 'embedding_budget', 'local_or_embedding_failure'], true)) {
+            return;
+        }
+        $trace = app(ChatbotFailureTrace::class);
+        if (count($trace->stages) < 32) {
+            $trace->stages[] = ['stage' => $stage, 'status' => $status, 'duration_ms' => max(0, $durationMs)];
+        }
+        if (config('ai_integration.evaluation')) {
             return;
         }
         try {
@@ -251,8 +277,29 @@ class ChatbotProviderBudget
         }
     }
 
+    public function recordRoleUsage(string $role, int $inputTokens, int $outputTokens): void
+    {
+        if (config('ai_integration.evaluation')) {
+            return;
+        }
+        if (! in_array($role, ['scope', 'response', 'validation'], true)) {
+            return;
+        }
+        try {
+            $prefix = 'chatbot:role:'.now()->format('Ymd').':'.$role.':';
+            foreach (['responses' => 1, 'input_tokens' => max(0, $inputTokens), 'output_tokens' => max(0, $outputTokens)] as $metric => $value) {
+                Cache::add($prefix.$metric, 0, 172800);
+                Cache::increment($prefix.$metric, $value);
+            }
+        } catch (\Throwable) {
+        }
+    }
+
     public function recordTurn(int $durationMs, string $source): void
     {
+        if (config('ai_integration.evaluation')) {
+            return;
+        }
         try {
             $prefix = 'chatbot:metrics:'.now()->format('Ymd').':';
             $bucket = match (true) {
@@ -284,6 +331,9 @@ class ChatbotProviderBudget
         $this->retryAfter = 60;
         if (strlen($input) > (int) config('ai_integration.gemini.max_input_bytes', 12000)) {
             return false;
+        }
+        if (! config('ai_integration.'.($embedding ? 'embedding' : 'gemini').'.enforce_project_limits', false)) {
+            return true;
         }
         $legacyPrefix = 'chatbot:quota:'.hash('sha256', (string) config('ai_integration.gemini.project_budget_key', 'battlefront'));
         $area = $embedding ? 'embedding' : 'gemini';

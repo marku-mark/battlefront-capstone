@@ -13,6 +13,25 @@ class ChatbotFailureTrace
 
     public bool $publicScopeConfirmed = false;
 
+    public ?string $reviewReason = null;
+
+    public ?string $draftReason = null;
+
+    /** @var list<array<string, mixed>> */
+    public array $retrieval = [];
+
+    /** @var array<string, mixed>|null */
+    public ?array $understanding = null;
+
+    /** @var list<array{role: string, model: string, output_tokens: int, output_limit: int|null, limit_reached: bool}> */
+    public array $providerResponses = [];
+
+    /** @var list<array{stage: string, status: string, duration_ms: int}> */
+    public array $stages = [];
+
+    /** @var list<array{provider: string, reason: string, http_status: int|null}> */
+    public array $retrievalFailures = [];
+
     /** @var array{reason: string, stage: string}|null */
     public ?array $event = null;
 
@@ -22,6 +41,13 @@ class ChatbotFailureTrace
         $this->path = 'legacy';
         $this->publicScopeConfirmed = false;
         $this->event = null;
+        $this->reviewReason = null;
+        $this->draftReason = null;
+        $this->retrieval = [];
+        $this->understanding = null;
+        $this->providerResponses = [];
+        $this->stages = [];
+        $this->retrievalFailures = [];
     }
 
     public function record(string $reason, string $stage): void
