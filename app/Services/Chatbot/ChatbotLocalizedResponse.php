@@ -8,6 +8,15 @@ class ChatbotLocalizedResponse
      * @var array<string, array{string, string, string}>
      */
     private const MESSAGES = [
+        'Available at Sagay' => ['Available sa Sagay', 'Available sa Sagay', 'Available sa Sagay'],
+        'Unavailable at Sagay' => ['Wala karon sa Sagay', 'Hindi available sa Sagay', 'Wala subong sa Sagay'],
+        'Here are some available catalog options. What budget should I work with?' => ['Ania ang pipila ka available nga kapilian. Pila ang imong budget?', 'Narito ang ilang available na pagpipilian. Magkano ang budget mo?', 'Ari ang pila ka available nga pagpili. Pila ang imo budget?'],
+        'There are other brands in stock at Sagay for this search.' => ['Adunay laing mga brand nga available sa Sagay.', 'May ibang brand na available sa Sagay.', 'May iban pa nga brand nga available sa Sagay.'],
+        'Here are the current brand options in stock at Sagay for this search.' => ['Ania ang mga brand nga available sa Sagay.', 'Narito ang mga brand na available sa Sagay.', 'Ari ang mga brand nga available sa Sagay.'],
+        'I found no other identifiable brands in stock at Sagay for this search.' => ['Wala koy nakitang laing mailhang brand nga available sa Sagay.', 'Wala akong nakitang ibang matukoy na brand na available sa Sagay.', 'Wala ako sing nakita nga iban nga matukoy nga brand nga available sa Sagay.'],
+        'I found no available brand options matching this search.' => ['Wala koy nakitang available nga brand nga angay sa imong gipangita.', 'Wala akong nakitang available na brand na tugma sa hinahanap mo.', 'Wala ako sing nakita nga available nga brand nga nagaigo sa imo ginapangita.'],
+        'Which product should I compare prices with? You can also give me a maximum budget.' => ['Unsang produkto ang basihan sa presyo? Mahimo usab nimong ihatag ang kinatas-ang budget.', 'Aling produkto ang pagbabasehan ng presyo? Maaari mo ring ibigay ang pinakamataas na budget.', 'Ano nga produkto ang basihan sang presyo? Mahimo mo man ihatag ang pinakamataas nga budget.'],
+        'What are you trying to connect with the adapter? Tell me the two devices or ports.' => ['Unsa ang imong ikonektar gamit ang adapter? Isulti ang duha ka device o port.', 'Ano ang ikokonekta mo gamit ang adapter? Sabihin ang dalawang device o port.', 'Ano ang imo ikonekta gamit ang adapter? Ihambal ang duha ka device ukon port.'],
         'Your filters' => ['Imong mga filter', 'Mga filter mo', 'Imo mga filter'],
         'Both sections' => ['Ang duha', 'Parehong seksyon', 'Ang duha ka seksyon'],
         'Any brand' => ['Bisan unsang brand', 'Kahit anong brand', 'Bisan ano nga brand'],
@@ -22,6 +31,7 @@ class ChatbotLocalizedResponse
         'For availability at other branches, please contact the branch directly.' => ['Alang sa stock sa ubang mga branch, palihog kontaka direkta ang branch.', 'Para sa availability sa ibang branch, makipag-ugnayan po nang direkta sa branch.', 'Para sa stock sa iban nga branch, palihog kontaka sing direkta ang branch.'],
         'Do you mean a Wi-Fi adapter, a router, or another networking product?' => ['Wi-Fi adapter, router, o laing networking product ba imong pasabot?', 'Wi-Fi adapter, router, o ibang networking product ba ang ibig mong sabihin?', 'Wi-Fi adapter, router, ukon iban nga networking product ang imo ginatumod?'],
         'Which product do you mean? Please provide its catalog name.' => ['Unsang produkto imong pasabot? Ihatag ang ngalan niini sa katalogo.', 'Aling produkto ang tinutukoy mo? Ibigay ang pangalan nito sa katalogo.', 'Ano nga produkto ang imo ginatumod? Ihatag ang ngalan sini sa katalogo.'],
+        'Which product type would you like to browse?' => ['Unsang klase sa produkto ang gusto nimong tan-awon?', 'Anong uri ng produkto ang gusto ninyong tingnan?', 'Ano nga klase sang produkto ang gusto ninyo tan-awon?'],
         'Which Battlefront branch do you mean? Please provide its city.' => ['Unsang Battlefront branch imong pasabot? Ihatag ang siyudad niini.', 'Aling Battlefront branch ang tinutukoy mo? Ibigay ang lungsod nito.', 'Ano nga Battlefront branch ang imo ginatumod? Ihatag ang siyudad sini.'],
         'Please identify one exact product for alternatives.' => ['Ihatag ang usa ka eksaktong produkto aron makapangita og mga kapilian.', 'Tukuyin ang isang eksaktong produkto para makahanap ng mga alternatibo.', 'Ihatag ang isa ka eksakto nga produkto agod makapangita sang mga kapilian.'],
         'The referenced product is no longer available in the catalog.' => ['Wala na sa katalogo ang maong produkto.', 'Wala na sa katalogo ang tinutukoy na produkto.', 'Wala na sa katalogo ang ginatumod nga produkto.'],

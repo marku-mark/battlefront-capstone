@@ -28,13 +28,15 @@ function savedMessage(message) {
 export function safePresentation(value, nested = false) {
     if (!value || typeof value.intro !== 'string') return null;
     const text = (value) => typeof value === 'string' && value.length <= 12000;
+    const sections = !nested && Array.isArray(value.sections)
+        ? value.sections.slice(0, 3)
+            .filter((section) => section && text(section.heading) && typeof section.intro === 'string')
+            .map((section) => ({ ...safePresentation(section, true), heading: section.heading }))
+        : [];
     return {
-        ...(!nested && Array.isArray(value.sections) && value.sections.length > 0 ? {
-            sections: value.sections.slice(0, 3)
-                .filter((section) => section && text(section.heading) && typeof section.intro === 'string')
-                .map((section) => ({ ...safePresentation(section, true), heading: section.heading })),
-        } : {}),
+        ...(sections.length ? { sections } : {}),
         intro: value.intro.slice(0, 12000),
+        browse_label: text(value.browse_label) ? value.browse_label : '',
         clarification: value.clarification === true,
         products: (Array.isArray(value.products) ? value.products : [])
             .filter(
@@ -43,9 +45,14 @@ export function safePresentation(value, nested = false) {
                     Number.isInteger(product.id) &&
                     product.id > 0 &&
                     text(product.name) &&
-                    Number.isFinite(Number(product.price)) &&
                     text(product.stock),
             )
+            .map((product) => ({
+                ...product,
+                price: (typeof product.price === 'number'
+                    || (typeof product.price === 'string' && product.price.trim() !== ''))
+                    && Number.isFinite(Number(product.price)) ? Number(product.price) : null,
+            }))
             .slice(0, 6),
         follow_up: text(value.follow_up) ? value.follow_up : '',
         query: text(value.query) ? value.query.slice(0, 200) : '',

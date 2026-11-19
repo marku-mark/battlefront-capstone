@@ -148,7 +148,11 @@ test('web and mobile preserve response fields and include language metadata', fu
     expect(array_keys($data))->toBe(['message', 'presentation', 'source', 'context_token', 'language']);
     expect($data['language'])->toBe('tl');
     expect($data['source'])->toBe('gemini');
-    expect($data['message'])->toBe('Ang presyo ay PHP 899.00.');
+    if ($channel === 'mobile') {
+        expect($data['message'])->toContain('Pangalan ng produkto: Logitech Mouse', 'Presyo: PHP 899.00', 'Katayuan ng stock:', 'Link: Tingnan ang produkto');
+    } else {
+        expect($data['message'])->toBe('Ang presyo ay PHP 899.00.');
+    }
     expect($data['context_token'])->toBeString();
     ChatbotIntentAgent::assertNeverPrompted();
 })->with(['web', 'mobile']);

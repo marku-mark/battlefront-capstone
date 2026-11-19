@@ -7,6 +7,7 @@ use App\Models\Category;
 use App\Models\ChatbotKnowledge;
 use App\Models\Product;
 use App\Services\Chatbot\ChatbotAiAdapter;
+use App\Services\Chatbot\ChatbotFailureTrace;
 use App\Services\Chatbot\ChatbotMultipartResponse;
 use App\Services\Chatbot\ChatbotProviderBudget;
 use App\Services\Chatbot\ModelLedChatbot;
@@ -46,6 +47,36 @@ test('multipart answers public needs in order using live facts and one understan
     Http::assertNothingSent();
 });
 
+test('model-led discovery treats laptop RAM as one product type even if understanding splits it', function () {
+    $ram = Product::factory()->available()->for(Category::factory()->state(['name' => 'RAM']))->create(['name' => 'ADATA DDR5 16GB SODIMM']);
+    Product::factory()->available()->for(Category::factory()->state(['name' => 'Laptops & Desktops']))->create(['name' => 'Laptop with RAM']);
+    $laptop = multipartIntent(['intent' => 'discovery', 'category_key' => 'laptop', 'search_query' => 'laptop', 'product_mentions' => []]);
+    $memory = multipartIntent(['intent' => 'discovery', 'category_key' => 'memory', 'search_query' => 'RAM', 'product_mentions' => []]);
+    ChatbotMultipartUnderstandingAgent::fake([[...$laptop, 'branch' => 'Sagay', 'parts' => [$laptop, $memory], 'parts_overflow' => false]])->preventStrayPrompts();
+
+    $response = $this->postJson('/chatbot', ['message' => 'laptop ram'])->assertOk();
+
+    expect(array_column($response->json('presentation.products'), 'id'))->toBe([$ram->id]);
+    expect($response->json('presentation.sections') ?? [])->toBe([]);
+});
+
+test('a standalone brand starts a model-led search across categories even after a specific product search', function () {
+    $ram = Product::factory()->available()->for(Category::factory()->state(['name' => 'RAM']))->create(['name' => 'Atlas RAM', 'brand' => 'Atlas']);
+    $printer = Product::factory()->available()->for(Category::factory()->state(['name' => 'Printer']))->create(['name' => 'PRINTER Brother DCP', 'brand' => 'Brother']);
+    $memory = multipartIntent(['intent' => 'discovery', 'category_key' => 'memory', 'search_query' => 'RAM', 'product_mentions' => []]);
+    ChatbotMultipartUnderstandingAgent::fake([
+        [...$memory, 'parts' => [], 'parts_overflow' => false],
+        [...$memory, 'reference' => 'previous', 'operation' => 'refine', 'brand' => 'Brother', 'parts' => [], 'parts_overflow' => false],
+    ])->preventStrayPrompts();
+    $first = $this->postJson('/chatbot', ['message' => 'RAM?'])->assertOk();
+    expect(array_column($first->json('presentation.products'), 'id'))->toBe([$ram->id]);
+
+    $reply = $this->postJson('/chatbot', ['message' => 'brother?', 'context_token' => $first->json('context_token')])->assertOk();
+
+    expect(array_column($reply->json('presentation.products'), 'id'))->toBe([$printer->id]);
+    $reply->assertJsonPath('presentation.choices', []);
+});
+
 test('multipart overflow asks to narrow instead of silently dropping questions', function () {
     ChatbotMultipartUnderstandingAgent::fake([multipartIntent(['parts' => [], 'parts_overflow' => true])])->preventStrayPrompts();
 
@@ -56,15 +87,49 @@ test('multipart overflow asks to narrow instead of silently dropping questions',
     Http::assertNothingSent();
 });
 
-test('malformed multipart understanding is rejected', function (mixed $parts) {
-    ChatbotMultipartUnderstandingAgent::fake([multipartIntent(['parts' => $parts, 'parts_overflow' => false])])->preventStrayPrompts();
+test('brand follow-ups report the category budget and products selected by the requested operation', function (string $question, string $operation, string $category, bool $retainsBudget) {
+    $printers = Category::factory()->create(['name' => 'Printer']);
+    $affordable = Product::factory()->available()->for($printers)->create(['name' => 'PRINTER Brother DCP', 'brand' => 'Brother', 'price' => 6000, 'discount_price' => null]);
+    $expensive = Product::factory()->available()->for($printers)->create(['name' => 'PRINTER Brother MFC', 'brand' => 'Brother', 'price' => 12000, 'discount_price' => null]);
+    $initial = multipartIntent(['intent' => 'discovery', 'category_key' => 'printer', 'search_query' => 'printer', 'product_mentions' => []]);
+    $followUp = [...$initial, 'category_key' => $operation === 'refine' ? 'printer' : $category, 'search_query' => $operation === 'refine' ? 'printer' : 'Brother',
+        'operation' => $operation, 'reference' => $operation === 'refine' ? 'previous' : 'new', 'brand' => 'Brother'];
+    ChatbotMultipartUnderstandingAgent::fake([[...$initial, 'maximum_php' => 8000], $followUp])->preventStrayPrompts();
+
+    $first = app(ModelLedChatbot::class)->respond('Printers under PHP 8,000?', [], null);
+    expect(array_column($first['presentation']['products'], 'id'))->toBe([$affordable->id]);
+    $reply = app(ModelLedChatbot::class)->respond($question, $first['state'], null);
+
+    $products = array_column($reply['presentation']['products'], 'id');
+    sort($products);
+    expect([
+        'category' => $reply['state']['model_constraints']['category_key'],
+        'maximum' => (float) ($reply['state']['model_constraints']['price']['maximum'] ?? 0),
+        'products' => $products,
+    ])->toBe([
+        'category' => $category,
+        'maximum' => $retainsBudget ? 8000.0 : 0.0,
+        'products' => $retainsBudget ? [$affordable->id] : [$affordable->id, $expensive->id],
+    ]);
+})->with([
+    'bare brand within a recognized printer search' => ['brother?', 'refine', 'printer', true],
+    'explicit refinement' => ['Only Brother printers within that budget', 'refine', 'printer', true],
+    'explicit new search' => ['Start a new search for any Brother products', 'new_search', 'other', false],
+]);
+
+test('malformed multipart understanding is rejected', function (mixed $parts, mixed $overflow = false) {
+    ChatbotMultipartUnderstandingAgent::fake([multipartIntent(['parts' => $parts, 'parts_overflow' => $overflow])])->preventStrayPrompts();
 
     expect(app(ChatbotAiAdapter::class)->understand('Atlas SSD and RAM?', []))->toBeNull();
+    expect(app(ChatbotFailureTrace::class)->event)->toBe(['reason' => 'understanding_invalid_output', 'stage' => 'scope']);
     Http::assertNothingSent();
 })->with([
     'too many' => [[multipartIntent(), multipartIntent(), multipartIntent(), multipartIntent()]],
     'not a list' => [['first' => multipartIntent()]],
     'invalid part' => [[['intent' => 'arbitrary_sql']]],
+    'null parts' => [null],
+    'null overflow' => [[], null],
+    'sensitive part' => [[multipartIntent(['search_query' => 'password: private-value'])]],
 ]);
 
 test('private messages never qualify for multipart provider understanding', function () {

@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\Http;
 test('negative retrieval labels measure false positives without diluting positive recall', function () {
     $disk = $this->fakeIsolatedStorage('local');
     $disk->put('negatives.json', json_encode(['catalog_version' => 'fixture-v1', 'cases' => [
-        ['id' => 'positive', 'relevant_product_ids' => [1], 'algolia' => [1], 'qdrant' => [1]],
+        ['id' => 'positive', 'relevant_product_ids' => [1], 'algolia' => [1], 'qdrant' => range(1, 10)],
         ['id' => 'negative', 'expected_no_match' => true, 'relevant_product_ids' => [], 'algolia' => [], 'qdrant' => [2]],
     ]]));
     expect(Artisan::call('chatbot:evaluate-retrieval', ['--dataset' => $disk->path('negatives.json')]))->toBe(0);
@@ -14,6 +14,10 @@ test('negative retrieval labels measure false positives without diluting positiv
     expect($report['summary']['qdrant']['recall_at_10'])->toBe(1);
     expect($report['summary']['qdrant']['false_positive_rate'])->toBe(1);
     expect($report['summary']['algolia']['false_positive_rate'])->toBe(0);
+    expect($report['metrics_version'])->toBe(2);
+    expect($report['summary']['algolia'])->toMatchArray(['precision_at_10' => 0.1, 'precision_among_returned' => 1]);
+    expect($report['summary']['qdrant'])->toMatchArray(['precision_at_10' => 0.1, 'precision_among_returned' => 0.1]);
+    expect($report['results'][1]['metrics']['qdrant'])->toMatchArray(['precision_at_10' => null, 'precision_among_returned' => null]);
     expect($report['candidate_depths'][20]['rrf']['false_positive_rate'])->toBe(1);
     Http::assertNothingSent();
 });
@@ -62,6 +66,8 @@ test('retrieval evaluation does not count relevant products below rank ten', fun
     expect($report['summary']['algolia']['recall_at_10'])->toBe(0);
     expect($report['summary']['algolia']['mrr_at_10'])->toBe(0);
     expect($report['summary']['algolia']['zero_result_rate'])->toBe(0);
+    expect($report['results'][0]['metrics']['algolia'])->toMatchArray(['precision_at_10' => 0, 'precision_among_returned' => 0]);
+    expect($report['results'][0]['metrics']['qdrant'])->toMatchArray(['precision_at_10' => 0, 'precision_among_returned' => 0]);
     Http::assertNothingSent();
 });
 

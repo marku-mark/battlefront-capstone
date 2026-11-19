@@ -9,7 +9,7 @@ class CatalogSearchIntent
     /** @var array<string, list<string>> */
     private const CATEGORIES = [
         'Processor' => ['cpu', 'cpus', 'processor', 'processors', 'central processing unit'],
-        'RAM' => ['ram', 'memory', 'computer memory', 'system memory', 'random access memory', 'dram', 'memory module', 'memory modules'],
+        'RAM' => ['ram', 'memory', 'computer ram', 'computer memory', 'system memory', 'random access memory', 'dram', 'memory module', 'memory modules'],
         'Motherboard' => ['motherboard', 'motherboards', 'mobo', 'mainboard', 'main board', 'system board', 'mother board'],
         'Graphics Card' => ['gpu', 'gpus', 'graphics card', 'graphics cards', 'video card', 'video cards', 'videocard', 'graphics processing unit', 'graphic card'],
         'Storage' => ['storage', 'storage drive', 'storage drives', 'disk drive', 'disk drives'],
@@ -40,24 +40,25 @@ class CatalogSearchIntent
     /** @var array<string, array<string, string>> */
     private const SPECIFIC_PARTS = [
         'Storage' => ['ssd' => 'ssd', 'ssds' => 'ssd', 'solid state drive' => 'ssd', 'solid state drives' => 'ssd', 'solid-state drive' => 'ssd', 'hdd' => 'hdd', 'hdds' => 'hdd', 'hard drive' => 'hdd', 'hard drives' => 'hdd', 'hard disk' => 'hdd', 'hard disk drive' => 'hdd', 'hard disk drives' => 'hdd', 'nvme' => 'nvme', 'flash drive' => 'flash', 'flashdrive' => 'flash', 'usb drive' => 'flash', 'thumb drive' => 'flash', 'pen drive' => 'flash', 'pendrive' => 'flash', 'memory card' => 'card', 'card reader' => 'card reader', 'sd card' => 'card', 'external enclosure' => 'enclosure', 'ssd enclosure' => 'enclosure', 'case for ssd' => 'enclosure', 'case for hard drive' => 'external case'],
-        'RAM' => ['sodimm' => 'sodimm', 'so dimm' => 'sodimm', 'laptop ram' => 'laptop', 'laptop memory' => 'laptop', 'ddr3' => 'ddr3', 'ddr4' => 'ddr4', 'ddr5' => 'ddr5'],
+        'RAM' => ['sodimm' => 'sodimm', 'so dimm' => 'sodimm', 'laptop ram' => 'laptop', 'ram laptop' => 'laptop', 'laptop memory' => 'laptop', 'notebook ram' => 'laptop', 'ddr3' => 'ddr3', 'ddr4' => 'ddr4', 'ddr5' => 'ddr5'],
         'Peripherals' => ['keyboard' => 'keyboard', 'keyboards' => 'keyboard', 'mouse' => 'mouse', 'mice' => 'mouse', 'webcam' => 'web camera', 'web camera' => 'web camera', 'wireless keyboard' => 'wireless keyboard', 'wireless mouse' => 'wireless mouse', 'mechanical keyboard' => 'mechanical keyboard', 'keyboard and mouse' => 'keyboard mouse', 'mouse pad' => 'mousepad', 'mousepad' => 'mousepad', 'numeric keypad' => 'keypad'],
         'Cooling Components' => ['fan' => 'fan', 'aio' => 'aio', 'liquid cooler' => 'liquid'],
-        'Networking' => ['router' => 'router', 'routers' => 'router', 'network switch' => 'switch', 'switch hub' => 'switch', 'wifi adapter' => 'adapter', 'wi fi adapter' => 'adapter', 'wireless adapter' => 'adapter', 'access point' => 'access point', 'range extender' => 'extender', 'wifi extender' => 'extender', 'wireless repeater' => 'repeater', 'modem' => 'modem', 'media converter' => 'media converter', 'fiber optic' => 'fiber'],
+        'Networking' => ['wifi' => 'wifi', 'wi fi' => 'wifi', 'router' => 'router', 'routers' => 'router', 'network switch' => 'switch', 'switch hub' => 'switch', 'wifi adapter' => 'adapter', 'wi fi adapter' => 'adapter', 'wireless adapter' => 'adapter', 'access point' => 'access point', 'range extender' => 'extender', 'wifi extender' => 'extender', 'wireless repeater' => 'repeater', 'modem' => 'modem', 'media converter' => 'media converter', 'fiber optic' => 'fiber'],
         'Audio Equipment' => ['headset' => 'headset', 'headphones' => 'headphone', 'speaker' => 'speaker', 'microphone' => 'microphone'],
         'Laptops & Desktops' => ['laptop' => 'laptop', 'desktop' => 'desktop'],
         'Monitor' => ['tv' => 'tv', 'television' => 'tv', 'smart tv' => 'tv', 'tv bracket' => 'bracket', 'tv wall mount' => 'mount'],
         'CCTV & Security' => ['nvr' => 'nvr', 'network video recorder' => 'nvr', 'dvr' => 'dvr', 'digital video recorder' => 'dvr', 'video balun' => 'balun', 'cctv cable' => 'cable'],
-        'Power Accessories' => ['ups' => 'ups', 'uninterruptible power supply' => 'ups', 'battery backup' => 'ups', 'ups battery' => 'battery ups', 'battery for ups' => 'battery ups', 'avr' => 'avr', 'automatic voltage regulator' => 'avr', 'surge protector' => 'surge', 'power strip' => 'extension', 'extension cord' => 'extension', 'laptop charger' => 'charger', 'charger for laptop' => 'charger', 'notebook power adapter' => 'notebook power adapter'],
+        'Power Accessories' => ['ups' => 'ups', 'uninterruptible power supply' => 'ups', 'battery backup' => 'ups', 'ups battery' => 'battery ups', 'battery for ups' => 'battery ups', 'avr' => 'avr', 'automatic voltage regulator' => 'avr', 'surge protector' => 'surge', 'power strip' => 'extension', 'extension cord' => 'extension', 'charger' => 'charger', 'chargers' => 'charger', 'laptop charger' => 'charger', 'charger for laptop' => 'charger', 'notebook power adapter' => 'notebook power adapter'],
         'Printer' => ['printer ink' => 'ink', 'ink' => 'ink', 'ink cartridge' => 'ink', 'ink bottle' => 'ink', 'ink refill' => 'ink', 'printer cartridge' => 'ink', 'toner' => 'toner', 'printer toner' => 'toner', 'printer cable' => 'cable'],
         'Laptop Bags & Stands' => ['laptop stand' => 'stand', 'laptop pouch' => 'pouch', 'laptop backpack' => 'backpack'],
-        'Cleaning & Maintenance Supplies' => ['cleaning solution' => 'cleaning', 'electric blower' => 'blower', 'air blower' => 'blower'],
+        'Bundles & Packages' => ['motherboard bundle' => 'motherboard', 'bundle motherboard' => 'motherboard'],
+        'Cleaning & Maintenance Supplies' => ['cleaning solution' => 'cleaning', 'blower' => 'blower', 'blowers' => 'blower', 'electric blower' => 'blower', 'air blower' => 'blower'],
         'Consumer Electronics' => ['tv stick' => 'tv stick', 'android tv stick' => 'tv stick'],
         'DIY Electronics & Microcontrollers' => ['nodemcu' => 'nodemcu', 'esp8266' => 'esp8266', 'orange pi' => 'orange pi'],
         'Furniture & Hardware Fixtures' => ['gaming chair' => 'chair', 'chair' => 'chair', 'crimping tool' => 'crimping'],
         'Office & Packaging Supplies' => ['bond paper' => 'paper', 'copy paper' => 'paper', 'junction box' => 'junction box', 'cd r' => 'cd'],
         'Solar & Lighting Products' => ['solar light' => 'solar', 'solar floodlight' => 'solar', 'led signage' => 'signage'],
-        'Vending & Coin-Op Machine Parts' => ['pisowifi' => 'piso', 'piso wifi' => 'piso', 'water timer' => 'timer', 'water pump' => 'pump', 'video game timer' => 'timer'],
+        'Vending & Coin-Op Machine Parts' => ['coin' => 'coin', 'coin slot' => 'coinslot', 'coinslot' => 'coinslot', 'pisowifi' => 'piso', 'piso wifi' => 'piso', 'water timer' => 'timer', 'water pump' => 'pump', 'video game timer' => 'timer'],
     ];
 
     /** Public, curated catalog vocabulary only; never derive these words from customer input.
@@ -132,12 +133,16 @@ class CatalogSearchIntent
             for ($offset = 0; $offset <= count($words) - count($aliasWords); $offset++) {
                 $cost = 0;
                 foreach ($aliasWords as $index => $word) {
-                    $cost += $this->wordDistance($words[$offset + $index], $word);
+                    $cost += in_array($alias, ['charger', 'chargers'], true) && $words[$offset + $index] !== $word
+                        ? 3 : $this->wordDistance($words[$offset + $index], $word);
                 }
                 if ($cost > 2) {
                     continue;
                 }
                 $remaining = array_merge(array_slice($words, 0, $offset), array_slice($words, $offset + count($aliasWords)));
+                if (in_array($alias, ['wifi', 'wi fi'], true) && $remaining !== []) {
+                    continue;
+                }
                 if (in_array('for', $remaining, true)) {
                     continue;
                 }
@@ -182,6 +187,55 @@ class CatalogSearchIntent
         $intent = $this->resolve($normalized);
 
         return ($intent['query'] ?? null) === '' ? $intent : null;
+    }
+
+    /** @return list<string> */
+    public function chatbotProductNamePatterns(string $category, string $term): array
+    {
+        return match ([$category, $term]) {
+            ['RAM', 'laptop'] => ['%laptop%', '%notebook%', '%sodimm%', '%so-dimm%', '%so dimm%'],
+            ['RAM', 'sodimm'] => ['%sodimm%', '%so-dimm%', '%so dimm%'],
+            ['Networking', 'wifi'] => ['%wifi%', '%wi-fi%', '%wi fi%', '%wireless%'],
+            ['Peripherals', 'mousepad'] => ['%mousepad%', '%mouse pad%', '%mouse-pad%'],
+            ['Power Accessories', 'charger'] => ['%charger%'],
+            ['Bundles & Packages', 'motherboard'] => ['%motherboard%', '%mainboard%'],
+            ['Cleaning & Maintenance Supplies', 'blower'] => ['%blower%'],
+            ['Vending & Coin-Op Machine Parts', 'coin'] => ['%coin%'],
+            ['Vending & Coin-Op Machine Parts', 'coinslot'] => ['%coinslot%', '%coin slot%', '%coin-slot%'],
+            default => [],
+        };
+    }
+
+    /** @return array{category: string, query: string, label: string}|null */
+    public function knownStockScope(string $text): ?array
+    {
+        $text = trim($text, " \t\n\r\0\x0B?.!");
+        $intent = $this->resolve($text);
+        if ($intent === null) {
+            return null;
+        }
+
+        $category = $intent['category'];
+        $normalized = ' '.$this->normalizeScopeText($text).' ';
+        $specific = self::SPECIFIC_PARTS[$category] ?? [];
+        uksort($specific, static fn (string $first, string $second): int => strlen($second) <=> strlen($first));
+        foreach ($specific as $alias => $subtype) {
+            if (str_contains($normalized, ' '.$this->normalizeScopeText($alias).' ')) {
+                return ['category' => $category, 'query' => $subtype, 'label' => $alias];
+            }
+        }
+        foreach ([$category, ...self::CATEGORIES[$category]] as $alias) {
+            if (str_contains($normalized, ' '.$this->normalizeScopeText($alias).' ')) {
+                return ['category' => $category, 'query' => '', 'label' => $category];
+            }
+        }
+
+        return null;
+    }
+
+    private function normalizeScopeText(string $text): string
+    {
+        return trim(preg_replace('/[^\p{L}\p{N}]+/u', ' ', $this->normalize($text)) ?? '');
     }
 
     public function normalizeQuery(string $query): string

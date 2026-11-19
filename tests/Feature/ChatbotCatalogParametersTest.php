@@ -9,6 +9,7 @@ use App\Models\ProductComponentProfile;
 use App\Services\Chatbot\ChatbotAiAdapter;
 use App\Services\Chatbot\ChatbotCatalogSelection;
 use App\Services\Chatbot\ChatbotConversation;
+use App\Services\Chatbot\ChatbotFailureTrace;
 use App\Services\Chatbot\ModelLedChatbot;
 use Illuminate\Support\Facades\Crypt;
 use Laravel\Ai\Exceptions\AiException;
@@ -27,6 +28,39 @@ function catalogParameterProductIds(array $reply): array
 {
     return array_values(array_column(array_filter($reply['presentation']['actions'], fn (array $action): bool => $action['kind'] === 'product'), 'id'));
 }
+
+test('brand refinements search the selected family again instead of reusing prior product results', function (bool $modelLed, string $family, string $category, string $firstBrand, string $nextBrand, string $model, string $question) {
+    config(['scout.driver' => 'null', 'ai_integration.enabled' => $modelLed, 'ai_integration.model_led' => $modelLed,
+        'ai_integration.localization_enabled' => true, 'ai_integration.gemini.max_calls' => 3,
+        'ai_integration.gemini.tokens_per_minute' => 1000000]);
+    Branch::factory()->create(['city' => config('battlefront.operational_branch_city')]);
+    $categoryModel = Category::factory()->create(['name' => $category]);
+    $initial = Product::factory()->available()->for($categoryModel)->create(['name' => $firstBrand.' '.$category, 'brand' => $firstBrand]);
+    $replacement = Product::factory()->available()->for($categoryModel)->create(['name' => $model, 'brand' => $nextBrand]);
+    $unrelated = Product::factory()->available()->for(Category::factory()->state(['name' => 'Graphics Card']))
+        ->create(['name' => $nextBrand.' Graphics Card', 'brand' => $nextBrand]);
+    $staleIntent = catalogParameterIntent(['intent' => 'facts', 'category_key' => $family, 'search_query' => $firstBrand.' '.$category,
+        'brand' => $firstBrand, 'reference' => 'previous', 'position' => 1]);
+    ChatbotUnderstandingAgent::fake(fn () => $staleIntent)->preventStrayPrompts();
+    ChatbotEvidenceAgent::fake(fn () => throw new AiException)->preventStrayPrompts();
+    $chat = app(ChatbotConversation::class);
+    $first = $chat->respond($firstBrand.' '.$category, null, null, 'brand-discovery');
+    $second = $chat->respond($question, null, $first['context_token'], 'brand-discovery');
+    $explicit = $chat->respond($nextBrand.' '.$category.' po', null, null, 'fresh-brand-discovery');
+    $different = $chat->respond($nextBrand.' Graphics Card', null, $second['context_token'], 'brand-discovery');
+    $cleared = $chat->respond('any brand', null, $second['context_token'], 'brand-discovery');
+
+    expect(catalogParameterProductIds($first))->toBe([$initial->id])
+        ->and(catalogParameterProductIds($second))->toBe([$replacement->id])
+        ->and(catalogParameterProductIds($explicit))->toBe([$replacement->id])
+        ->and(catalogParameterProductIds($different))->toBe([$unrelated->id])
+        ->and(catalogParameterProductIds($cleared))->toEqualCanonicalizing([$initial->id, $replacement->id])
+        ->and($second['presentation']['clarification'])->toBeFalse();
+})->with([
+    'Tagalog motherboard and legacy' => [false, 'motherboard', 'Motherboard', 'Biostar', 'Gigabyte', 'GIGABYTE B450M DS3H V2', 'meron din po ba kayo gigabyte brand?'],
+    'Tagalog motherboard and stale model interpretation' => [true, 'motherboard', 'Motherboard', 'Biostar', 'Gigabyte', 'GIGABYTE B450M DS3H V2', 'meron din po ba kayo gigabyte brand?'],
+    'English monitor and stale model interpretation' => [true, 'monitor', 'Monitor', 'Acer', 'Samsung', 'Samsung Monitor S24', 'What about Samsung?'],
+]);
 
 test('branch shopping retains brand laptop budget and stock together', function (bool $modelLed, string $question) {
     config(['ai_integration.enabled' => $modelLed, 'ai_integration.model_led' => $modelLed, 'scout.driver' => 'null',
@@ -78,6 +112,86 @@ test('stock timing words do not filter Sagay catalog results', function (string 
     'Tagalog graphics card' => ['Mayroon ba kayong GPU ngayon sa Sagay?', 'gpu', 'Graphics Card', 'tl', false],
     'English SSD' => ['Do you have SSD right now at Sagay?', 'SSD', 'Storage', 'en', false],
 ]);
+
+test('a schema-valid Gemini hint cannot narrow resolved stock filters on web or mobile', function (string $path, ?string $envelope) {
+    config(['ai_integration.enabled' => true, 'ai_integration.model_led' => true, 'scout.driver' => 'null']);
+    Branch::factory()->create(['city' => config('battlefront.operational_branch_city')]);
+    $category = Category::factory()->create(['name' => 'Laptops & Desktops']);
+    $match = Product::factory()->available()->for($category)->create(['name' => 'Asus Laptop A100', 'brand' => 'Asus', 'price' => 25000, 'discount_price' => null]);
+    Product::factory()->available()->for($category)->create(['name' => 'Asus Desktop A200', 'brand' => 'Asus', 'price' => 24000, 'discount_price' => null]);
+    Product::factory()->available()->for($category)->create(['name' => 'Asus Laptop A300', 'brand' => 'Asus', 'price' => 30000, 'discount_price' => null]);
+    $understanding = ['branch' => 'Sagay', 'maximum_php' => 30000, 'maximum_inclusive' => false];
+    ChatbotUnderstandingAgent::fake([
+        catalogParameterIntent([...$understanding, 'search_query' => 'Asus laptop']),
+        catalogParameterIntent([...$understanding, 'search_query' => 'Asus laptop this very minute', 'brand' => 'OutOfCatalog']),
+    ])->preventStrayPrompts();
+    ChatbotEvidenceAgent::fake()->preventStrayPrompts();
+    $trace = app(ChatbotFailureTrace::class);
+
+    foreach (['Do you have an Asus laptop under PHP 30000 at Sagay?', 'Ara kamo Asus laptop niining taknaa sa Sagay under PHP 30000?'] as $message) {
+        $result = $this->postJson($path, ['message' => $message])->assertOk()->json($envelope);
+        expect(catalogParameterProductIds($result))->toBe([$match->id]);
+        expect($trace->branchSearches)->toBe([[
+            'source' => 'model', 'filters' => ['brand', 'maximum', 'product_scope'], 'branch' => 'sagay',
+            'result_count' => 1, 'reason' => 'matched',
+        ]]);
+    }
+    ChatbotUnderstandingAgent::assertPromptedTimes(2);
+    ChatbotEvidenceAgent::assertNeverPrompted();
+})->with([
+    'web' => ['/chatbot', null],
+    'mobile' => ['/api/v1/chatbot', 'data'],
+]);
+
+test('branch stock resolves known subtypes and exact model codes without falling back to broader stock', function () {
+    config(['scout.driver' => 'null']);
+    Branch::factory()->create(['city' => config('battlefront.operational_branch_city')]);
+    $storage = Category::factory()->create(['name' => 'Storage']);
+    $drive = Product::factory()->available()->for($storage)->create(['name' => 'Atlas SSD X100']);
+    $enclosure = Product::factory()->available()->for($storage)->create(['name' => 'Atlas SSD Enclosure']);
+    Product::factory()->available()->for($storage)->create(['name' => 'Atlas HDD X200']);
+    $laptops = Category::factory()->create(['name' => 'Laptops & Desktops']);
+    $laptop = Product::factory()->available()->for($laptops)->create(['name' => 'HP Laptop 15-FD0079WM']);
+    Product::factory()->available()->for($laptops)->create(['name' => 'HP Laptop 15-FD0080WM']);
+    $chatbot = app(ChatbotCatalogSelection::class);
+
+    $ssd = $chatbot->select('Do you have SSD in Sagay right this minute?', catalogParameterIntent(['category_key' => 'storage', 'search_query' => 'SSD right this minute', 'brand' => '']));
+    $accessory = $chatbot->select('Do you have an SSD enclosure in Sagay right this minute?', catalogParameterIntent(['category_key' => 'storage', 'search_query' => 'SSD enclosure this minute', 'brand' => '']));
+    $explicit = $chatbot->select('Is HP laptop 15-FD0079WM in stock at Sagay?', catalogParameterIntent(['brand' => 'HP']));
+    $unknown = $chatbot->select('Is HP laptop 15-FD0999WM in stock at Sagay?', catalogParameterIntent(['brand' => 'HP']));
+    $laptop->inventory->update(['quantity' => 0]);
+    $soldOut = $chatbot->select('Is HP laptop 15-FD0079WM in stock at Sagay?', catalogParameterIntent(['brand' => 'HP']));
+
+    expect(array_column($ssd['products'], 'id'))->toBe([$drive->id]);
+    expect(array_column($accessory['products'], 'id'))->toBe([$enclosure->id]);
+    expect(array_column($explicit['products'], 'id'))->toBe([$laptop->id]);
+    expect($unknown['products'])->toBe([])->and($unknown['clarification_code'])->toBe('identify_product');
+    expect($soldOut['products'])->toBe([])->and($soldOut['branch_availability_message'])->toContain('no available Sagay products');
+});
+
+test('branch clarification keeps a verified model code and rechecks its live stock', function (bool $modelLed) {
+    config(['ai_integration.enabled' => $modelLed, 'ai_integration.model_led' => $modelLed, 'scout.driver' => 'null']);
+    Branch::factory()->create(['city' => config('battlefront.operational_branch_city')]);
+    $category = Category::factory()->create(['name' => 'Laptops & Desktops']);
+    $match = Product::factory()->available()->for($category)->create(['name' => 'HP Laptop 15-FD0079WM', 'brand' => 'HP']);
+    Product::factory()->available()->for($category)->create(['name' => 'HP Laptop 15-FD0080WM', 'brand' => 'HP']);
+    ChatbotUnderstandingAgent::fake([
+        catalogParameterIntent(['branch' => 'Cebu', 'brand' => '', 'search_query' => 'laptop']),
+        catalogParameterIntent(['intent' => 'store', 'branch' => 'Sagay', 'brand' => '', 'search_query' => 'Sagay']),
+    ])->preventStrayPrompts();
+    ChatbotEvidenceAgent::fake()->preventStrayPrompts();
+    $chat = app(ChatbotConversation::class);
+
+    $match->inventory->update(['quantity' => 0]);
+    $first = $chat->respond('Do you have 15-FD0079WM in Cebu branch?', null, null, 'branch-model');
+    $match->inventory->update(['quantity' => 5]);
+    $second = $chat->respond('Sagay', null, $first['context_token'], 'branch-model');
+
+    expect($first['message'])->toContain('Which Battlefront branch');
+    expect(catalogParameterProductIds($second))->toBe([$match->id]);
+    ChatbotUnderstandingAgent::assertPromptedTimes($modelLed ? 2 : 0);
+    ChatbotEvidenceAgent::assertNeverPrompted();
+})->with([false, true]);
 
 test('other branch stock stays unknown and supplies published contact information', function (string $question) {
     config(['ai_integration.enabled' => true, 'ai_integration.model_led' => true, 'scout.driver' => 'null']);

@@ -134,6 +134,15 @@ test('filter refinements can restart discovery after an empty selection without 
     expect($context['selection_constraints']['price']['maximum'])->toBe('3000.00');
 });
 
+test('removing the only search constraint asks for a product type', function () {
+    $context = app(ChatbotCatalogSelection::class)->select('Any brand', catalogIntent([
+        'operation' => 'refine', 'reference' => 'previous', 'category_key' => 'other', 'search_query' => '',
+    ]), ['model_constraints' => ['category_key' => 'other', 'brand' => 'HP', 'search_query' => 'HP']]);
+
+    expect($context['products'])->toBe([]);
+    expect($context['clarification'])->toBe('Which product type would you like to browse?');
+});
+
 test('cloud readiness identifies missing or mistyped filter indexes without changing vectors', function () {
     config(['ai_integration.qdrant.enabled' => true, 'ai_integration.qdrant.url' => 'https://vector.test', 'ai_integration.qdrant.key' => 'testing-only']);
     Http::fake(['https://vector.test/*' => Http::response(['result' => [

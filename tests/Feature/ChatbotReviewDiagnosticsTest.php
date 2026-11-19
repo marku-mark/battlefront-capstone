@@ -1,11 +1,13 @@
 <?php
 
 use App\Ai\Agents\ChatbotEvidenceAgent;
+use App\Ai\Agents\ChatbotUnderstandingAgent;
 use App\Ai\Agents\ChatbotValidationAgent;
 use App\Services\Chatbot\ChatbotAiAdapter;
 use App\Services\Chatbot\ChatbotFailureTrace;
 use App\Services\Chatbot\ChatbotGroundedResponse;
 use App\Services\Chatbot\ChatbotProviderBudget;
+use Illuminate\JsonSchema\JsonSchemaTypeFactory;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Laravel\Ai\Responses\Data\Meta;
@@ -55,6 +57,7 @@ test('review diagnostics allow only bounded reasons and preserve legacy approval
     ]]], scopeChecked: true);
 
     expect($result['successful'])->toBe($approved);
+    expect(array_column(app(ChatbotFailureTrace::class)->stages, 'status'))->toBe(['completed', $approved ? 'completed' : 'failed']);
     expect(app(ChatbotFailureTrace::class)->reviewReason)->toBe($reason);
     if ($reason !== null) {
         expect($result['text'])->toBeNull();
@@ -83,4 +86,31 @@ test('review reason does not survive a new conversation turn', function () {
     $trace->reset();
 
     expect($trace->reviewReason)->toBeNull();
+});
+
+test('understanding reports a single timed stage outcome for malformed output', function (array $overrides, string $reason) {
+    Log::spy();
+    ChatbotUnderstandingAgent::fake([[
+        'outcome' => 'supported', 'intent' => 'discovery', 'language' => 'en', 'category_key' => 'memory',
+        'search_query' => 'RAM', 'product_mentions' => [], 'attributes' => [], 'maximum_php' => null,
+        'excluded_brands' => [], 'brand' => '', 'capacity' => '', 'use_case' => '', 'reference' => 'previous',
+        'position' => 6, 'clarification' => 'none', ...$overrides,
+    ]])->preventStrayPrompts();
+
+    expect(app(ChatbotAiAdapter::class)->understand('Show me the RAM again', []))->toBeNull();
+    expect(array_column(app(ChatbotFailureTrace::class)->stages, 'status'))->toBe(['failed']);
+    Log::shouldHaveReceived('info')->with('Chatbot stage finished.', Mockery::on(fn (array $data): bool => $data['reason'] === $reason && is_int($data['provider_wait_ms']) && is_int($data['php_ms'])
+    ))->once();
+})->with([
+    'position outside the schema range' => [['position' => 7], 'position_out_of_range'],
+    'unknown field' => [['unexpected' => 'untrusted content'], 'unknown_field'],
+    'branch absent from the request' => [['branch' => 'Sagay'], 'ungrounded_branch'],
+]);
+
+test('the provider schema exposes the PHP position and list bounds', function () {
+    $schema = (new ChatbotUnderstandingAgent)->schema(new JsonSchemaTypeFactory);
+
+    expect($schema['position']->toArray())->toMatchArray(['minimum' => 0, 'maximum' => 6])
+        ->and($schema['product_mentions']->toArray())->toMatchArray(['maxItems' => 6])
+        ->and($schema['attributes']->toArray())->toMatchArray(['maxItems' => 4]);
 });

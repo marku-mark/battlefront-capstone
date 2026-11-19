@@ -6,9 +6,10 @@ use App\Actions\Chatbot\Context\ResolveProductContext;
 use App\Models\Product;
 use App\Repositories\Catalog\CatalogSearchIntent;
 use App\Repositories\Catalog\ProductCatalogRepository;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Log;
 
-/** @phpstan-type CatalogContext array{products: list<array<string, mixed>>, clarification?: string, clarification_code?: string, search_query?: string, price_selection?: array<string, mixed>, selection_constraints?: array<string, mixed>, no_match_message?: string, branch_availability_message?: string, branches?: list<array<string, mixed>>} */
+/** @phpstan-type CatalogContext array{products: list<array<string, mixed>>, clarification?: string, clarification_code?: string, search_query?: string, price_selection?: array<string, mixed>, selection_constraints?: array<string, mixed>, no_match_message?: string, shopping_message?: string, branch_availability_message?: string, branches?: list<array<string, mixed>>} */
 class ChatbotCatalogSelection
 {
     public function __construct(private ProductCatalogRepository $catalog, private ResolveProductContext $facts, private ChatbotPriceIntent $prices, private ChatbotProductRanking $ranking) {}
@@ -20,6 +21,7 @@ class ChatbotCatalogSelection
     {
         $previous = $state['model_constraints'] ?? [];
         $intent = ['branch' => '', 'availability' => 'any', ...$intent];
+        $comparisonPosition = $intent['position'];
         $reducer = app(ChatbotIntentState::class);
         $intent = $reducer->apply($intent, $previous);
         $price = $this->prices->resolve($message, $intent);
@@ -57,6 +59,12 @@ class ChatbotCatalogSelection
             }
         }
         $canonical = app(ChatbotLanguage::class)->canonical($message);
+        if (preg_match('/^(?:any brand|all brands|remove (?:the )?brand(?: filter)?)[?.!]*$/iu', $canonical)
+            && ($previous['category_key'] ?? 'other') === 'other'
+            && ($previous['brand'] ?? '') !== ''
+            && in_array(mb_strtolower(trim($previous['search_query'] ?? '')), ['', mb_strtolower($previous['brand'])], true)) {
+            return ['products' => [], 'clarification' => 'Which product type would you like to browse?', 'clarification_code' => 'identify_product_type'];
+        }
         if (preg_match('/\b(?:any brand|all brands|remove (?:the )?brand(?: filter)?)\b/iu', $canonical)) {
             $intent['brand'] = '';
             $intent['excluded_brands'] = [];
@@ -74,6 +82,10 @@ class ChatbotCatalogSelection
             $price['error'] = 'Please provide a price range whose minimum is below its maximum.';
         }
         if ($price['error'] !== null) {
+            if ($intent['intent'] === 'branch_availability' || $intent['branch'] !== '') {
+                app(ChatbotFailureTrace::class)->recordBranchSearch(null, 'invalid_intent', 0);
+            }
+
             return ['products' => [], 'clarification' => $price['error'], 'clarification_code' => 'invalid_price_range'];
         }
         $constraints = [...$intent, ...$price];
@@ -96,26 +108,23 @@ class ChatbotCatalogSelection
         } elseif ($mentions !== []) {
             $ids = array_values(array_map('intval', Product::query()->customerEligible()->where(fn ($query) => $query->whereIn('name', $mentions)->orWhereIn('product_code', $mentions))->limit(6)->pluck('id')->all()));
         }
-        if (($explicitPrevious || $scope === 'named') && ! $alternatives && ($ids === [] || $ids === null)) {
+        $branchSearch = $intent['intent'] === 'branch_availability' || $intent['branch'] !== '';
+        if (($explicitPrevious || $scope === 'named') && ! $alternatives && ($ids === [] || $ids === null) && ! $branchSearch) {
             return ['products' => [], 'clarification' => 'Which product do you mean? Please provide its catalog name.', 'clarification_code' => 'identify_product'];
         }
         $category = array_search($intent['category_key'], ChatbotProductRanking::FAMILIES, true);
         $query = in_array($intent['category_key'], ['laptop', 'desktop'], true) ? $intent['category_key'] : ($category ?: $intent['search_query']);
-        $literalSource = $intent['search_query'] !== '' ? $this->prices->resolve(app(ChatbotLanguage::class)->canonical($intent['search_query']), $intent)['query'] : $price['query'];
-        $literalSource = trim(preg_replace('/\b(?:no budget|any price|remove (?:the )?(?:budget|price limit)|any brand|all brands|remove (?:the )?brand(?: filter)?)\b/iu', '', $literalSource) ?? $literalSource);
-        $literalQuery = trim(preg_replace('/^(?:available|do you have|show me)\s+/iu', '', $literalSource) ?? $literalSource, ' ?.!');
-        $literal = app(CatalogSearchIntent::class)->resolve($literalQuery);
-        if ($literal !== null && ! preg_match('/\b(?:recommend|compare|not|without|except|excluding|for)\b/iu', $literalQuery)) {
-            $query = $literalQuery;
-        }
-        if ($intent['intent'] === 'branch_availability' || $intent['branch'] !== '') {
-            $query = app(ChatbotBranchAvailability::class)->stockCatalogQuery($query);
-            if ($followUp && app(CatalogSearchIntent::class)->resolve($query) === null) {
-                $query = in_array($intent['category_key'], ['laptop', 'desktop'], true) ? $intent['category_key'] : ($category ?: ($previous['search_query'] ?? $query));
+        if (! $branchSearch) {
+            $literalSource = $intent['search_query'] !== '' ? $this->prices->resolve(app(ChatbotLanguage::class)->canonical($intent['search_query']), $intent)['query'] : $price['query'];
+            $literalSource = trim(preg_replace('/\b(?:no budget|any price|remove (?:the )?(?:budget|price limit)|any brand|all brands|remove (?:the )?brand(?: filter)?)\b/iu', '', $literalSource) ?? $literalSource);
+            $literalSource = app(ChatbotLanguage::class)->withoutStockTiming($literalSource);
+            $literalQuery = trim(preg_replace('/^(?:available|do you have|show me)\s+/iu', '', $literalSource) ?? $literalSource, ' ?.!');
+            if (app(CatalogSearchIntent::class)->resolve($literalQuery) !== null && ! preg_match('/\b(?:recommend|compare|not|without|except|excluding|for)\b/iu', $literalQuery)) {
+                $query = $literalQuery;
             }
-        }
-        if ($followUp && ($query === '' || $intent['category_key'] === 'other')) {
-            $query = $previous['search_query'] ?? $query;
+            if ($followUp && ($query === '' || $intent['category_key'] === 'other')) {
+                $query = $previous['search_query'] ?? $query;
+            }
         }
         $broad = preg_match('/^\s*(?:what products (?:do you have|are available)|what do you (?:sell|have)|browse (?:the )?catalog|(?:cheapest|most expensive) (?:products|items)(?: including accessories)?)\s*[?.!]*$/iu', $message) === 1;
         if ($broad) {
@@ -124,38 +133,71 @@ class ChatbotCatalogSelection
         if (preg_match('/\bincluding accessories\b/iu', $message)) {
             $constraints['product_role'] = 'any';
         }
-        $anchors = $ids ?? ($alternatives ? ($intent['position'] > 0 ? (isset($previousIds[$intent['position'] - 1]) ? [$previousIds[$intent['position'] - 1]] : []) : $previousIds) : []);
+        $anchors = $ids ?? ($alternatives ? ($comparisonPosition > 0 ? array_slice($previousIds, $comparisonPosition - 1, 1) : $previousIds) : []);
         if ($alternatives) {
             if (count($anchors) !== 1) {
-                return ['products' => [], 'clarification' => 'Please identify one exact product for alternatives.', 'clarification_code' => 'identify_alternative_anchor'];
+                return ['products' => [], 'clarification' => $price['cheaper']
+                    ? 'Which product should I compare prices with? You can also give me a maximum budget.'
+                    : 'Please identify one exact product for alternatives.', 'clarification_code' => 'identify_alternative_anchor'];
             }
             $anchor = $this->facts->forProduct($anchors[0])['products'][0] ?? null;
             if ($anchor === null) {
                 return ['products' => [], 'clarification' => 'The referenced product is no longer available in the catalog.', 'clarification_code' => 'product_unavailable'];
             }
-            $query = $anchor['category'];
+            $query = $followUp && ($previous['search_query'] ?? '') !== '' ? $previous['search_query'] : $anchor['category'];
             $classification = $this->ranking->classify($anchor['category'], $anchor['name']);
             if (in_array($classification['product_family'], ['laptop', 'desktop'], true)) {
                 $query = $classification['product_family'];
             }
             if ($price['cheaper']) {
-                $price['maximum'] = (string) ($anchor['discount_price'] ?? $anchor['price']);
-                $price['maximum_inclusive'] = false;
+                $anchorPrice = (string) ($anchor['discount_price'] ?? $anchor['price']);
+                if ($price['maximum'] === null || bccomp($anchorPrice, $price['maximum'], 2) <= 0) {
+                    $price['maximum'] = $anchorPrice;
+                    $price['maximum_inclusive'] = false;
+                }
                 $price['sort'] = 'asc';
                 $constraints = [...$constraints, ...$price];
             }
             $ids = null;
         }
+        $request = null;
+        if ($branchSearch) {
+            try {
+                $request = app(ResolveBranchStockSearch::class)->resolve($canonical, $intent, $constraints, $previous, $ids);
+                $ids = $request->productIds;
+                $constraints = array_replace($constraints, $request->filters);
+                $intent['brand'] = $request->filters['brand'];
+                $query = $request->scope['label'] ?? '';
+                if ($request->location['outcome'] === 'sagay'
+                    && (! $request->canCheckStock() || $ids === [] || ($scope === 'named' && $ids === null))) {
+                    app(ChatbotFailureTrace::class)->recordBranchSearch($request, 'unresolved_input', 0);
+
+                    return ['products' => [], 'clarification' => 'Which product do you mean? Please provide its catalog name.', 'clarification_code' => 'identify_product'];
+                }
+                $localIds = array_values(array_map('intval', $this->catalog->branchStockCandidates($request)->modelKeys()));
+                if ($ids !== null && $price['sort'] === null) {
+                    $localIds = array_values(array_intersect($ids, $localIds));
+                }
+                $branchProducts = $this->facts->forProducts($localIds);
+            } catch (QueryException $exception) {
+                app(ChatbotFailureTrace::class)->recordBranchSearch($request, 'retrieval_failure', 0);
+
+                throw $exception;
+            }
+        }
         $exact = $ids !== null;
         $provenance = ['exact_sql' => $ids ?? []];
-        if ($exact) {
+        if ($request !== null) {
+            $context = ['products' => $branchProducts];
+            $provenance = [$exact ? 'exact_sql' : 'lexical_sql' => $localIds];
+        } elseif ($exact) {
             $context = ['products' => $this->facts->forProducts($ids)];
         } else {
             $local = $this->catalog->chatbotCandidates($query, $constraints);
             $localIds = array_map('intval', $local->modelKeys());
             $rankings = [$localIds];
             $extreme = $price['sort'] !== null;
-            if (config('ai_integration.full_catalog_pipeline') || (! $extreme && ($intent['intent'] === 'recommendation' || $intent['use_case'] !== '' || $local->isEmpty()))) {
+            if (! isset($intent['other_than_brand']) && (config('ai_integration.full_catalog_pipeline') || (! $extreme && ($intent['intent'] === 'recommendation' || $intent['use_case'] !== '' || $local->isEmpty())))) {
                 $semanticFilters = ['product_role' => $constraints['product_role']];
                 if (in_array($intent['category_key'], ['laptop', 'desktop'], true)) {
                     $semanticFilters['product_family'] = $intent['category_key'];
@@ -184,7 +226,7 @@ class ChatbotCatalogSelection
                 $context['products'] = [...$context['products'], ...$this->facts->forProducts(array_values($representatives->modelKeys()))];
             }
         }
-        $products = collect($context['products'])->unique('id')->filter(function (array $product) use ($price, $constraints, $exact, $intent, $alternatives, $anchors): bool {
+        $products = collect($context['products'])->unique('id')->filter(function (array $product) use ($price, $constraints, $exact, $intent, $alternatives, $anchors, $request): bool {
             if (! $this->prices->matches($price, $product)) {
                 return false;
             }
@@ -203,7 +245,7 @@ class ChatbotCatalogSelection
                     return false;
                 }
             }
-            if ($exact && ! in_array($intent['intent'], ['comparison', 'compatibility'], true) && $intent['category_key'] !== 'other') {
+            if ($request === null && $exact && ! in_array($intent['intent'], ['comparison', 'compatibility'], true) && $intent['category_key'] !== 'other') {
                 $classification = $this->ranking->classify($product['category'], $product['name']);
                 $families = $intent['category_key'] === 'computer' ? ['computer', 'laptop', 'desktop'] : [$intent['category_key']];
                 if (! in_array($classification['product_family'], $families, true)
@@ -211,7 +253,7 @@ class ChatbotCatalogSelection
                     return false;
                 }
             }
-            if ($constraints['availability'] === 'in_stock' && ! in_array($product['inventory']['status'], ['in_stock', 'low_stock'], true)) {
+            if (($request !== null || $constraints['availability'] === 'in_stock') && ! in_array($product['inventory']['status'], ['in_stock', 'low_stock'], true)) {
                 return false;
             }
 
@@ -247,6 +289,9 @@ class ChatbotCatalogSelection
                 'price' => array_intersect_key($price, array_flip(['sort', 'minimum', 'maximum', 'minimum_inclusive', 'maximum_inclusive'])),
                 'product_role' => $constraints['product_role'], 'brand' => $intent['brand'], 'capacity' => $intent['capacity'],
                 'excluded_brands' => $constraints['excluded_brands'], 'use_case' => $intent['use_case']]];
+        if ($request?->productIds !== null) {
+            $context['selection_constraints']['branch_product_ids'] = $request->productIds;
+        }
         if ($products === []) {
             $labels = array_filter([$intent['brand'], $intent['category_key'] === 'other' ? 'the requested product' : $intent['category_key'],
                 $price['minimum'] !== null ? ($price['minimum_inclusive'] ? 'at least' : 'above').' PHP '.$price['minimum'] : '',
@@ -254,7 +299,7 @@ class ChatbotCatalogSelection
                 $constraints['excluded_brands'] !== [] ? 'excluding '.implode(', ', $constraints['excluded_brands']) : '']);
             $context['no_match_message'] = 'I found no available products matching these constraints: '.implode(', ', $labels).'. Try changing the brand, model or budget.';
             $context['recovery_options'] = [];
-            if (! $exact && app(ChatbotProviderBudget::class)->remainingSeconds() > 1) {
+            if (! $exact && ($request === null || $request->canCheckStock()) && app(ChatbotProviderBudget::class)->remainingSeconds() > 1) {
                 foreach (['brand', 'budget'] as $field) {
                     $relaxed = $constraints;
                     $relaxedQuery = $query;
@@ -273,17 +318,32 @@ class ChatbotCatalogSelection
                         }
                         $relaxed['minimum'] = $relaxed['maximum'] = null;
                     }
-                    if ($this->catalog->chatbotCandidates($relaxedQuery, $relaxed, useProvider: false)->isNotEmpty()) {
+                    $recovery = $request === null
+                        ? $this->catalog->chatbotCandidates($relaxedQuery, $relaxed, useProvider: false)
+                        : $this->catalog->branchStockCandidates(new BranchStockSearch($request->scope, null, array_replace($request->filters, array_intersect_key($relaxed, $request->filters)), $request->location));
+                    if ($recovery->isNotEmpty()) {
                         $context['recovery_options'][] = $field;
                     }
                 }
             }
         }
 
-        if ($intent['intent'] === 'branch_availability' || $intent['branch'] !== '') {
-            $branchContext = app(ChatbotBranchAvailability::class)->resolve($message, $intent, $context);
+        if ($request !== null) {
+            $context = app(ChatbotBranchAvailability::class)->reply($request, $context);
+            $trace->recordBranchSearch($request, match ($request->location['outcome']) {
+                'sagay' => $products === [] ? 'zero_matches' : 'matched',
+                'unresolved' => 'unresolved_input',
+                default => $request->location['outcome'],
+            }, count($context['products']));
+        }
 
-            return $branchContext;
+        if (isset($intent['other_than_brand']) && ($request === null || $request->canCheckStock()) && ! isset($context['clarification'])) {
+            $context['shopping_message'] = match (true) {
+                $products !== [] && $intent['other_than_brand'] !== '' => 'There are other brands in stock at Sagay for this search.',
+                $products !== [] => 'Here are the current brand options in stock at Sagay for this search.',
+                $intent['other_than_brand'] !== '' => 'I found no other identifiable brands in stock at Sagay for this search.',
+                default => 'I found no available brand options matching this search.',
+            };
         }
 
         return $context;

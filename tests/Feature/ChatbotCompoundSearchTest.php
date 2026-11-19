@@ -82,6 +82,50 @@ test('simple public catalog questions remain eligible for model led understandin
     expect(app(ModelLedChatbot::class)->eligible('Do you have motherboards?'))->toBeTrue();
 });
 
+test('current availability wording does not hide products in a branchless compound search', function (string $question, array $families) {
+    config(['scout.driver' => 'null', 'ai_integration.localization_enabled' => true]);
+    $names = ['Monitor' => 'Acer Monitor', 'Motherboard' => 'Biostar H610M Motherboard', 'RAM' => 'Kingston Fury RAM', 'Printer' => 'PRINTER CANON PIXMA E410'];
+    $products = [];
+    foreach ($families as $family) {
+        $products[] = Product::factory()->available()->for(Category::factory()->state(['name' => $family]))->create(['name' => $names[$family]]);
+    }
+
+    $reply = app(ChatbotConversation::class)->respond($question, null, null, 'current-stock');
+
+    expect($reply['presentation']['sections'])->toHaveCount(2);
+    foreach ($products as $index => $product) {
+        expect(array_column($reply['presentation']['sections'][$index]['products'], 'id'))->toBe([$product->id]);
+    }
+    Http::assertNothingSent();
+})->with([
+    'reported Tagalog wording' => ['meron kayo monitor at motherboard ngayon?', ['Monitor', 'Motherboard']],
+    'reversed Tagalog categories' => ['meron kayo motherboard at monitor ngayon?', ['Motherboard', 'Monitor']],
+    'Hiligaynon' => ['may ara kamo RAM kag printer subong?', ['RAM', 'Printer']],
+    'Cebuano' => ['naa moy printer ug RAM karon?', ['Printer', 'RAM']],
+    'English' => ['Do you have motherboard and monitor right now?', ['Motherboard', 'Monitor']],
+    'English timing with a conjunction' => ['Do you have a motherboard and monitor at the moment?', ['Motherboard', 'Monitor']],
+]);
+
+test('model-led compound search retains a model filter when the interpreted query includes stock timing', function () {
+    config(['scout.driver' => 'null', 'ai_integration.enabled' => true, 'ai_integration.model_led' => true,
+        'ai_integration.multipart' => true, 'ai_integration.gemini.max_calls' => 1]);
+    $monitor = Product::factory()->available()->for(Category::factory()->state(['name' => 'Monitor']))->create(['name' => 'Acer Monitor']);
+    $category = Category::factory()->create(['name' => 'Motherboard']);
+    $board = Product::factory()->available()->for($category)->create(['name' => 'Biostar H610M Motherboard']);
+    Product::factory()->available()->for($category)->create(['name' => 'Biostar B450M Motherboard']);
+    $parts = app(ChatbotMultipartResponse::class)->categoryList('monitor and motherboard');
+    $parts[1]['search_query'] = 'H610M motherboard ngayon';
+    ChatbotMultipartUnderstandingAgent::fake([[...$parts[0], 'parts' => $parts, 'parts_overflow' => false]])->preventStrayPrompts();
+
+    $reply = app(ChatbotConversation::class)->respond('meron kayo monitor at H610M motherboard ngayon?', null, null, 'model-current-stock');
+
+    expect($reply['presentation']['sections'])->toHaveCount(2);
+    expect(array_column($reply['presentation']['sections'][0]['products'], 'id'))->toBe([$monitor->id]);
+    expect(array_column($reply['presentation']['sections'][1]['products'], 'id'))->toBe([$board->id]);
+    ChatbotMultipartUnderstandingAgent::assertPrompted(fn ($prompt): bool => str_contains($prompt->prompt, 'H610M'));
+    Http::assertNothingSent();
+});
+
 test('local compound catalog requests return both categories without providers', function (string $question) {
     $ram = Product::factory()->available()->for(Category::factory()->state(['name' => 'RAM']))->create(['name' => 'Kingston Fury RAM 16GB']);
     $board = Product::factory()->available()->for(Category::factory()->state(['name' => 'Motherboard']))->create(['name' => 'MSI B550 Motherboard']);
@@ -315,7 +359,7 @@ test('branch questions escape compound product state and pending section clarifi
     Http::assertNothingSent();
 })->with(['may ara branch sa sagay?', 'branch in sagay?', 'Do you have a branch in Sagay?', 'What are your Sagay opening hours?'])->with([false, true]);
 
-test('new support topics do not inherit a pending product section', function (string $question, string $action) {
+test('new support topics do not inherit a pending product section', function (string $question, array $actions) {
     compoundCatalogFixture();
     $chat = app(ChatbotConversation::class);
     $reply = $chat->respond('RAM and motherboard', null, null, 'support-topic');
@@ -324,12 +368,12 @@ test('new support topics do not inherit a pending product section', function (st
     $reply = $chat->respond($question, null, $reply['context_token'], 'support-topic');
 
     expect($reply['message'])->not->toContain('Which product section');
-    expect(array_column($reply['presentation']['actions'], 'kind'))->toContain($action);
+    expect(array_column($reply['presentation']['actions'], 'kind'))->toBe($actions);
     Http::assertNothingSent();
 })->with([
-    ['Where is my order?', 'login'],
-    ['What payment methods do you accept?', 'login'],
-    ['Tell me a joke', 'catalog'],
+    ['Where is my order?', ['login']],
+    ['What payment methods do you accept?', []],
+    ['Tell me a joke', ['catalog']],
 ]);
 
 test('a priced new product family does not refine an old section', function () {
@@ -342,4 +386,72 @@ test('a priced new product family does not refine an old section', function () {
 
     expect($reply['message'])->toContain($monitor->name)->not->toContain('Which product section');
     Http::assertNothingSent();
+});
+
+test('independent keyword and brand searches end old compound prompts', function (string $question, string $category, string $name, string $brand) {
+    compoundCatalogFixture();
+    $product = Product::factory()->available()->for(Category::factory()->state(['name' => $category]))
+        ->create(['name' => $name, 'brand' => $brand]);
+    $chat = app(ChatbotConversation::class);
+    $first = $chat->respond('RAM and motherboard', null, null, 'new-keyword');
+    $pending = $chat->respond('under PHP 2000', null, $first['context_token'], 'new-keyword');
+    expect($pending['message'])->toContain('Which product section');
+
+    $reply = $chat->respond($question, null, $pending['context_token'], 'new-keyword');
+
+    expect(array_column($reply['presentation']['products'], 'id'))->toBe([$product->id]);
+    expect($reply['presentation']['choices'])->toBe([]);
+    expect(app(ChatbotConversationToken::class)->decode($reply['context_token'], 'new-keyword:guest'))
+        ->not->toHaveKeys(['multipart_sections', 'pending_section', 'pending_compound']);
+    Http::assertNothingSent();
+})->with([
+    'bare brand' => ['brother?', 'Printer', 'BROTHER INK BTD100BK', 'Brother'],
+    'keyword outside the saved families' => ['pad', 'Cooling Components', 'Laptop Cooler Pad Mikuso NCP-078', 'Mikuso'],
+    'Hiligaynon availability' => ['may ara kamo blower?', 'Cleaning & Maintenance Supplies', 'Electric Blower Upspirit', 'Upspirit'],
+    'Cebuano availability' => ['naa moy charger?', 'Power Accessories', 'Charger for Laptop Acer', 'Acer'],
+    'Tagalog availability' => ['meron kayo coin?', 'Vending & Coin-Op Machine Parts', 'COINSLOT ALLAN 1239', 'Allan'],
+]);
+
+test('a subtype from an active compound search selects only its section', function () {
+    $storage = Category::factory()->create(['name' => 'Storage']);
+    $ssd = Product::factory()->available()->for($storage)->create(['name' => 'Atlas SSD 512GB']);
+    $hdd = Product::factory()->available()->for($storage)->create(['name' => 'Atlas HDD 1TB']);
+    $chat = app(ChatbotConversation::class);
+    $first = $chat->respond('SSD and HDD', null, null, 'storage-sections');
+
+    $reply = $chat->respond('HDD price', null, $first['context_token'], 'storage-sections');
+
+    expect($reply['message'])->toContain($hdd->name)->not->toContain($ssd->name, 'Which product section');
+});
+
+test('compound requests distinguish a mouse from a mouse pad', function () {
+    $peripherals = Category::factory()->create(['name' => 'Peripherals']);
+    $mouse = Product::factory()->available()->for($peripherals)->create(['name' => 'Atlas Gaming Mouse']);
+    $pad = Product::factory()->available()->for($peripherals)->create(['name' => 'Atlas Mouse-Pad']);
+
+    $reply = app(ChatbotConversation::class)->respond('mouse and mouse pad', null, null, 'mouse-types');
+
+    expect(array_column($reply['presentation']['sections'], 'heading'))->toBe(['Mouse', 'Mouse pads']);
+    expect(array_column($reply['presentation']['sections'][0]['products'], 'id'))->toBe([$mouse->id]);
+    expect(array_column($reply['presentation']['sections'][1]['products'], 'id'))->toBe([$pad->id]);
+});
+
+test('pad coin and blower stay independent over consecutive turns after a compound search', function () {
+    Product::factory()->available()->for(Category::factory()->state(['name' => 'Laptops & Desktops']))->create(['name' => 'Atlas Laptop']);
+    Product::factory()->available()->for(Category::factory()->state(['name' => 'RAM']))->create(['name' => 'Atlas Laptop RAM']);
+    $chat = app(ChatbotConversation::class);
+    $reply = $chat->respond('laptop and RAM', null, null, 'keyword-sequence');
+    expect($reply['presentation']['sections'])->toHaveCount(2);
+
+    foreach ([
+        ['pad', 'Cooling Components', 'Laptop Cooler Pad Mikuso NCP-078'],
+        ['coin', 'Vending & Coin-Op Machine Parts', 'COINSLOT ALLAN 1239'],
+        ['may ara kamo blower?', 'Cleaning & Maintenance Supplies', 'Electric Blower Upspirit'],
+    ] as [$question, $category, $name]) {
+        $product = Product::factory()->available()->for(Category::factory()->state(['name' => $category]))->create(['name' => $name]);
+        $reply = $chat->respond($question, null, $reply['context_token'], 'keyword-sequence');
+
+        expect(array_column($reply['presentation']['products'], 'id'))->toBe([$product->id]);
+        expect($reply['presentation']['choices'])->toBe([]);
+    }
 });

@@ -96,12 +96,28 @@ class ModelLedChatbot
             $intent = $this->resolvePendingCpuClarification($message, $state);
             if ($intent === null) {
                 unset($state['pending_clarification']);
-                $intent = $this->ai->understand($message, $public);
+                $intent = $this->ai->understand($message, $public, requiresReviewedDraft: (int) config('ai_integration.gemini.max_calls', 3) >= 3);
             }
             if (($intent['clarification'] ?? null) === 'cpu_meaning'
                 && (app(CatalogSearchIntent::class)->resolve(trim($this->language->canonical($message), ' ?.!'))['category'] ?? null) === 'Processor') {
                 $intent = [...$intent, 'outcome' => 'supported', 'intent' => 'discovery', 'category_key' => 'processor',
                     'search_query' => 'processor', 'clarification' => 'none'];
+            }
+            $catalog = app(CatalogSearchIntent::class);
+            $requested = trim($this->language->withoutStockTiming($this->language->canonical($message)), ' ?.!');
+            $requested = preg_replace('/^(?:available|do you have|show me)\s+(?:(?:a|an|the)\s+)?/iu', '', $requested) ?? $requested;
+            $literal = $catalog->resolveStandalone($requested);
+            $discovery = $intent !== null && in_array($intent['intent'], ['discovery', 'facts', 'branch_availability'], true);
+            $knownProductType = $literal !== null && $catalog->chatbotProductNamePatterns($literal['category'], $literal['query']) !== [];
+            $standaloneBrand = $discovery && $literal === null && preg_match('/^\p{L}[\p{L}\p{N}-]*(?: \p{L}[\p{L}\p{N}-]*){0,2}$/u', $requested)
+                ? Product::query()->customerEligible()->whereRaw('LOWER(brand) = ?', [mb_strtolower($requested)])->value('brand')
+                : null;
+            if ($discovery && ($knownProductType || $standaloneBrand !== null)) {
+                $intent = [...$intent, 'parts' => [], 'parts_overflow' => false, 'outcome' => 'supported',
+                    'intent' => 'discovery', 'clarification' => 'none', 'operation' => 'new_search', 'reference' => 'new',
+                    'category_key' => ChatbotProductRanking::FAMILIES[$literal['category'] ?? ''] ?? 'other', 'search_query' => $requested,
+                    'brand' => $standaloneBrand ?? '', 'capacity' => '', 'branch' => '', 'use_case' => '', 'product_mentions' => [], 'constraint_updates' => [],
+                    'minimum_php' => null, 'maximum_php' => null, 'excluded_brands' => [], 'price_scope' => 'catalog', 'position' => 0, 'sort' => 'relevance'];
             }
             if (config('ai_integration.multipart') && ! ($intent['parts_overflow'] ?? false)) {
                 $parts = $compound['parts'] ?? app(ChatbotMultipartResponse::class)->categoryList($message);
@@ -120,6 +136,14 @@ class ModelLedChatbot
                 $source = $result['source'];
 
                 return $result;
+            }
+            if (! in_array($pendingCatalog['reason'] ?? null, ['unknown_branch', 'ambiguous_branch'], true)) {
+                $brandDiscovery = app(ChatbotBranchAvailability::class)->brandDiscoveryIntent($message, $state);
+                if ($brandDiscovery !== null) {
+                    $intent = $brandDiscovery;
+                    $pendingCatalog = null;
+                    unset($state['pending_catalog']);
+                }
             }
             if ($intent !== null && is_array($pendingCatalog)) {
                 $resumed = $this->resumePendingCatalog($message, $intent, $pendingCatalog);
@@ -182,6 +206,9 @@ class ModelLedChatbot
                         $pending = $this->pendingCatalog($message, $intent, $context['clarification_code'] ?? null);
                         if ($pending !== null) {
                             $state['pending_catalog'] = $pending;
+                            if (isset($context['selection_constraints']) && in_array($context['clarification_code'], ['unknown_branch', 'ambiguous_branch'], true)) {
+                                $state['model_constraints'] = $context['selection_constraints'];
+                            }
                         }
                     } elseif (($context['products'] ?? []) === [] && ($context['branches'] ?? []) === [] && ($context['knowledge'] ?? []) === [] && ! isset($context['guidance'])) {
                         $trace->record('no_match', 'retrieval');
@@ -325,8 +352,9 @@ class ModelLedChatbot
         if (is_array($original) && in_array($pending['reason'] ?? null, ['unknown_branch', 'ambiguous_branch'], true)
             && $intent['outcome'] === 'supported' && ($intent['branch'] ?? '') !== ''
             && in_array($intent['intent'], ['store', 'discovery', 'branch_availability'], true)) {
-            return ['intent' => [...$original, 'branch' => $intent['branch'], 'intent' => 'branch_availability', 'language' => $intent['language'], 'clarification' => 'none'],
-                'message' => $original['search_query'].' at '.$intent['branch'].' branch'];
+            return ['intent' => [...$original, 'branch' => $intent['branch'], 'intent' => 'branch_availability', 'language' => $intent['language'],
+                'clarification' => 'none', 'operation' => 'refine', 'reference' => 'previous', 'constraint_updates' => []],
+                'message' => $message];
         }
         if (! is_array($original)
             || $intent['outcome'] !== 'supported'

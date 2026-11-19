@@ -10,7 +10,7 @@ use App\Services\Chatbot\ChatbotLocalizedResponse;
 class ResolveFaqContext
 {
     public function __construct(
-        private MatchChatbotKnowledge $knowledge = new MatchChatbotKnowledge,
+        private ?MatchChatbotKnowledge $knowledge = null,
         private ClassifyChatbotInquiry $boundary = new ClassifyChatbotInquiry,
     ) {}
 
@@ -21,7 +21,7 @@ class ResolveFaqContext
             return ['knowledge' => []];
         }
 
-        $matches = $this->knowledge->bestMatches($message, allowSemantic: true);
+        $matches = ($this->knowledge ?? app(MatchChatbotKnowledge::class))->bestMatches($message, allowSemantic: true);
         $records = $language !== 'en' && config('ai_integration.localization_enabled')
             ? ChatbotKnowledge::query()->active()->whereIn('id', array_column($matches, 'id'))->get()->keyBy('id') : collect();
 

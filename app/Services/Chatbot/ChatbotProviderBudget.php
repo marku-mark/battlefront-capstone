@@ -127,9 +127,9 @@ class ChatbotProviderBudget
         return true;
     }
 
-    public function reserveRetry(string $input): bool
+    public function reserveRetry(string $input, int $downstreamCalls = 0): bool
     {
-        if ($this->calls + $this->prepaidCalls >= max(1, min(3, (int) config('ai_integration.gemini.max_calls', 3)))) {
+        if ($this->calls + $this->prepaidCalls + $downstreamCalls >= max(1, min(3, (int) config('ai_integration.gemini.max_calls', 3)))) {
             return false;
         }
         $prepaid = $this->prepaidCalls;

@@ -104,12 +104,14 @@ class ResolveProductContext
         $requiresReasoning = $this->requiresReasoning($semanticMessage ?? $message);
         $reasoningProducts = $requiresReasoning && $useCatalogIntent
             ? $this->products->chatbotSearch($catalogQuery, useProvider: false) : null;
-        if (! $requiresReasoning && ($this->isShortSearch($message) || $useCatalogIntent)) {
+        $shortSearch = $this->isShortSearch($message);
+        if (! $requiresReasoning && ($shortSearch || $useCatalogIntent)) {
             $search = $useCatalogIntent ? $catalogQuery : $message;
-            $useProvider = ! $useCatalogIntent && config('scout.driver') === 'algolia';
-            $matches = $this->products->chatbotSearch($search, useProvider: $useProvider);
+            $useProvider = config('scout.driver') === 'algolia';
+            $preferLocal = $shortSearch && $useCatalogIntent && app(CatalogSearchIntent::class)->resolveStandalone($message) !== null;
+            $matches = $this->products->chatbotSearch($search, useProvider: $useProvider && ! $preferLocal);
             if ($useProvider && $matches->isEmpty()) {
-                $matches = $this->products->chatbotSearch($search, useProvider: false);
+                $matches = $this->products->chatbotSearch($search, useProvider: $preferLocal);
             }
             if ($matches->isNotEmpty()) {
                 if (config('ai_integration.enabled')) {
@@ -234,7 +236,7 @@ class ResolveProductContext
     {
         $normalizedMessage = $this->normalizedText($message);
 
-        return $this->namedProducts($message)->isNotEmpty() || $this->products->contextMatches($this->meaningfulTerms($message, canonical: false))
+        return $this->namedProductCandidates($message)->isNotEmpty() || $this->products->contextMatches($this->meaningfulTerms($message, canonical: false), loadRelations: false)
             ->contains(fn (Product $product): bool => $this->messageNamesProduct($normalizedMessage, $product));
     }
 
@@ -249,9 +251,9 @@ class ResolveProductContext
         }
         $candidates = $this->products->contextMatches($this->meaningfulTerms($message), limit: 6, includeDescription: false);
 
-        $productIds = array_values($candidates->map(fn (Product $product): int => $product->id)->all());
+        $terms = $this->meaningfulTerms($message, canonical: false);
 
-        return $this->clarificationChoices($productIds, $message) !== [];
+        return $terms !== [] && $this->matchingChoices($candidates, $terms) !== [];
     }
 
     private function catalogSearchQuery(string $message): ?string
@@ -275,9 +277,15 @@ class ResolveProductContext
     /** @return Collection<int, Product> */
     public function namedProducts(string $message): Collection
     {
+        return $this->namedProductCandidates($message)->loadMissing(['category', 'inventory', 'tags']);
+    }
+
+    /** @return Collection<int, Product> */
+    private function namedProductCandidates(string $message): Collection
+    {
         $normalized = $this->normalizedText($message);
 
-        return app(ChatbotProviderBudget::class)->memoize('named-products:'.hash('sha256', $message), fn (): Collection => Product::query()->customerEligible()->with(['category', 'inventory', 'tags'])
+        return app(ChatbotProviderBudget::class)->memoize('named-products:'.hash('sha256', $message), fn (): Collection => Product::query()->customerEligible()
             ->whereRaw('INSTR(LOWER(?), LOWER(name)) > 0', [$message])
             ->orderBy('name')->orderBy('id')->limit(6)->get()
             ->filter(fn (Product $product): bool => $this->messageNamesProduct($normalized, $product)));
@@ -299,19 +307,28 @@ class ResolveProductContext
             return [];
         }
 
-        return array_values(Product::query()->customerEligible()->with(['category:id,name', 'tags:id,name'])
+        return $this->matchingChoices(Product::query()->customerEligible()->with(['category:id,name', 'tags:id,name'])
             ->whereIn('id', array_slice($productIds, 0, 6))->limit(6)->get()
-            ->sortBy(fn (Product $product): int => (int) array_search($product->id, $productIds, true))
-            ->filter(function (Product $product) use ($terms): bool {
-                $text = ' '.$this->normalizedText(implode(' ', [$product->name, $product->brand, $product->category->name, ...$product->tags->pluck('name')->all()])).' ';
-                foreach ($terms as $term) {
-                    if (! str_contains($text, ' '.$term.' ')) {
-                        return false;
-                    }
-                }
+            ->sortBy(fn (Product $product): int => (int) array_search($product->id, $productIds, true)), $terms);
+    }
 
-                return true;
-            })
+    /**
+     * @param  Collection<int, Product>  $products
+     * @param  list<string>  $terms
+     * @return list<array{id: int, name: string}>
+     */
+    private function matchingChoices(Collection $products, array $terms): array
+    {
+        return array_values($products->filter(function (Product $product) use ($terms): bool {
+            $text = ' '.$this->normalizedText(implode(' ', [$product->name, $product->brand, $product->category->name, ...$product->tags->pluck('name')->all()])).' ';
+            foreach ($terms as $term) {
+                if (! str_contains($text, ' '.$term.' ')) {
+                    return false;
+                }
+            }
+
+            return true;
+        })
             ->map(fn (Product $product): array => ['id' => $product->id, 'name' => $product->name])->all());
     }
 

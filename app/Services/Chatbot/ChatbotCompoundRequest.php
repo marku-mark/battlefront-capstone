@@ -3,6 +3,7 @@
 namespace App\Services\Chatbot;
 
 use App\Actions\Chatbot\ClassifyChatbotInquiry;
+use App\Actions\Chatbot\Context\ResolveProductContext;
 use App\Enums\ChatbotQueryCategory;
 use App\Models\Product;
 use App\Repositories\Catalog\CatalogSearchIntent;
@@ -66,6 +67,14 @@ class ChatbotCompoundRequest
 
             return ['parts' => $parts, 'state' => $state, 'clarification' => null, 'follow_up' => false];
         }
+        if (preg_match('/^(?:available|do you have|show me|looking for|i need|i want)\s+(?!(?:it|this|that|these|those|both|anything|any|cheaper|in|at|sa)\b)\p{L}/iu', $language->withoutStockTiming($price['query']))) {
+            return null;
+        }
+        if ((isset($state['pending_compound']) || isset($state['multipart_sections']))
+            && app(CatalogSearchIntent::class)->resolveStandalone($clean) === null
+            && app(ResolveProductContext::class)->namedProducts($message)->isNotEmpty()) {
+            return null;
+        }
         if (isset($state['pending_compound'])) {
             $pending = $state['pending_compound'];
             $selected = $this->matching($clean, $pending['parts']);
@@ -92,10 +101,15 @@ class ChatbotCompoundRequest
         }
         $interpreted = $language->interpret($query);
         $brand = $this->mentionedBrand($query);
+        if ($brand !== '' && ! $shared && mb_strtolower($query) === mb_strtolower($brand)) {
+            return null;
+        }
         if ($brand !== '') {
             $fields['brand'] = $brand;
         }
-        if (preg_match('/\b(?:any brand|all brands)\b/iu', $query)) {
+        if (preg_match('/\b(?:other|another|different) brands?\b/iu', $query)) {
+            $fields['other_brand'] = true;
+        } elseif (preg_match('/\b(?:any brand|all brands)\b/iu', $query)) {
             $fields['clear_brand'] = true;
         }
         if ($interpreted['capacity'] !== null) {
@@ -121,6 +135,17 @@ class ChatbotCompoundRequest
             }
             $previousBrand = $intent['brand'];
             $intent = [...$intent, ...($state['pending_section'] ?? []), ...$fields, 'reference' => 'previous', 'operation' => 'refine'];
+            if ($intent['other_brand'] ?? false) {
+                $refinement = app(ChatbotBranchAvailability::class)->shoppingIntent('any other brand', [
+                    'active' => 'product',
+                    'model_constraints' => $sections[$index]['constraints'],
+                    'references' => ['product' => $sections[$index]['product_ids']],
+                ]);
+                if ($refinement !== null) {
+                    $intent = [...$intent, ...array_intersect_key($refinement, array_flip(['brand', 'other_than_brand', 'constraint_updates']))];
+                }
+                unset($intent['other_brand']);
+            }
             if (preg_match('/\b(first|second|third)\b/iu', $query, $ordinal)) {
                 $intent['position'] = ['first' => 1, 'second' => 2, 'third' => 3][mb_strtolower($ordinal[1])];
                 $intent['intent'] = 'facts';
@@ -185,11 +210,15 @@ class ChatbotCompoundRequest
      * @return list<int> */
     private function matching(string $query, array $parts): array
     {
-        $catalog = app(CatalogSearchIntent::class)->resolve($query);
+        $catalog = app(CatalogSearchIntent::class);
+        $requested = $catalog->knownStockScope($query);
+        $category = $requested['category'] ?? $catalog->resolve($query)['category'] ?? null;
+        $subtype = $requested['query'] ?? '';
         $matches = [];
         foreach ($parts as $index => $part) {
-            $original = app(CatalogSearchIntent::class)->resolve($part['search_query']);
-            if ($catalog !== null && $original !== null && $catalog['category'] === $original['category']) {
+            $original = $catalog->resolve($part['search_query']);
+            if ($category !== null && $category === ($original['category'] ?? null)
+                && ($subtype === '' || $subtype === ($catalog->knownStockScope($part['search_query'])['query'] ?? null))) {
                 $matches[] = $index;
             }
         }

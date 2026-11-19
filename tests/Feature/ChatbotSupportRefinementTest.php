@@ -77,6 +77,12 @@ test('cancellation and delivery guidance preserves financial boundaries', functi
     expect($rules->execute('delivery_quote')['guidance'])->toContain('Visayas/NIR PHP 170.00', 'If pricing for your region is unavailable', 'Older orders');
 });
 
+test('public payment and delivery guidance does not ask guests to sign in', function (string $question) {
+    $this->postJson('/chatbot', ['message' => $question])
+        ->assertOk()
+        ->assertJsonPath('presentation.actions', []);
+})->with(['What payment methods can I use?', 'How are delivery fees and delivery times estimated?']);
+
 test('every quick question reaches its intended support answer without a provider call', function (string $question, string $answer) {
     $this->seed(DevelopmentChatbotKnowledgeSeeder::class);
     $result = app(ChatbotOrchestrationService::class)->respond($question);

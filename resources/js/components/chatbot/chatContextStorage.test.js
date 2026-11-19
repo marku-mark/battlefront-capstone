@@ -245,7 +245,8 @@ test('multipart presentations retain bounded labeled product sections through sa
     const section = {
         heading: 'Keyboards', intro: '', products: [{
             id: 7, name: 'Example Keyboard', price: '900.00', stock: 'In stock at Sagay',
-            labels: { name: 'Product name', price: 'Price', stock: 'Availability' },
+            labels: { name: 'Product name', price: 'Price', stock: 'Availability', view: 'View Product' },
+            notice: 'Demo product for evaluation.',
         }],
         sections: [{ heading: 'Nested', intro: 'Not allowed' }],
     };
@@ -253,6 +254,8 @@ test('multipart presentations retain bounded labeled product sections through sa
     assert.equal(result.sections.length, 3);
     assert.equal(result.sections[0].heading, 'Keyboards');
     assert.equal(result.sections[0].products[0].labels.price, 'Price');
+    assert.equal(result.sections[0].products[0].labels.view, 'View Product');
+    assert.equal(result.sections[0].products[0].notice, 'Demo product for evaluation.');
     assert.equal(result.sections[0].sections, undefined);
     assert.equal(safePresentation({ intro: 'Ordinary reply' }).sections, undefined);
 });

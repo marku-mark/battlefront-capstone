@@ -5,6 +5,7 @@ namespace App\Repositories\Catalog;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\Tag;
+use App\Services\Chatbot\BranchStockSearch;
 use App\Services\Chatbot\ChatbotProductRanking;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
@@ -85,19 +86,52 @@ class ProductCatalogRepository
      * @return EloquentCollection<int, Product> */
     public function chatbotCandidates(string $search, array $constraints = [], ?array $ids = null, bool $useProvider = false): EloquentCollection
     {
+        return $this->readChatbotCandidates($search, $constraints, $ids, $useProvider, null);
+    }
+
+    /** @param list<int>|null $candidateIds
+     * @return EloquentCollection<int, Product> */
+    public function branchStockCandidates(BranchStockSearch $request, ?array $candidateIds = null): EloquentCollection
+    {
+        if (! $request->canCheckStock()) {
+            return new EloquentCollection;
+        }
+
+        $ids = $request->productIds;
+        if ($candidateIds !== null) {
+            $ids = $ids === null ? $candidateIds : array_values(array_intersect($ids, $candidateIds));
+        }
+
+        return $this->readChatbotCandidates('', $request->filters, $ids, false, $request->scope);
+    }
+
+    /** @param array<string, mixed> $constraints
+     * @param list<int>|null $ids
+     * @param array{category: string, query: string, label: string}|null $stockScope
+     * @return EloquentCollection<int, Product> */
+    private function readChatbotCandidates(string $search, array $constraints, ?array $ids, bool $useProvider, ?array $stockScope): EloquentCollection
+    {
         $priceSort = $constraints['sort'] ?? null;
         $minimum = $constraints['minimum'] ?? null;
         $maximum = $constraints['maximum'] ?? null;
         $minimumInclusive = $constraints['minimum_inclusive'] ?? true;
         $maximumInclusive = $constraints['maximum_inclusive'] ?? true;
-        $intent = app(CatalogSearchIntent::class)->resolve($search);
+        $intent = $stockScope ?? app(CatalogSearchIntent::class)->resolve($search);
         $computerType = null;
         if (($intent['category'] ?? null) === 'Laptops & Desktops' && preg_match('/^(laptop|desktop)(?:\s|$)/u', $intent['query'], $subtype)) {
             $computerType = $subtype[1];
             $intent['query'] = trim(substr($intent['query'], strlen($computerType)));
         }
-        $query = $this->catalogQuery(['q' => $search], $intent, $useProvider)->customerAvailable()
+        $query = $this->catalogQuery(['q' => $search], $intent, $useProvider, chatbot: true)->customerAvailable()
             ->with('inventory:id,product_id,quantity,reorder_level');
+        if ($stockScope !== null) {
+            $this->whereSearchCategory($query, $stockScope['category']);
+            foreach (explode(' ', $intent['query']) as $term) {
+                if ($term !== '') {
+                    $this->whereChatbotCatalogTerm($query, $term, $stockScope['category']);
+                }
+            }
+        }
         if ($computerType !== null) {
             $patterns = $computerType === 'laptop' ? ['%laptop%', '%notebook%', '%macbook%'] : ['%desktop%', '%system unit%', '%pc%', '%cpu%'];
             $query->where(function (Builder $computer) use ($patterns): void {
@@ -119,7 +153,7 @@ class ProductCatalogRepository
                 $query->whereRaw(new Expression($ranking->primarySql()));
             }
         }
-        if ($search === '' && ($constraints['product_role'] ?? null) !== 'any') {
+        if ($search === '' && $stockScope === null && ($constraints['product_role'] ?? null) !== 'any') {
             $ranking->prioritize($query);
         }
         foreach (['brand', 'capacity'] as $field) {
@@ -135,6 +169,10 @@ class ProductCatalogRepository
             }
         }
 
+        if (($constraints['other_than_brand'] ?? '') !== '') {
+            $query->whereRaw("TRIM(COALESCE(products.brand, '')) <> ''")
+                ->whereRaw('LOWER(TRIM(products.brand)) <> ?', [mb_strtolower($constraints['other_than_brand'])]);
+        }
         foreach ($constraints['excluded_brands'] ?? [] as $brand) {
             if ($brand !== '') {
                 $pattern = '%'.strtr(mb_strtolower($brand), ['!' => '!!', '%' => '!%', '_' => '!_']).'%';
@@ -183,7 +221,7 @@ class ProductCatalogRepository
     public function chatbotSemanticMatches(array $ids, ?string $search = null): EloquentCollection
     {
         $intent = $search === null ? null : app(CatalogSearchIntent::class)->resolve($search);
-        $query = $this->catalogQuery($search === null ? [] : ['q' => $search], $intent, useProvider: false)
+        $query = $this->catalogQuery($search === null ? [] : ['q' => $search], $intent, useProvider: false, chatbot: true)
             ->customerAvailable()->whereIn('products.id', array_slice($ids, 0, 20))
             ->with('inventory:id,product_id,quantity,reorder_level');
         if ($intent !== null) {
@@ -213,7 +251,7 @@ class ProductCatalogRepository
             'Storage' => ['%enclosure%', '%external case%', '%card reader%', '%adapter%', '%cable%'],
             'CCTV & Security' => ['%cable%', '%balun%', '%power supply%', '%hdd%', '%sd card%', '%otg%', '%nap box%'],
             'Networking' => ['%adapter%', '%adaptor%', '%cable%', '%connector%', '%coupler%'],
-            'Peripherals' => ['%mousepad%', '%mouse pad%', '%keycap%', '%keyboard cover%'],
+            'Peripherals' => ['%mousepad%', '%mouse pad%', '%mouse-pad%', '%keycap%', '%keyboard cover%'],
             'Monitor' => ['%bracket%', '%wall mount%'],
             'Cooling Components' => ['%thermal paste%', '%thermal grease%'],
             'Power Accessories' => preg_match('/\b(ups|avr)\b/u', $intent['query']) ? ['%battery%', '%cable%', '%adapter%', '%adaptor%'] : [],
@@ -242,6 +280,34 @@ class ProductCatalogRepository
         } else {
             $query->orderByRaw('CASE WHEN '.implode(' AND ', $conditions).' THEN 0 ELSE 1 END', $bindings);
         }
+    }
+
+    /** @param Builder<Product> $query */
+    private function whereCatalogTerm(Builder $query, string $term): void
+    {
+        $query->where(function (Builder $query) use ($term): void {
+            $pattern = '%'.strtr($term, ['!' => '!!', '%' => '!%', '_' => '!_']).'%';
+            foreach (['product_code', 'name', 'brand', 'description'] as $column) {
+                $query->orWhereRaw("LOWER({$column}) LIKE LOWER(?) ESCAPE '!'", [$pattern]);
+            }
+        });
+    }
+
+    /** @param Builder<Product> $query */
+    private function whereChatbotCatalogTerm(Builder $query, string $term, string $category): void
+    {
+        $patterns = app(CatalogSearchIntent::class)->chatbotProductNamePatterns($category, $term);
+        if ($patterns === []) {
+            $this->whereCatalogTerm($query, $term);
+
+            return;
+        }
+
+        $query->where(function (Builder $match) use ($patterns): void {
+            foreach ($patterns as $pattern) {
+                $match->orWhereRaw('LOWER(products.name) LIKE ?', [$pattern]);
+            }
+        });
     }
 
     /** @param Builder<Product> $query */
@@ -274,7 +340,7 @@ class ProductCatalogRepository
      * @param  array<int, int>  $excludedProductIds
      * @return EloquentCollection<int, Product>
      */
-    public function contextMatches(array $terms, int $limit = 5, bool $availableOnly = false, array $excludedProductIds = [], bool $includeDescription = true): EloquentCollection
+    public function contextMatches(array $terms, int $limit = 5, bool $availableOnly = false, array $excludedProductIds = [], bool $includeDescription = true, bool $loadRelations = true): EloquentCollection
     {
         $matches = (new Product)->newCollection();
 
@@ -319,7 +385,7 @@ class ProductCatalogRepository
             }
         }
 
-        return $matches->load(['category:id,name', 'inventory:id,product_id,quantity,reorder_level', 'tags:id,name']);
+        return $loadRelations ? $matches->load(['category:id,name', 'inventory:id,product_id,quantity,reorder_level', 'tags:id,name']) : $matches;
     }
 
     /**
@@ -495,7 +561,7 @@ class ProductCatalogRepository
      * @param  array{category: string, query: string}|null  $intent
      * @return Builder<Product>
      */
-    private function catalogQuery(array $filters = [], ?array $intent = null, bool $useProvider = true): Builder
+    private function catalogQuery(array $filters = [], ?array $intent = null, bool $useProvider = true, bool $chatbot = false): Builder
     {
         return Product::query()
             ->customerEligible()
@@ -509,21 +575,30 @@ class ProductCatalogRepository
                 'tags:id,name',
             ])
             ->withExists('lowStockInventory as is_low_stock')
-            ->when($filters['q'] ?? null, function (Builder $query, string $search) use ($intent, $useProvider): void {
-                $quoted = app(CatalogSearchIntent::class)->quotedSearch($search);
-                $search = $quoted['query'] ?? app(CatalogSearchIntent::class)->normalizeQuery($search);
+            ->when($filters['q'] ?? null, function (Builder $query, string $search) use ($intent, $useProvider, $chatbot): void {
+                $catalogIntent = app(CatalogSearchIntent::class);
+                $quoted = $catalogIntent->quotedSearch($search);
+                $original = $quoted['query'] ?? $catalogIntent->normalizeQuery($search);
+                $search = $original;
                 if ($intent !== null) {
                     $this->whereSearchCategory($query, $intent['category']);
                     $search = $intent['query'];
-                    if ($search === '') {
+                    if ($search === '' && ! $chatbot) {
                         return;
                     }
                 }
 
-                $ids = ! $useProvider || trim($search) === '' ? null : app(CatalogSearch::class)->matchingIds($search);
+                $providerQuery = $search === '' && $chatbot ? $original : $search;
+                $ids = $useProvider && trim($providerQuery) !== '' ? app(CatalogSearch::class)->matchingIds($providerQuery) : null;
 
                 if ($ids !== null) {
                     $query->whereKey($ids);
+                    if ($chatbot && $intent !== null) {
+                        $scope = $catalogIntent->knownStockScope($original);
+                        if ($scope !== null && $catalogIntent->chatbotProductNamePatterns($scope['category'], $scope['query']) !== []) {
+                            $this->whereChatbotCatalogTerm($query, $scope['query'], $scope['category']);
+                        }
+                    }
                 }
 
                 $terms = $quoted['phrases'] ?? [];
@@ -533,12 +608,11 @@ class ProductCatalogRepository
                         : (preg_split('/\s+/u', $search, -1, PREG_SPLIT_NO_EMPTY) ?: []);
                 }
                 foreach ($terms as $term) {
-                    $query->where(function (Builder $query) use ($term): void {
-                        $pattern = '%'.strtr($term, ['!' => '!!', '%' => '!%', '_' => '!_']).'%';
-                        foreach (['product_code', 'name', 'brand', 'description'] as $column) {
-                            $query->orWhereRaw("LOWER({$column}) LIKE LOWER(?) ESCAPE '!'", [$pattern]);
-                        }
-                    });
+                    if ($chatbot && $intent !== null) {
+                        $this->whereChatbotCatalogTerm($query, $term, $intent['category']);
+                    } else {
+                        $this->whereCatalogTerm($query, $term);
+                    }
                 }
             })
             ->when(

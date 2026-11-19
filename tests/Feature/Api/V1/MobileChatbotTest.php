@@ -72,8 +72,13 @@ test('mobile chatbot uses shared product store and FAQ context with the resource
     $response = $this->post('/api/v1/chatbot', ['message' => $message])
         ->assertOk()->assertJsonCount(1)
         ->assertJsonCount(5, 'data')
-        ->assertJsonPath('data.message', $topic === 'faq' ? $fact : 'Approved answer.')
         ->assertJsonPath('data.source', $topic === 'faq' ? 'fallback' : 'gemini');
+    if ($topic === 'product') {
+        $response->assertJsonPath('data.presentation.products.0.name', 'Aurelius Mouse');
+        expect($response->json('data.message'))->toContain('Approved answer.', 'Product name: Aurelius Mouse', 'Price: PHP 123.45', 'Availability:', 'Link: View Product /products/'.$product->id);
+    } else {
+        $response->assertJsonPath('data.message', $topic === 'faq' ? $fact : 'Approved answer.');
+    }
     expect($response->json('data.context_token'))->toBeString();
     if ($topic === 'faq') {
         ChatbotResponseAgent::assertNeverPrompted();

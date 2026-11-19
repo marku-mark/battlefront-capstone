@@ -155,3 +155,13 @@ test('administrators receive no customer memory resume identity', function () {
         ->where('chatbotMemory.enabled', false)
         ->where('chatbotMemory.identity', null));
 });
+
+test('a new turn loads outgoing durable state only once', function () {
+    Product::factory()->available()->create(['name' => 'Atlas Monitor X240']);
+    ChatbotResponseAgent::fake(fn () => throw new AiException)->preventStrayPrompts();
+    $this->partialMock(ChatbotMemory::class)->shouldReceive('load')->once()->passthru();
+
+    $response = app(ChatbotConversation::class)->respond('Atlas Monitor X240', null, null, 'web:test');
+
+    expect($response['context_token'])->not->toBeNull();
+});

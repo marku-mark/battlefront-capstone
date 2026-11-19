@@ -17,19 +17,21 @@ class ChatbotMultipartResponse
     /** @return list<array<string, mixed>> */
     public function categoryList(string $message): array
     {
-        $query = app(ChatbotLanguage::class)->canonical(str_replace(["\r\n", "\r", "\n"], ';', $message));
+        $language = app(ChatbotLanguage::class);
+        $query = $language->canonical(str_replace(["\r\n", "\r", "\n"], ';', $message));
         $branchIntent = app(ChatbotBranchAvailability::class)->catalogQuery($query) !== $query
             ? app(ChatbotBranchAvailability::class)->localIntent($message) : ['branch' => ''];
         if ($branchIntent['branch'] !== '') {
             $query = app(ChatbotBranchAvailability::class)->catalogQuery($query);
         }
+        $query = $language->withoutStockTiming($query);
         $query = preg_replace('/^(?:price(?: and stock)?|stock|details|specifications) of\s+/iu', '', trim($query)) ?? $query;
         $query = preg_replace('/^(?:please\s+)?(?:do you have|can i have|i need|i want|i am looking for|looking for|show me|available)\s+/iu', '', trim($query)) ?? $query;
         $query = preg_replace('/(\bbetween\s+(?:PHP\s*|\x{20B1}\s*)?[\d,.]+\s*k?)\s+and\s+(?=(?:PHP\s*|\x{20B1}\s*)?\d)/iu', '$1 __price_and__ ', $query) ?? $query;
         $clauses = preg_split('/\s*(?:,(?!\d)|;|\R|&|\s\/\s|\b(?:and|at|kag|ug|og|pati|tsaka)\b)\s*/iu', trim($query, ' ?.!')) ?: [];
         $parts = [];
         foreach (array_filter($clauses) as $clause) {
-            $clause = str_replace('__price_and__', 'and', $clause);
+            $clause = $language->withoutStockTiming(str_replace('__price_and__', 'and', $clause));
             if (preg_match('/^(?:not|without|except|exclude|under|below|above|budget)\b/iu', trim($clause))) {
                 return [];
             }
@@ -66,7 +68,7 @@ class ChatbotMultipartResponse
         $query = $intent['search_query'] ?? '';
         $catalog = app(CatalogSearchIntent::class)->resolve($query);
         $canonical = app(ChatbotLanguage::class)->canonical($query);
-        foreach (['Wi-Fi' => '/\bwi[ -]?fi\b/iu', 'Keyboards' => '/\bkeyboards?\b/iu', 'Mouse' => '/\b(?:mouse|mice)\b/iu', 'SSD' => '/\bssd\b/iu', 'HDD' => '/\bhdd\b/iu', 'Headsets' => '/\bheadsets?\b/iu'] as $label => $pattern) {
+        foreach (['Wi-Fi' => '/\bwi[ -]?fi\b/iu', 'Keyboards' => '/\bkeyboards?\b/iu', 'Mouse pads' => '/\bmouse[ -]?pads?\b/iu', 'Mouse' => '/\b(?:mouse|mice)\b/iu', 'SSD' => '/\bssd\b/iu', 'HDD' => '/\bhdd\b/iu', 'Headsets' => '/\bheadsets?\b/iu'] as $label => $pattern) {
             if (preg_match($pattern, $canonical) === 1) {
                 return $label;
             }
@@ -150,9 +152,9 @@ class ChatbotMultipartResponse
                     if (isset($context['products'])) {
                         $context['products'] = array_slice($context['products'], 0, 3);
                     }
-                    $text = $context['clarification'] ?? app(RenderChatbotFallback::class)->execute($category, $query, $context)
+                    $text = $context['clarification'] ?? $context['shopping_message'] ?? app(RenderChatbotFallback::class)->execute($category, $query, $context)
                         ?? 'I could not find verified information for this part. Please ask it separately or contact the store.';
-                    $resolved = $category === ChatbotQueryCategory::Product && ! isset($context['clarification'])
+                    $resolved = $category === ChatbotQueryCategory::Product && ! isset($context['clarification']) && ! isset($context['shopping_message'])
                         && app(ChatbotGroundedResponse::class)->conversationalEvidence($context) !== [];
                 }
                 $canGenerate = $canGenerate && $resolved;
@@ -195,7 +197,9 @@ class ChatbotMultipartResponse
                         $start += mb_strlen($section['heading'].":\n\n");
                         $end = isset($presentations[$index + 1]) ? mb_strpos($draft['text'], $presentations[$index + 1]['heading'].":\n\n", $start) : false;
                         $intro = trim($end === false ? mb_substr($draft['text'], $start) : mb_substr($draft['text'], $start, $end - $start));
-                        $intro = app(ChatbotPresentation::class)->withoutProductFields($intro, $section['products']);
+                        if ($section['products'] !== []) {
+                            $intro = app(ChatbotPresentation::class)->withoutProductFields($intro, $section['products'], $language);
+                        }
                         if ($intro !== '') {
                             $section['intro'] = $intro;
                         }
@@ -218,19 +222,7 @@ class ChatbotMultipartResponse
                 }
                 $presentation['choices'] = array_slice([...$presentation['choices'], ...$section['choices']], 0, 6);
             }
-            $result['message'] = implode("\n\n", array_map(function (array $section): string {
-                $body = $section['intro'];
-                if ($section['products'] !== []) {
-                    $body = ($body !== '' ? $body."\n\n" : '').implode("\n\n", array_map(function (array $product): string {
-                        return $product['labels']['name'].': '.$product['name']."\n"
-                            .$product['labels']['price'].': PHP '.number_format((float) $product['price'], 2)."\n"
-                            .$product['labels']['stock'].': '.$product['stock']."\nLink: ".$product['labels']['view']
-                            .(! empty($product['notice']) ? "\n".$product['notice'] : '');
-                    }, $section['products']));
-                }
-
-                return $section['heading'].":\n\n".$body;
-            }, $presentations));
+            $result['message'] = app(ChatbotPresentation::class)->plainText($presentation, $result['message']);
         }
 
         Log::info('Chatbot multipart reply completed.', [

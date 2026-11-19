@@ -6,14 +6,36 @@ use App\Enums\ChatbotCategory;
 use App\Models\ChatbotKnowledge;
 use App\Services\Chatbot\ChatbotLanguage;
 use App\Services\Chatbot\SemanticFaqCandidates;
+use Closure;
+use Illuminate\Container\Attributes\Scoped;
 use Illuminate\Support\Str;
 
+#[Scoped]
 class MatchChatbotKnowledge
 {
     /** @var list<string> */
     private const QUERY_WORDS = ['a', 'about', 'an', 'and', 'are', 'at', 'be', 'can', 'could', 'do', 'does', 'for', 'how', 'i', 'in', 'is', 'it', 'me', 'my', 'of', 'or', 'please', 'tell', 'the', 'to', 'use', 'what', 'which', 'with', 'you', 'your'];
 
+    /** @var array<string, list<array{id: int, question_pattern: string, response_template: string, relevance: int, exact: bool}>>|null */
+    private ?array $lexicalMatches = null;
+
     public function __construct(private ClassifyChatbotInquiry $boundary = new ClassifyChatbotInquiry) {}
+
+    /**
+     * @template TResult
+     *
+     * @param  Closure(): TResult  $respond
+     * @return TResult
+     */
+    public function withinTurn(Closure $respond): mixed
+    {
+        $this->lexicalMatches = [];
+        try {
+            return $respond();
+        } finally {
+            $this->lexicalMatches = null;
+        }
+    }
 
     /**
      * Match approved question wording only; answer text is never a routing signal.
@@ -65,7 +87,10 @@ class MatchChatbotKnowledge
     /** @return list<array{id: int, question_pattern: string, response_template: string, relevance: int, exact: bool}> */
     public function bestMatches(string $message, bool $allowSemantic = false): array
     {
-        $matches = $this->execute($message);
+        $key = $this->normalize($message)."\n".(new ChatbotLanguage)->normalized($message);
+        $matches = $this->lexicalMatches === null
+            ? $this->execute($message)
+            : ($this->lexicalMatches[$key] ??= $this->execute($message));
         if ($matches === [] && $allowSemantic) {
             $ids = app(SemanticFaqCandidates::class)->ids($message);
 

@@ -82,7 +82,9 @@ test('classifier keeps identifiers and private provider text out of prompts and 
 
     ChatbotIntentAgent::assertPrompted(fn (AgentPrompt $prompt): bool => ! str_contains($prompt->prompt, 'BF-000045')
         && ! str_contains($prompt->prompt, 'testing-only') && $prompt->timeout === 20 && $prompt->provider()->name() === 'gemini');
-    Log::shouldHaveReceived('info')->once()->with('Chatbot provider attempt completed.', Mockery::on(fn (array $context): bool => ! str_contains(json_encode($context), 'purchase') && ! str_contains(json_encode($context), 'BF-000045')));
+    $safeContext = Mockery::on(fn (array $context): bool => ! str_contains(json_encode($context), 'purchase') && ! str_contains(json_encode($context), 'BF-000045'));
+    Log::shouldHaveReceived('info')->with('Chatbot provider attempt completed.', $safeContext)->once();
+    Log::shouldHaveReceived('info')->with('Chatbot stage finished.', $safeContext)->once();
 });
 
 test('inferred personal orders still require authentication and identification', function () {

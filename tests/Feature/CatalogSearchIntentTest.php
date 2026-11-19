@@ -7,6 +7,7 @@ test('common part names resolve to actual catalog categories', function (string 
 })->with([
     [' CPU ', 'Processor', ''], ['processor', 'Processor', ''], ['CPU AMD', 'Processor', 'amd'],
     ['ram 16GB', 'RAM', '16gb'], ['memory', 'RAM', ''], ['mobo', 'Motherboard', ''],
+    ['computer RAM', 'RAM', ''], ['computer RAM 16GB', 'RAM', '16gb'],
     ['mainboard', 'Motherboard', ''], ['gpu', 'Graphics Card', ''], ['video card', 'Graphics Card', ''],
     ['storage', 'Storage', ''], ['SSD', 'Storage', 'ssd'], ['solid state drive 1TB', 'Storage', 'ssd 1tb'],
     ['HDD', 'Storage', 'hdd'], ['hard disk', 'Storage', 'hdd'], ['NVMe 1TB', 'Storage', 'nvme 1tb'],

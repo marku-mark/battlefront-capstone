@@ -247,7 +247,7 @@ function messageParagraphs(message) {
     const products = message.presentation?.products ?? [];
     const actions = (message.presentation?.actions ?? []).filter((action) =>
         action.kind !== 'product' || !products.some((product) => product.id === action.id));
-    const paragraphs = (message.presentation?.intro ?? message.content)
+    const paragraphs = (message.presentation?.intro || (products.length ? '' : message.content) || '')
         .split(/\n\s*\n/)
         .reduce((groups, text) => {
             const previous = groups.at(-1);
@@ -559,7 +559,7 @@ async function submitMessage(quickQuestion = null, freshContext = true) {
                                         <span v-for="action in entry.actions" :key="action.id">Link: <Link
                                             :href="actionUrl(action)"
                                             class="text-primary-ink focus-visible:ring-ring underline focus-visible:ring-2"
-                                        >View Product</Link></span>
+                                        >{{ action.view_label ?? 'View Product' }}</Link></span>
                                     </div>
                                     <template v-if="section">
                                         <dl
@@ -588,27 +588,26 @@ async function submitMessage(quickQuestion = null, freshContext = true) {
                                                 <strong>{{ product.labels?.name ?? 'Product name' }}:</strong> {{ product.name }}
                                             </p>
                                             <p>
-                                                <strong>{{ product.labels?.price ?? 'Price' }}:</strong> ₱
-                                                {{
-                                                    Number(
-                                                        product.price,
-                                                    ).toLocaleString('en-PH', {
+                                                <strong>{{ product.labels?.price ?? 'Price' }}:</strong>
+                                                <template v-if="product.price === null">{{ product.unavailable_price ?? 'Price unavailable' }}</template>
+                                                <template v-else>₱ {{
+                                                    product.price.toLocaleString('en-PH', {
                                                         minimumFractionDigits: 2,
                                                         maximumFractionDigits: 2,
                                                     })
-                                                }}
+                                                }}</template>
                                             </p>
                                             <p><strong>{{ product.labels?.stock ?? 'Availability' }}:</strong> {{ product.stock }}</p>
+                                            <span><strong>Link:</strong> <Link
+                                                :href="ProductCatalogController.show.url(product.id)"
+                                                class="text-primary-ink focus-visible:ring-ring underline focus-visible:ring-2"
+                                            >{{ product.labels?.view ?? 'View Product' }}</Link></span>
                                             <p
                                                 v-if="product.notice"
                                                 class="text-muted-foreground"
                                             >
                                                 {{ product.notice }}
                                             </p>
-                                            <span><strong>Link:</strong> <Link
-                                                :href="ProductCatalogController.show.url(product.id)"
-                                                class="text-primary-ink focus-visible:ring-ring underline focus-visible:ring-2"
-                                            >{{ product.labels?.view ?? 'View Product' }}</Link></span>
                                         </div>
                                     </template>
                                     </template>
@@ -630,7 +629,7 @@ async function submitMessage(quickQuestion = null, freshContext = true) {
                                                 )
                                             "
                                             class="text-primary-ink focus-visible:ring-ring underline focus-visible:ring-2"
-                                            >Browse matching products</Link
+                                            >{{ message.presentation.browse_label || 'Browse matching products' }}</Link
                                         >
                                         <template
                                             v-for="(action, index) in remainingActions(message)"

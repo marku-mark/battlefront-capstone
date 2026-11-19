@@ -2,6 +2,7 @@
 
 use App\Ai\Agents\ChatbotResponseAgent;
 use App\Ai\Agents\ChatbotUnderstandingAgent;
+use App\Models\Product;
 use App\Services\Chatbot\ChatbotAiAdapter;
 use App\Services\Chatbot\ChatbotProviderBudget;
 use Illuminate\Support\Facades\Http;
@@ -133,5 +134,18 @@ test('legacy answer generation also switches Gemini models on provider limits', 
     expect($result['successful'])->toBeTrue();
     expect($seen)->toBe(['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite']);
     expect(app(ChatbotProviderBudget::class)->usage()['calls'])->toBe(2);
+    Http::assertNothingSent();
+});
+
+test('understanding skips failover when the remaining calls must fund drafting and review', function () {
+    Product::factory()->available()->create(['name' => 'Atlas SSD', 'price' => 2000, 'discount_price' => null]);
+    ChatbotUnderstandingAgent::fake(fn () => throw RateLimitedException::forProvider('gemini'))->preventStrayPrompts();
+
+    $response = $this->postJson('/chatbot', ['message' => 'What is the price of Atlas SSD?'])
+        ->assertOk()->assertJsonPath('source', 'fallback');
+
+    expect($response->json('message'))->toContain('Atlas SSD', '2,000.00')
+        ->and(app(ChatbotProviderBudget::class)->usage()['calls'])->toBe(1);
+    ChatbotUnderstandingAgent::assertPromptedTimes(1);
     Http::assertNothingSent();
 });

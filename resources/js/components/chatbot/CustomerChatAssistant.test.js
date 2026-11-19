@@ -71,6 +71,28 @@ function functionSource(name) {
     );
 }
 
+test('a damaged multipart reply falls back to readable message text', () => {
+    const paragraphs = runInNewContext('(' + functionSource('messageParagraphs') + ')');
+    const presentation = safePresentation({ intro: '', sections: [{ heading: 'Invalid' }] });
+
+    assert.equal(presentation.sections, undefined);
+    assert.equal(paragraphs({ presentation, content: 'Readable fallback.' })[0].text, 'Readable fallback.');
+});
+
+test('product presentation distinguishes unknown prices from a verified zero', () => {
+    const products = [null, '', '0.00'].map((price, index) => ({
+        id: index + 1,
+        name: 'Catalog product',
+        stock: 'In stock',
+        price,
+        unavailable_price: 'Walay kumpirmadong presyo',
+    }));
+    const presentation = safePresentation({ intro: 'Catalog reply', products });
+
+    assert.deepEqual(presentation.products.map((product) => product.price), [null, null, 0]);
+    assert.equal(presentation.products[0].unavailable_price, 'Walay kumpirmadong presyo');
+});
+
 test('slow requests show waiting feedback after five seconds and clear it on completion', () => {
     const pendingWatch = script.scriptSetupAst.find((node) =>
         node.type === 'ExpressionStatement' && node.expression?.callee?.name === 'watch'
@@ -364,7 +386,7 @@ test('product links follow their full descriptions without duplicating the botto
     } });
     assert.equal(repeated.length, 2);
     assert.equal(repeated[0].actions[0].id, 1);
-    assert.match(descriptor.template.content, /v-for="action in entry.actions"[\s\S]*?>Link: <Link[\s\S]*?>View Product<\/Link>/);
+    assert.match(descriptor.template.content, /v-for="action in entry.actions"[\s\S]*?>Link: <Link[\s\S]*?\{\{ action.view_label/);
     const url = runInNewContext(`(${functionSource('actionUrl')})`, {
         ProductCatalogController: { show: { url: (id) => `/products/${id}` } },
     });
@@ -390,6 +412,12 @@ test('structured product cards own product links and prose never becomes inferre
     assert.equal(context.remaining(message)[0], browse);
     const reasoning = 'Atlas Router costs PHP 850.00 less. Performance cannot be inferred from price.';
     assert.equal(context.paragraphs({ presentation: { intro: reasoning, actions: [product] } })[0].text, reasoning);
+});
+
+test('product cards keep the four labeled fields together before the demo notice', () => {
+    const card = descriptor.template.content.match(/v-for="product in section.products"[\s\S]*?{{ product.notice }}/)?.[0];
+    assert.ok(card);
+    assert.match(card, /product\.labels\?\.name[\s\S]*product\.labels\?\.price[\s\S]*product\.labels\?\.stock[\s\S]*Link:<\/strong>[\s\S]*ProductCatalogController\.show\.url\(product\.id\)[\s\S]*product\.labels\?\.view[\s\S]*v-if="product.notice"/);
 });
 
 test("timeout preserves question and rejects a late response", async () => {

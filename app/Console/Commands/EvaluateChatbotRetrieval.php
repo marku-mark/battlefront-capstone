@@ -61,7 +61,7 @@ class EvaluateChatbotRetrieval extends Command
         }
         $positiveCases = count(array_filter($data['cases'], fn (array $case): bool => $case['relevant_product_ids'] !== []));
         $negativeCases = count($data['cases']) - $positiveCases;
-        $totals = array_fill_keys(['algolia', 'qdrant', 'rrf'], ['recall_at_10' => 0.0, 'mrr_at_10' => 0.0, 'precision_at_10' => 0.0, 'zero_result_cases' => 0, 'false_positive_cases' => 0]);
+        $totals = array_fill_keys(['algolia', 'qdrant', 'rrf'], ['recall_at_10' => 0.0, 'mrr_at_10' => 0.0, 'precision_at_10' => 0.0, 'precision_among_returned' => 0.0, 'zero_result_cases' => 0, 'false_positive_cases' => 0]);
         $results = [];
         foreach ($data['cases'] as $case) {
             $scores = [];
@@ -84,17 +84,20 @@ class EvaluateChatbotRetrieval extends Command
                         break;
                     }
                 }
-                $metrics[$source] = ['recall_at_10' => $recall, 'mrr_at_10' => $reciprocal, 'top_ids' => $top];
+                $precision = $recall !== null ? $relevant / 10 : null;
+                $precisionAmongReturned = $recall !== null ? $relevant / max(1, count($top)) : null;
+                $metrics[$source] = ['recall_at_10' => $recall, 'mrr_at_10' => $reciprocal, 'precision_at_10' => $precision, 'precision_among_returned' => $precisionAmongReturned, 'top_ids' => $top];
                 $totals[$source]['recall_at_10'] += $recall;
                 $totals[$source]['mrr_at_10'] += $reciprocal;
-                $totals[$source]['precision_at_10'] += $case['relevant_product_ids'] !== [] ? $relevant / max(1, count($top)) : 0;
+                $totals[$source]['precision_at_10'] += $precision;
+                $totals[$source]['precision_among_returned'] += $precisionAmongReturned;
                 $totals[$source]['zero_result_cases'] += (int) ($ids === []);
                 $totals[$source]['false_positive_cases'] += (int) ($case['relevant_product_ids'] === [] && $ids !== []);
             }
             $results[] = ['id' => $case['id'], 'metrics' => $metrics];
         }
         foreach ($totals as &$metrics) {
-            foreach (['recall_at_10', 'mrr_at_10', 'precision_at_10'] as $metric) {
+            foreach (['recall_at_10', 'mrr_at_10', 'precision_at_10', 'precision_among_returned'] as $metric) {
                 $metrics[$metric] = $positiveCases > 0 ? $metrics[$metric] / $positiveCases : null;
             }
             $metrics['false_positive_rate'] = $negativeCases > 0 ? $metrics['false_positive_cases'] / $negativeCases : null;
@@ -106,7 +109,8 @@ class EvaluateChatbotRetrieval extends Command
             $depthSummary[$depth] = $this->depthMetrics($data['cases'], $depth);
         }
         $this->line(json_encode([
-            'mode' => 'offline_snapshot', 'catalog_version' => $data['catalog_version'],
+            'mode' => 'offline_snapshot', 'metrics_version' => 2, 'catalog_version' => $data['catalog_version'],
+            'precision_denominators' => ['precision_at_10' => 10, 'precision_among_returned' => 'max(1, returned in top 10)'],
             'dataset_hash' => hash('sha256', json_encode($data, JSON_THROW_ON_ERROR)),
             'cases' => count($results), 'rrf_k' => 60, 'summary' => $totals, 'results' => $results,
             'positive_cases' => $positiveCases, 'negative_cases' => $negativeCases,

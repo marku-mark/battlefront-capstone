@@ -5,6 +5,7 @@ use App\Enums\ChatbotCategory;
 use App\Models\ChatbotKnowledge;
 use Database\Seeders\BranchSeeder;
 use Database\Seeders\DevelopmentChatbotKnowledgeSeeder;
+use Illuminate\Support\Facades\DB;
 
 test('returns only relevant active FAQ knowledge', function () {
     $activeFaq = ChatbotKnowledge::factory()->create([
@@ -102,3 +103,17 @@ test('returns explicit empty FAQ context when no managed knowledge matches', fun
     'empty input' => ['  ...  '],
     'no relevant knowledge' => ['Do you provide technical training?'],
 ]);
+
+test('routing and FAQ resolution share one lexical fetch', function () {
+    $message = 'How do I search for products?';
+    ChatbotKnowledge::factory()->create([
+        'category' => ChatbotCategory::Faq,
+        'question_pattern' => $message,
+        'response_template' => 'Approved search guidance.',
+    ]);
+    DB::enableQueryLog();
+
+    $this->postJson('/chatbot', ['message' => $message])->assertOk()->assertJsonPath('message', 'Approved search guidance.');
+    expect(collect(DB::getQueryLog())
+        ->filter(fn (array $query): bool => str_contains($query['query'], 'chatbot_knowledge') && str_contains($query['query'], 'translations')))->toHaveCount(1);
+});

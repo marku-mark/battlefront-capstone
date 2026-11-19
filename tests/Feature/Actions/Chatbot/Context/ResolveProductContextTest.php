@@ -6,6 +6,7 @@ use App\Models\Inventory;
 use App\Models\Product;
 use App\Models\Tag;
 use App\Repositories\Catalog\ProductCatalogRepository;
+use Illuminate\Support\Facades\DB;
 
 test('finds arbitrary catalog products through supported attributes', function (string $message) {
     $category = Category::factory()->create(['name' => 'Field Networking']);
@@ -218,3 +219,13 @@ test('returns explicit empty product context when no catalog term can be resolve
     'generic named inquiry' => ['Are you selling a product named?', 'needs_details'],
     'no catalog match' => ['Do you have Nebula Quantum Parts?', 'not_found'],
 ]);
+
+test('explicit product name detection does not hydrate relations', function () {
+    $product = Product::factory()->available()->create(['name' => 'Aurelius Link Station']);
+    DB::enableQueryLog();
+
+    $resolver = app(ResolveProductContext::class);
+    expect($resolver->namesProduct('What is the price of Aurelius Link Station?'))->toBeTrue();
+    expect(DB::getQueryLog())->toHaveCount(1);
+    expect($resolver->namedProducts('What is the price of Aurelius Link Station?')->modelKeys())->toBe([$product->id]);
+});

@@ -34,7 +34,7 @@ class ChatbotAiAdapter
 {
     /** @param array<string, mixed> $publicState
      * @return array<string, mixed>|null */
-    public function understand(string $message, array $publicState): ?array
+    public function understand(string $message, array $publicState, bool $requiresReviewedDraft = false): ?array
     {
         app(ChatbotFailureTrace::class)->understanding = null;
         if (config('ai_integration.offline') || app(ChatbotOrchestrationService::class)->containsSensitiveInput($message)) {
@@ -50,28 +50,23 @@ class ChatbotAiAdapter
         }
         $started = hrtime(true);
         $timeout = max(1, min(8, (int) config('ai_integration.gemini.scope_timeout_seconds', 6), $budget->remainingSeconds()));
+        $providerMs = null;
         try {
-            $response = $this->promptWithFallback($agent, $prompt, 'scope', $timeout);
+            $response = $this->promptWithFallback($agent, $prompt, 'scope', $timeout, $requiresReviewedDraft ? 2 : 0);
+            $providerMs = (int) ((hrtime(true) - $started) / 1_000_000);
             $this->logUsage('scope', $response);
-            $budget->recordStage('scope', 'completed', (int) ((hrtime(true) - $started) / 1_000_000));
             if (! $response instanceof StructuredAgentResponse) {
-                $budget->recordStage('scope', 'failed');
-                app(ChatbotFailureTrace::class)->record('understanding_invalid_output', 'scope');
-                $this->logAttempt($started, $timeout, 'understanding_invalid_response');
-
-                return null;
+                return $this->rejectUnderstanding($budget, $started, $timeout, 'unstructured_response', $providerMs);
             }
             $data = $response->structured;
             $parts = [];
             $overflow = false;
             if (config('ai_integration.multipart')) {
-                $parts = $data['parts'] ?? [];
-                $overflow = $data['parts_overflow'] ?? false;
+                $parts = array_key_exists('parts', $data) ? $data['parts'] : [];
+                $overflow = array_key_exists('parts_overflow', $data) ? $data['parts_overflow'] : false;
                 unset($data['parts'], $data['parts_overflow']);
                 if (! is_array($parts) || ! array_is_list($parts) || count($parts) > 3 || ! is_bool($overflow)) {
-                    app(ChatbotFailureTrace::class)->record('understanding_invalid_output', 'scope');
-
-                    return null;
+                    return $this->rejectUnderstanding($budget, $started, $timeout, 'invalid_multipart', $providerMs);
                 }
             }
             $defaults = ['branch' => '', 'availability' => 'any', 'sort' => 'relevance', 'minimum_php' => null, 'minimum_inclusive' => true, 'maximum_inclusive' => true, 'price_scope' => 'catalog', 'product_role' => 'main'];
@@ -102,25 +97,25 @@ class ChatbotAiAdapter
             ];
             $validator = Validator::make($data, $rules);
 
-            if ($validator->fails() || array_diff(array_keys($data), array_keys($rules)) !== []) {
-                $budget->recordStage('scope', 'failed');
-                app(ChatbotFailureTrace::class)->record('understanding_invalid_output', 'scope');
-                $this->logAttempt($started, $timeout, 'understanding_invalid_output');
+            if (array_diff(array_keys($data), array_keys($rules)) !== []) {
+                return $this->rejectUnderstanding($budget, $started, $timeout, 'unknown_field', $providerMs);
+            }
+            if ($validator->fails()) {
+                $positionFailures = $validator->failed()['position'] ?? [];
+                $reason = isset($positionFailures['Min']) || isset($positionFailures['Max']) ? 'position_out_of_range' : 'invalid_fields';
 
-                return null;
+                return $this->rejectUnderstanding($budget, $started, $timeout, $reason, $providerMs);
             }
 
             if ($data['branch'] !== '' && mb_stripos($message, $data['branch']) === false
                 && mb_strtolower($data['branch']) !== mb_strtolower($publicState['constraints']['branch'] ?? '')) {
-                app(ChatbotFailureTrace::class)->record('understanding_invalid_output', 'scope');
-
-                return null;
+                return $this->rejectUnderstanding($budget, $started, $timeout, 'ungrounded_branch', $providerMs);
             }
 
             $validatedParts = [];
             foreach ($parts as $part) {
                 if (! is_array($part)) {
-                    return null;
+                    return $this->rejectUnderstanding($budget, $started, $timeout, 'invalid_multipart', $providerMs);
                 }
                 $part = [...$defaults, ...$part];
                 $partValidator = Validator::make($part, $rules);
@@ -128,9 +123,7 @@ class ChatbotAiAdapter
                     || app(ChatbotOrchestrationService::class)->containsSensitiveInput($part['search_query'] ?? '')
                     || ($part['branch'] !== '' && mb_stripos($message, $part['branch']) === false
                         && mb_strtolower($part['branch']) !== mb_strtolower($publicState['constraints']['branch'] ?? ''))) {
-                    app(ChatbotFailureTrace::class)->record('understanding_invalid_output', 'scope');
-
-                    return null;
+                    return $this->rejectUnderstanding($budget, $started, $timeout, 'invalid_part', $providerMs);
                 }
                 $validatedParts[] = $partValidator->validated();
             }
@@ -140,17 +133,42 @@ class ChatbotAiAdapter
                 ...array_intersect_key($validator->validated(), array_flip(['outcome', 'intent', 'operation', 'attributes', 'clarification'])),
                 'parts' => array_map(fn (array $part): array => array_intersect_key($part, array_flip(['outcome', 'intent', 'operation', 'attributes', 'clarification'])), $validatedParts),
             ];
+            $this->recordStage($budget, 'scope', $started, $providerMs);
 
             return [...$validator->validated(), ...($validatedParts !== [] || $overflow ? ['parts' => $validatedParts, 'parts_overflow' => $overflow] : [])];
         } catch (Throwable $exception) {
-            $budget->recordStage('scope', 'failed', (int) ((hrtime(true) - $started) / 1_000_000));
             $details = $this->failureDetails($exception);
+            $this->recordStage($budget, 'scope', $started, $providerMs ?? (int) ((hrtime(true) - $started) / 1_000_000), $details['failure']);
             app(ChatbotFailureTrace::class)->record($details['failure'], 'scope');
             $budget->recordFailure();
             $this->logAttempt($started, $timeout, $details['failure'], $details['status'], $exception::class);
 
             return null;
         }
+    }
+
+    private function rejectUnderstanding(ChatbotProviderBudget $budget, int $started, int $timeout, string $reason, ?int $providerMs): null
+    {
+        $this->recordStage($budget, 'scope', $started, $providerMs, $reason);
+        app(ChatbotFailureTrace::class)->record('understanding_invalid_output', 'scope');
+        $this->logAttempt($started, $timeout, 'understanding_invalid_output');
+
+        return null;
+    }
+
+    private function recordStage(ChatbotProviderBudget $budget, string $stage, int $started, ?int $providerMs, ?string $reason = null): void
+    {
+        $durationMs = (int) ((hrtime(true) - $started) / 1_000_000);
+        $status = $reason === null ? 'completed' : 'failed';
+        $budget->recordStage($stage, $status, $durationMs);
+        Log::info('Chatbot stage finished.', [
+            'stage' => $stage,
+            'status' => $status,
+            'duration_ms' => $durationMs,
+            'provider_wait_ms' => $providerMs,
+            'php_ms' => $providerMs === null ? null : max(0, $durationMs - $providerMs),
+            'reason' => $reason,
+        ]);
     }
 
     public function beginTurn(): void
@@ -175,7 +193,7 @@ class ChatbotAiAdapter
             return $failure;
         }
         if (! $scopeChecked && (int) config('ai_integration.gemini.max_calls', 1) >= 3) {
-            $scope = $this->classify($message);
+            $scope = $this->classify($message, requiresReviewedDraft: (bool) (config('ai_integration.adaptive') || config('ai_integration.model_led') || config('ai_integration.full_catalog_pipeline')));
             if ($scope === null || $scope['outcome'] !== 'supported' || $scope['category'] !== 'product') {
                 if (($scope['outcome'] ?? null) === 'unsupported') {
                     app(ChatbotFailureTrace::class)->scope = 'unsupported';
@@ -203,36 +221,41 @@ class ChatbotAiAdapter
         $responseTimeout = max(1, min(60, (config('ai_integration.full_catalog_pipeline') ? 8 : (int) config('ai_integration.gemini.response_timeout_seconds', 9)), $budget->remainingSeconds() - $reviewAllowance));
         $currentStage = 'generation';
         $stageStarted = hrtime(true);
+        $providerStarted = null;
+        $providerMs = null;
         try {
             $agent = isset($context['parts']) ? new ChatbotMultipartAnswerAgent : new ChatbotEvidenceAgent;
+            $providerStarted = hrtime(true);
             $response = $this->promptWithFallback($agent, $prompt, 'response', $responseTimeout);
+            $providerMs = (int) ((hrtime(true) - $providerStarted) / 1_000_000);
             $this->logUsage('response', $response);
-            $budget->recordStage('generation', 'completed', (int) ((hrtime(true) - $stageStarted) / 1_000_000));
-            Log::info('Chatbot stage completed.', ['role' => 'response', 'duration_ms' => (int) ((hrtime(true) - $stageStarted) / 1_000_000)]);
             $natural = $response instanceof StructuredAgentResponse && (array_key_exists('answer', $response->structured) || isset($context['parts']));
             $text = $response instanceof StructuredAgentResponse
                 ? (isset($context['parts']) ? $renderer->multipartDraft($context, $response->structured)
                     : ($natural ? $renderer->draft($evidence, $response->structured, $intent) : $renderer->render($renderer->evidence($context), $response->structured))) : null;
             if ($text === null) {
-                $budget->recordStage('generation', 'failed');
+                $this->recordStage($budget, 'generation', $stageStarted, $providerMs, 'invalid_draft');
                 app(ChatbotFailureTrace::class)->record('validation_failed', 'generation');
 
                 return $failure;
             }
+            $this->recordStage($budget, 'generation', $stageStarted, $providerMs);
             if ($natural || config('ai_integration.full_catalog_pipeline') || config('ai_integration.gemini.validation_enabled')) {
+                $stageStarted = hrtime(true);
+                $currentStage = 'validation';
+                $providerMs = null;
+                $providerStarted = null;
                 $review = $this->preparePrompt($message, ['evidence' => $evidence, 'intent' => $intent, 'answer' => $text]);
                 if ($budget->remainingSeconds() === 0 || ! $budget->reserve($review)) {
-                    $budget->recordStage('validation', 'failed');
+                    $this->recordStage($budget, 'validation', $stageStarted, $providerMs, 'budget_exhausted');
                     app(ChatbotFailureTrace::class)->record('budget_exhausted', 'validation');
 
                     return $failure;
                 }
-                $stageStarted = hrtime(true);
-                $currentStage = 'validation';
+                $providerStarted = hrtime(true);
                 $verdict = $this->promptWithFallback(new ChatbotValidationAgent, $review, 'validation', max(1, min(60, (config('ai_integration.full_catalog_pipeline') ? 10 : (int) config('ai_integration.gemini.validation_timeout_seconds', 20)), $budget->remainingSeconds())));
+                $providerMs = (int) ((hrtime(true) - $providerStarted) / 1_000_000);
                 $this->logUsage('validation', $verdict);
-                $budget->recordStage('validation', 'completed', (int) ((hrtime(true) - $stageStarted) / 1_000_000));
-                Log::info('Chatbot stage completed.', ['role' => 'validation', 'duration_ms' => (int) ((hrtime(true) - $stageStarted) / 1_000_000)]);
                 $reviewData = $verdict instanceof StructuredAgentResponse ? $verdict->structured : [];
                 $legacyApproval = $reviewData === ['verdict' => 'approve'];
                 $validReview = Validator::make(['review' => $reviewData], [
@@ -246,11 +269,12 @@ class ChatbotAiAdapter
                         ? $reviewData['reason'] : 'invalid_review';
                     app(ChatbotFailureTrace::class)->reviewReason = $reason;
                     Log::notice('Chatbot review rejected.', ['reason' => $reason]);
-                    $budget->recordStage('validation', 'failed');
+                    $this->recordStage($budget, 'validation', $stageStarted, $providerMs, $reason);
                     app(ChatbotFailureTrace::class)->record('validation_failed', 'validation');
 
                     return $failure;
                 }
+                $this->recordStage($budget, 'validation', $stageStarted, $providerMs);
             }
             $this->logAttempt($started, $responseTimeout);
             $budget->recordSuccess();
@@ -261,7 +285,8 @@ class ChatbotAiAdapter
             $budget->recordFailure();
             $this->logAttempt($started, $responseTimeout, $details['failure'], $details['status'], $exception::class);
             app(ChatbotFailureTrace::class)->record($details['failure'], $currentStage);
-            $budget->recordStage($currentStage, 'failed', (int) ((hrtime(true) - $stageStarted) / 1_000_000));
+            $providerMs ??= $providerStarted === null ? null : (int) ((hrtime(true) - $providerStarted) / 1_000_000);
+            $this->recordStage($budget, $currentStage, $stageStarted, $providerMs, $details['failure']);
 
             return ['successful' => false, 'text' => null, 'failure' => $details['failure']];
         }
@@ -322,7 +347,7 @@ class ChatbotAiAdapter
         return $name;
     }
 
-    private function promptWithFallback(ChatbotUnderstandingAgent|ChatbotEvidenceAgent|ChatbotIntentAgent|ChatbotValidationAgent|ChatbotResponseAgent $agent, string $prompt, string $role, int $timeout): AgentResponse
+    private function promptWithFallback(ChatbotUnderstandingAgent|ChatbotEvidenceAgent|ChatbotIntentAgent|ChatbotValidationAgent|ChatbotResponseAgent $agent, string $prompt, string $role, int $timeout, int $downstreamCalls = 0): AgentResponse
     {
         $primary = (string) config('ai_integration.gemini.model');
         $models = [$primary];
@@ -343,7 +368,7 @@ class ChatbotAiAdapter
                 continue;
             }
             $remaining = min($budget->remainingSeconds(), (int) ceil($timeout - (microtime(true) - $started)));
-            if ($remaining < 1 || ($attempted && ! $budget->reserveRetry($prompt))) {
+            if ($remaining < 1 || ($attempted && ! $budget->reserveRetry($prompt, $downstreamCalls))) {
                 break;
             }
             $attempted = true;
@@ -396,13 +421,17 @@ class ChatbotAiAdapter
     }
 
     /** @return array{outcome: string, category: string, intent: string, language: string}|null */
-    public function classify(string $message): ?array
+    public function classify(string $message, bool $requiresReviewedDraft = false): ?array
     {
         if (config('ai_integration.offline')) {
             return null;
         }
         $agent = new ChatbotIntentAgent;
         $started = hrtime(true);
+        $budget = app(ChatbotProviderBudget::class);
+        $providerStarted = null;
+        $providerMs = null;
+        $reason = 'invalid_classification';
         try {
             $message = preg_replace('/\bbf[\s\W_]*\d+\b/iu', '[order reference]', $message) ?? $message;
             if (config('ai_integration.enabled')) {
@@ -420,12 +449,14 @@ class ChatbotAiAdapter
             }
             $prompt = $this->preparePrompt($message, ['allowed_intents' => $allowed]);
             $routeModels = config('ai_integration.enabled') || config('ai_integration.gemini.fallback_enabled');
-            if ($routeModels && ! app(ChatbotProviderBudget::class)->reserve($prompt)) {
+            if ($routeModels && ! $budget->reserve($prompt)) {
                 return null;
             }
+            $providerStarted = hrtime(true);
             $response = $routeModels
-                ? $this->promptWithFallback($agent, $prompt, 'scope', min($agent->timeout(), config('ai_integration.adaptive') ? 4 : $agent->timeout(), app(ChatbotProviderBudget::class)->remainingSeconds()))
+                ? $this->promptWithFallback($agent, $prompt, 'scope', min($agent->timeout(), config('ai_integration.adaptive') ? 4 : $agent->timeout(), $budget->remainingSeconds()), $requiresReviewedDraft ? 2 : 0)
                 : $agent->prompt($prompt);
+            $providerMs = (int) ((hrtime(true) - $providerStarted) / 1_000_000);
             if ($routeModels) {
                 $this->logUsage('scope', $response);
             }
@@ -436,6 +467,8 @@ class ChatbotAiAdapter
             }
             $data = $response->structured;
             if (! config('ai_integration.advice_enabled') && in_array($data['intent'] ?? null, ['catalog_recommendation', 'component_compatibility'], true)) {
+                $reason = 'intent_disabled';
+
                 return null;
             }
             $validator = Validator::make(['classification' => $data], [
@@ -456,13 +489,19 @@ class ChatbotAiAdapter
                 return null;
             }
             $this->logAttempt($started, $agent->timeout());
+            $reason = null;
 
             return ['outcome' => $data['outcome'], 'category' => $data['category'], 'intent' => $data['intent'], 'language' => $data['language']];
         } catch (Throwable $exception) {
             $details = $this->failureDetails($exception);
+            $reason = $details['failure'];
             $this->logAttempt($started, $agent->timeout(), $details['failure'], $details['status'], $exception::class);
 
             return null;
+        } finally {
+            if ($providerStarted !== null) {
+                $this->recordStage($budget, 'scope', $providerStarted, $providerMs ?? (int) ((hrtime(true) - $providerStarted) / 1_000_000), $reason);
+            }
         }
     }
 

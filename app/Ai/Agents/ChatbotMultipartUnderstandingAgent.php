@@ -16,7 +16,7 @@ class ChatbotMultipartUnderstandingAgent extends ChatbotUnderstandingAgent
     public function schema(JsonSchema $schema): array
     {
         return [...parent::schema($schema),
-            'parts' => $schema->array()->items($schema->object(fn (JsonSchema $schema): array => parent::schema($schema)))->required(),
+            'parts' => $schema->array()->items($schema->object(fn (JsonSchema $schema): array => parent::schema($schema)))->max(2)->required(),
             'parts_overflow' => $schema->boolean()->required(),
         ];
     }

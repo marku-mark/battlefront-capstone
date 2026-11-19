@@ -222,7 +222,7 @@ class EvaluateChatbot extends Command
                         'message' => $response['message'], 'language' => $response['language'], 'source' => $response['source'],
                         'presentation' => $response['presentation'], 'failure' => $failure, 'review_reason' => $trace->reviewReason,
                         'duration_ms' => (int) ((hrtime(true) - $turnStarted) / 1_000_000), 'usage' => app(ChatbotProviderBudget::class)->usage(),
-                        'retrieval' => $trace->retrieval, 'understanding' => $trace->understanding,
+                        'retrieval' => $trace->retrieval, 'understanding' => $trace->understanding, 'branch_searches' => $trace->branchSearches,
                         'provider_responses' => $trace->providerResponses, 'stages' => $trace->stages,
                         'retrieval_failures' => $trace->retrievalFailures, 'draft_reason' => $trace->draftReason,
                         'state' => $turnState, 'attribute_source' => $trace->understanding !== null ? 'model' : 'local',

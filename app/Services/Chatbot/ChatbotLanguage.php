@@ -13,6 +13,8 @@ class ChatbotLanguage
         '\b(?:walay budget limit|walay limit sa budget|dili na limitahan ang budget|wala nang budget limit|walang budget limit|wala na sang budget limit|wala na limit sa budget)\b' => 'no budget',
         '\b(?:bisan ano nga presyo|kahit anong presyo|bisan ano nga price|bisan unsang presyo)\b' => 'any price',
         '\b(?:bisan unsang brand|kahit anong brand|bisan ano nga brand)\b' => 'any brand',
+        '\b(?:may naa|naa|naay|aduna)\s+(?:mo|moy|kamo)\b' => 'available',
+        '\b(?:namo|nimo)\s+mo\b' => 'available',
         '\bcpu(?:s)?\b(?!-|\s+(?:cooler|fan|cooling|thermal|paste|holder|stand|case)\b)' => 'processor',
         '\b(?:paano|unsaon) (?:gamitin|gamiton|paggamit|paggamit sa|gamiton ang|gamitin ang|paggamit sa ang) (?:ang |sa )?pc builder\b(?!\s+templates)' => 'how do i use pc builder',
         '\b(?:paano|unsaon) (?:pumili|magpili|pagpili) (?:ng |sang |og )?components (?:sa|in) pc builder\b' => 'how do i select components in pc builder',
@@ -96,7 +98,7 @@ class ChatbotLanguage
             'couldn' => 'could not', 'wouldn' => 'would not', default => 'should not',
         }, $message) ?? $message;
         $message = $this->withoutClarificationPrefix($this->withoutLanguageRequest($message));
-        $message = preg_replace('/\b(?:pls|plz|please|kindly|hello|hi|po)\b[,:]?/iu', ' ', $message) ?? $message;
+        $message = preg_replace('/\b(?:pls|plz|please|kindly|hello|hi|po|palihog)\b[,:]?/iu', ' ', $message) ?? $message;
         $message = Str::squish($message);
         $message = preg_replace_callback('/\b(?:prcie|prce|stok|availble|avalable|laptp|keybord|moniter|paymnt|delivry|oder)\b/iu', fn (array $match): string => [
             'prcie' => 'price', 'prce' => 'price', 'stok' => 'stock', 'availble' => 'available', 'avalable' => 'available',
@@ -135,6 +137,13 @@ class ChatbotLanguage
         return Str::of($this->canonical($message))->lower()->replaceMatches('/[^\p{L}\p{N}\s]+/u', ' ')->squish()->toString();
     }
 
+    public function withoutStockTiming(string $query): string
+    {
+        $timing = '(?:right now|at the moment|as of now|currently|today|now|subong|karon|ngayon)';
+
+        return trim(preg_replace('/^'.$timing.'[\s,]+|\s+'.$timing.'(?=\s*[?.!]*$)/iu', ' ', trim($query)) ?? $query);
+    }
+
     public function explicit(string $message): ?string
     {
         $message = $this->withoutNegatedLanguageRequest($message);
@@ -169,15 +178,24 @@ class ChatbotLanguage
     {
         $patterns = [
             'hil' => ['may ara', 'ara kamo', 'diin', 'kag', 'sang', 'akon', 'sini', 'subong', 'indi', 'kagina', 'manubo'],
-            'ceb' => ['naa', 'naay', 'aduna', 'moy', 'asa', 'unsa', 'unsaon', 'akong', 'nako', 'inyong', 'inyong', 'karon', 'dili', 'ganiha', 'rekomendahi'],
+            'ceb' => ['naa', 'naay', 'aduna', 'moy', 'asa', 'unsa', 'unsaon', 'akong', 'nako', 'inyong', 'karon', 'dili', 'ganiha', 'rekomendahi', 'namo'],
             'tl' => ['magkano', 'paano', 'nasaan', 'meron', 'merong', 'mayroon', 'mayroong', 'ba kayo', 'aking', 'kayong', 'niyan', 'po', 'hindi', 'irekomenda', 'mura'],
-            'en' => ['how', 'where', 'what', 'which', 'do you', 'have you', 'got any', 'can i', 'recommend', 'compare', 'show me', 'help me'],
+            'en' => ['how', 'where', 'what', 'which', 'do you', 'have you', 'got any', 'can i', 'recommend', 'suggest', 'compare', 'show me', 'help me', 'something cheaper', 'any other brand'],
         ];
         $scores = preg_match('/\bmay\s+[^.!?]*?\bkamo\b/iu', $message) === 1 ? ['hil' => 2] : [];
+
+        $cebuanoScore = preg_match('/\b(?:naa|naay)\s+[^.!?]*?\bmo\b/iu', $message) === 1 ? 2 : 0;
+        if (preg_match('/\bnamo\s+mo\b/iu', $message) === 1) {
+            $cebuanoScore += 3;
+        }
+        if ($cebuanoScore > 0) {
+            $scores['ceb'] = $cebuanoScore;
+        }
+
         foreach ($patterns as $language => $phrases) {
             foreach ($phrases as $phrase) {
                 if (preg_match('/\b'.preg_quote($phrase, '/').'\b/iu', $message) === 1) {
-                    $weight = in_array($phrase, ['may ara', 'ara kamo', 'diin', 'mayroong', 'merong', 'magkano', 'unsaon', 'rekomendahi', 'do you', 'have you', 'got any', 'can i'], true) ? 2 : 1;
+                    $weight = in_array($phrase, ['may ara', 'ara kamo', 'diin', 'mayroong', 'merong', 'magkano', 'unsaon', 'rekomendahi', 'namo', 'do you', 'have you', 'got any', 'can i'], true) ? 2 : 1;
                     $scores[$language] = ($scores[$language] ?? 0) + $weight;
                 }
             }

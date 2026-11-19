@@ -20,6 +20,9 @@ class ChatbotFailureTrace
     /** @var list<array<string, mixed>> */
     public array $retrieval = [];
 
+    /** @var list<array{source: string, filters: list<string>, branch: string, result_count: int, reason: string}> */
+    public array $branchSearches = [];
+
     /** @var array<string, mixed>|null */
     public ?array $understanding = null;
 
@@ -44,10 +47,40 @@ class ChatbotFailureTrace
         $this->reviewReason = null;
         $this->draftReason = null;
         $this->retrieval = [];
+        $this->branchSearches = [];
         $this->understanding = null;
         $this->providerResponses = [];
         $this->stages = [];
         $this->retrievalFailures = [];
+    }
+
+    public function recordBranchSearch(?BranchStockSearch $request, string $reason, int $count): void
+    {
+        if (count($this->branchSearches) >= 2) {
+            return;
+        }
+
+        $fields = $request->filters ?? [];
+        $filters = [];
+        foreach (['brand', 'capacity', 'excluded_brands', 'minimum', 'maximum', 'sort'] as $field) {
+            if (isset($fields[$field]) && $fields[$field] !== '' && $fields[$field] !== []) {
+                $filters[] = $field;
+            }
+        }
+        if ($request?->scope !== null) {
+            $filters[] = 'product_scope';
+        }
+        if ($request?->productIds !== null) {
+            $filters[] = 'product_ids';
+        }
+
+        $this->branchSearches[] = [
+            'source' => $this->understanding === null ? 'local' : 'model',
+            'filters' => $filters,
+            'branch' => $request->location['outcome'] ?? 'unresolved',
+            'result_count' => $count,
+            'reason' => $reason,
+        ];
     }
 
     public function record(string $reason, string $stage): void
