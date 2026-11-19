@@ -91,6 +91,7 @@ onBeforeUnmount(() => {
     clearTimeout(waitingTimer);
     persistTranscript();
     conversationVersion++;
+    inquiry.cancel();
     clearTimeout(expiryTimer);
     window.removeEventListener('pagehide', persistTranscript);
 });
@@ -181,6 +182,7 @@ watch(
         () => page.props.chatbotMemory?.identity,
     ],
     startNewChat,
+    { flush: 'sync' },
 );
 
 async function openPanel() {

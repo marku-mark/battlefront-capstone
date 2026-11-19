@@ -5,7 +5,6 @@ import { Menu } from '@lucide/vue';
 import AppLogo from '@/components/AppLogo.vue';
 import AppLogoIcon from '@/components/AppLogoIcon.vue';
 import GuestAppearanceToggle from '@/components/GuestAppearanceToggle.vue';
-import CustomerChatAssistant from '@/components/chatbot/CustomerChatAssistant.vue';
 import { Button } from '@/components/ui/button';
 import {
     Sheet,
@@ -169,6 +168,5 @@ const storefrontLinks = [
                 </Sheet>
             </div>
         </div>
-        <CustomerChatAssistant />
     </header>
 </template>

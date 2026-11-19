@@ -3,8 +3,6 @@ import StorefrontHeader from '@/components/StorefrontHeader.vue';
 import { Head, Link } from '@inertiajs/vue3';
 import { index as pcBuilderIndex } from '@/routes/pc-builder';
 
-defineOptions({ layout: null });
-
 defineProps({
     build: { type: Object, required: true },
 });
